@@ -1,0 +1,3 @@
+tmp_dir: /tmp/abc
+env:
+    nice: 1000
