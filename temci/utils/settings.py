@@ -1,14 +1,16 @@
 import yaml
 import copy
+import os, shutil
+import click
 from .util import recursive_contains, recursive_get, \
     recursive_find_key, recursive_exec_for_leafs, Singleton
 
-class Settings:
+class Settings(metaclass=Singleton):
 
     """ Manages the Settings.
     """
 
-    __metaclass__ = Singleton
+  #  __metaclass__ = Singleton
 
     defaults = {
         "tmp_dir": "/tmp/temci",
@@ -34,9 +36,18 @@ class Settings:
 
     def __init__(self, program=None):
         """ Inits a Settingss singleton object and thereby loads the Settings files.
+        It loads the settings files from the app folder (config.yaml) and
+        the current working directory (temci.yaml) if they exist.
         :param program: Name of the part program, this code runs in, e.g. "env", "stat" or "report"
         """
         self.program = program
+        self.load_from_config_dir()
+        self.load_from_current_dir()
+        self._setup()
+
+    def _setup(self):
+        if os._exists(self.prefs["tmp_dir"]):
+            os.mkdir(self.prefs["tmp_dir"])
 
     def reset(self):
         """ Resets the current settings to the defaults.
@@ -54,6 +65,30 @@ class Settings:
                 if key[0] not in self._valid_part_programs or key[0] is self.program:
                     self.set("/".join(path), value)
             recursive_exec_for_leafs(map, func)
+
+    def load_from_dir(self, dir):
+        """
+        Loads the settings from the `config.yaml` file inside the passed directory.
+        :param dir: path of the directory
+        """
+        self.load_file(self, os.path.join(dir, "config.yaml"))
+
+    def load_from_config_dir(self):
+        """
+        Loads the config file from the application directory (e.g. in the users home folder).
+        If it exists.
+        """
+        conf = os.path.join(click.get_app_dir("temci"), "config.yaml")
+        if os.path.exists(conf) and os.path.isfile(conf):
+            self.load_file(conf)
+
+    def load_from_current_dir(self):
+        """
+        Loads the settings from the `temci.yaml` file from the current working directory if it exists.
+        """
+        conf = "temci.yaml"
+        if os.path.exists(conf) and os.path.isfile(conf):
+            self.load_file(conf)
 
     def get(self, key, default=None):
         """ Get the setting with the given key.

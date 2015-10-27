@@ -7,6 +7,7 @@ Requirements
 ---------------
 - python3
     - click
+    - sh
     - pyaml
     - unittest (for unit testing)
 - super user rights
