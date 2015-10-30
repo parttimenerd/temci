@@ -7,6 +7,20 @@ from the user (e.g. from YAML config files).
 The Type instance are usable with the standard isinstance function::
 
     isinstance(4, Either(Float(), Int()))
+
+Type instances also support the "&" (producres All(one, two)) and "|" (produces Either(one, two)) operators.
+The above sample code can therefore be written as::
+
+    isinstance(4, Float() | Int())
+
+The native type wrappers also support custom constraints. With help of the fn module one can write::
+
+    t = Float(_ > 0) | Int(_ > 10)
+    isinstance(var, t)
+
+"t" is a Type that matches only floats greater than 0 and ints greater than 10.
+
+For more examples look into the test_typecheck.py file.
 """
 
 __all__ = [
@@ -16,6 +30,7 @@ __all__ = [
     "Any",
     "Int",
     "Float",
+    "NonExistent",
 
     "Info",
 
@@ -77,8 +92,11 @@ class Info(object):
         return InfoMsg("{} is non existent, expected value of type {}".format(self._str(), constraint))
 
     def errormsg_too_many(self, constraint, value_len, constraint_len):
-        return InfoMsg("{} has to many elements {}, " \
+        return InfoMsg("{} has to many elements ({}), " \
                "expected value of type {} with {} elements".format(self._str(), value_len, constraint, constraint_len))
+
+    def wrap(self, result: bool):
+        return InfoMsg(result)
 
 class NoInfo(Info):
 
@@ -93,6 +111,9 @@ class NoInfo(Info):
 
     def errormsg_non_existent(self, constraint):
         return False
+
+    def wrap(self, result: bool):
+        return result
 
 class InfoMsg(object):
 
@@ -130,6 +151,26 @@ class Type(object):
         for type in types:
             if not isinstance(type, Type):
                 raise ConstraintError("{} is not an instance of a Type subclass".format(type))
+
+    def __and__(self, other):
+        """
+        Alias for All(self, other)
+        """
+        return All(self, other)
+
+    def __or__(self, other):
+        """
+        Alias for Either(self, other).
+        """
+        return Either(self, other)
+
+    def __floordiv__(self, other):
+        """
+        Alias for Constraint(other, self). Self mustn't be a Type.
+        """
+        if isinstance(other, Type):
+            raise ConstraintError("{} mustn't be an instance of a Type subclass".format(other))
+        return Constraint(other, self)
 
 class Exact(Type):
     """
@@ -290,7 +331,7 @@ class Constraint(Type):
         return True
 
     def __str__(self):
-        descr = self.description if self.description is not None else repr(self.constraint)
+        descr = self.description if self.description is not None else "<function>"
         return "{}:{}".format(self.constrained_type, descr)
 
 class List(Type):
@@ -320,6 +361,32 @@ class List(Type):
     def __str__(self):
         return "List({})".format(self.elem_type)
 
+
+class _NonExistentVal(object):
+    """
+    Helper class for NonExistent Type.
+    """
+
+    def __str__(self):
+        return "<non existent>"
+
+    def __repr__(self):
+        return self.__str__()
+
+_non_existen_val = _NonExistentVal()
+
+class NonExistent(Type):
+    """
+    Checks a key of a dictionary for existence if its associated value has this type.
+    """
+
+    def _instancecheck_impl(self, value, info: Info):
+        return info.errormsg_cond(type(value) == _NonExistentVal, self, "[value]")
+
+    def __str__(self):
+        return "non existent"
+
+
 class Dict(Type):
     """
     Checks for the value to be a dictionary with expected keys and values satisfy given type constraints.
@@ -344,13 +411,19 @@ class Dict(Type):
     def _instancecheck_impl(self, value, info: Info = NoInfo()):
         if not isinstance(value, dict):
             return info.errormsg(self)
+        non_existent_val_num = 0
         for key in self.data.keys():
-            if not key in value:
-                info = info.add_to_name("[{!r}]".format(key))
-                return info.errormsg_non_existent(self)
-            res = self.data[key].__instancecheck__(value[key], info)
-            if not res:
-                return res
+            if key in value:
+                res = self.data[key].__instancecheck__(value[key], info)
+                if not res:
+                    return res
+            else:
+                is_non_existent = self.data[key].__instancecheck__(_non_existen_val,
+                                                                   info.add_to_name("[{!r}]".format(key)))
+                non_existent_val_num += 1
+                if key not in value and not is_non_existent:
+                    info = info.add_to_name("[{!r}]".format(key))
+                    return info.errormsg_non_existent(self)
         for key in value.keys():
             ninfo = info.add_to_name("(key={!r})".format(key))
             res = self.key_type.__instancecheck__(key, ninfo)
@@ -362,17 +435,17 @@ class Dict(Type):
             res = self.value_type.__instancecheck__(val, ninfo)
             if not res:
                 return res
-        if self.all_keys and len(self.data) is not len(value):
+        if self.all_keys and len(self.data) - non_existent_val_num != len(value):
             return info.errormsg_too_many(self, len(value), len(self.data))
         return True
 
     def __str__(self):
         fmt = "Dict({data}, keys={key_type}, values={value_type})"
+        data_str = ", ".join("{!r}: {}".format(key, self.data[key]) for key in self.data)
         if self.all_keys:
-            fmt = "Dict({data}, {all_keys}, keys={key_type}, values={value_type})"
-        return fmt.format(data=self.data, all_keys=self.all_keys, key_type=self.key_type,
+            fmt = "Dict({{{data}}}, {all_keys}, keys={key_type}, values={value_type})"
+        return fmt.format(data=data_str, all_keys=self.all_keys, key_type=self.key_type,
                           value_type=self.value_type)
-
 
 def Int(constraint = None):
     """
@@ -382,9 +455,18 @@ def Int(constraint = None):
         return Constraint(constraint, T(int))
     return T(int)
 
+
 def Float(constraint = None):
     """
     Alias for Constraint(constraint, T(float)) or T(float)
+    """
+    if constraint is not None:
+        return Constraint(constraint, T(float))
+    return T(int)
+
+def Str(constraint = None):
+    """
+    Alias for Constraint(constraint, T(str)) or T(str)
     """
     if constraint is not None:
         return Constraint(constraint, T(float))

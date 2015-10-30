@@ -7,9 +7,9 @@ class TestTypecheckModule(unittest.TestCase):
 
     def assertTypesCorrect(self, *tuples: object):
         for (value, type_constraint) in tuples:
-            msg = "Value {!r} doesn't adhere to {}".format(value, type_constraint)
+            msg = "Value {!r} doesn't adhere to {!s}".format(value, type_constraint)
             res = type_constraint.__instancecheck__(value, Info("abc"))
-            self.assertTrue(bool(res), msg="{}: {}".format(msg, res))
+            self.assertTrue(bool(res), msg="{}: {!s}".format(msg, res))
             self.assertTrue(isinstance(value, type_constraint), msg=msg)
 
     def assertTypesInCorrect(self, *tuples: object):
@@ -56,6 +56,16 @@ class TestTypecheckModule(unittest.TestCase):
             ([4, 5], Either(T(str), T(int))),
             ([], Either())
         )
+        self.assertTypesCorrect(
+            (3, T(int) | T(float) | T(str)),
+            (3.0, Either(T(int), T(float), T(str))),
+            ("sdf", Either(T(int), T(float), T(str))),
+            ("sdf", Either(Exact("SDF"), Exact("sdf")))
+        )
+        self.assertTypesInCorrect(
+            ([4, 5], Either(T(str), T(int))),
+            ([], Either())
+        )
 
     def test_all(self):
         self.assertTypesCorrect(
@@ -68,6 +78,16 @@ class TestTypecheckModule(unittest.TestCase):
         self.assertTypesInCorrect(
             (34, All(T(int), T(float))),
             ("as", All(T(str), T(list)))
+        )
+        self.assertTypesCorrect(
+            ("asd", Any() | T(str)),
+            ("asd", (Exact("SDF") | Exact("asd")) | T(str)),
+            (4, T(int) | T(float) | T(int) | Exact(4)),
+            (3, All())
+        )
+        self.assertTypesInCorrect(
+            (34, T(int) & T(float)),
+            ("as", T(str) & T(list))
         )
 
     def test_any(self):
@@ -92,7 +112,7 @@ class TestTypecheckModule(unittest.TestCase):
             return x > 0
 
         self.assertTypesCorrect(
-            (4, Int(_ > 0 and _ != 0)),
+            (4, Int(_ > 0 | _ != 0)),
             (4, Constraint(biggerThanZero)),
             (4.0, Constraint(biggerThanZero)),
             (4, Constraint(biggerThanZero, T(int))),
@@ -159,4 +179,26 @@ class TestTypecheckModule(unittest.TestCase):
                 "sdf": T(int),
                 "feature": Either(Exact("yes"), Constraint(lambda x: x > 0, T(int)))
             }))
+        )
+
+    def test_nonexistent(self):
+        print(T(str) | (T(str)))
+        t = Dict({"asdf": Either(
+                 NonExistent(),
+                 Dict({"ads":  Either(NonExistent(), Int(_ != 4)) })
+             )})
+        self.assertTypesCorrect(
+            ({"asdf": {}}, t),
+            ({}, t),
+            ({"asdf": {"ads": 3}}, t),
+            ({"asdf": 4}, Dict({"asdf": Either(NonExistent(), Int(_ > 3))})),
+            ({}, Dict({"ads": Either(NonExistent(), Int(_ > 3))})),
+            ({}, Dict({"ads": NonExistent()})),
+            ({"ads": 3}, Dict({"ads": Either(NonExistent(), Any())}))
+        )
+        t = Dict({"asdf": NonExistent() | Dict({"ads":  NonExistent() | Int(_ != 4) })})
+        self.assertTypesCorrect(
+            ({"asdf": {}}, t),
+            ({}, t),
+            ({"asdf": {"ads": 3}}, t)
         )
