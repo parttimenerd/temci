@@ -50,7 +50,8 @@ def recursive_find_key(key, data):
             return [sub] + sub_keys
     return None
 
-def recursive_exec_for_leafs(data, func, _path_prep=[]):
+
+def recursive_exec_for_leafs(data: dict, func, _path_prep=[]):
     """
     Executes the function for every leaf key (a key without any sub keys) of the data dict tree.
     :param data: dict tree
@@ -63,6 +64,7 @@ def recursive_exec_for_leafs(data, func, _path_prep=[]):
             recursive_exec_for_leafs(data[subkey], func, _path_prep=_path_prep + [subkey])
         else:
             func(subkey, _path_prep + [subkey], data[subkey])
+
 
 class Singleton(type):
     """ Singleton meta class.

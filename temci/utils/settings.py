@@ -46,7 +46,7 @@ class Settings(metaclass=Singleton):
         self._setup()
 
     def _setup(self):
-        if os._exists(self.prefs["tmp_dir"]):
+        if not os.path.exists(self.prefs["tmp_dir"]):
             os.mkdir(self.prefs["tmp_dir"])
 
     def reset(self):
@@ -54,7 +54,7 @@ class Settings(metaclass=Singleton):
         """
         self.prefs = copy.deepcopy(self.defaults)
 
-    def load_file(self, file):
+    def load_file(self, file: str):
         """
         Loads the settings from the settings yaml file.
         :param file: path to the file
@@ -66,7 +66,7 @@ class Settings(metaclass=Singleton):
                     self.set("/".join(path), value)
             recursive_exec_for_leafs(map, func)
 
-    def load_from_dir(self, dir):
+    def load_from_dir(self, dir: str):
         """
         Loads the settings from the `config.yaml` file inside the passed directory.
         :param dir: path of the directory
@@ -90,7 +90,7 @@ class Settings(metaclass=Singleton):
         if os.path.exists(conf) and os.path.isfile(conf):
             self.load_file(conf)
 
-    def get(self, key, default=None):
+    def get(self, key: str, default=None) -> object:
         """ Get the setting with the given key.
         Keys can either be simple identifiers of a setting or "/" separated paths (e.g. "env/tmp_path")
         :param key: name of the Settings
@@ -110,12 +110,12 @@ class Settings(metaclass=Singleton):
             else:
                 return default
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str):
         """ Alias for self.get(self, key).
         """
         return self.get(key)
 
-    def set(self, key, value):
+    def set(self, key: str, value):
         """
         Sets a setting to the passed value (if it exists).
         If the setting has options, setting it sets the boolean option "enable".
@@ -131,13 +131,14 @@ class Settings(metaclass=Singleton):
             for sub in keys[0:-1]:
                 data = data[sub]
             data[keys[-1]] = value
+        self._setup()
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value):
         """
         Alias for self.set(key, value).
         """
 
-    def _key_to_list(self, key):
+    def _key_to_list(self, key: str) -> list:
         """
         Converts a Settings key to a valid list of keys for the different levels of the Settings tree
         :param key: Settings key
@@ -168,7 +169,7 @@ class Settings(metaclass=Singleton):
                 return path
         raise SettingsError("No such Settings %s" % key)
 
-    def set_program(self, name):
+    def set_program(self, name: str):
         """ Set the part program, that is currently run (e.g. "env", "stat" or "report")
         """
         if name not in self._valid_part_programs:

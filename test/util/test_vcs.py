@@ -69,8 +69,9 @@ class TestFileDriver(unittest.TestCase):
             "commit_id": "",
             "commit_message": "",
             "commit_number": -1,
-            "is_unstaged": True,
-            "from_other_branch": False
+            "is_uncommitted": True,
+            "is_from_other_branch": False,
+            "branch": ""
         })
         with self.assertRaises(vcs.VCSError):
             driver.get_info_for_revision(10)
@@ -176,15 +177,17 @@ class TestGitDriver(unittest.TestCase):
                 "commit_id": "",
                 "commit_message": "[Uncommited]",
                 "commit_number": -1,
-                "is_unstaged": True,
-                "from_other_branch": False
+                "is_uncommitted": True,
+                "is_from_other_branch": False,
+                "branch": "master"
             })
         valid(0, {
                 "commit_id": "90b09c2339bfd962a93b68523f1958351db8256b",
                 "commit_message": "sdf",
                 "commit_number": 0,
-                "is_unstaged": False,
-                "from_other_branch": False
+                "is_uncommitted": False,
+                "is_from_other_branch": False,
+                "branch": "master"
             })
 
     def test_copy_revision(self):

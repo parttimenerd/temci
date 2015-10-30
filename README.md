@@ -7,11 +7,12 @@ Requirements
 ---------------
 - python3
     - click
-    - sh
     - pyaml
     - unittest (for unit testing)
+    - fn
 - super user rights
 - linux
+- git (for unit testing)
 
 Testing
 --------------

@@ -92,13 +92,15 @@ class VCSDriver:
 
     def get_info_for_revision(self, id_or_num):
         """
-        Get an info dict for the given commit (-1 represent the unstaged changes).
+        Get an info dict for the given commit (-1 represent the uncommitted changes).
         Structure of the info dict:
         ```
         "commit_id"; …,
         "commit_message": …,
         "commit_number": …,
-        "is_unstaged": True/False
+        "is_uncommitted": True/False,
+        "is_from_other_branch": True/False,
+        "branch": … # branch name or empty string if this commit belongs to no branch
         ```
         :param id_or_num: id or number of the commit
         :return info dict
@@ -108,7 +110,7 @@ class VCSDriver:
     def copy_revision(self, id_or_num, sub_dir, dest_dirs):
         """
         Copy the sub directory of the current vcs base directory into all of the destination directories.
-        :param id_or_num: id or number of the revision (-1 represent the unstaged changes)
+        :param id_or_num: id or number of the revision (-1 represent the uncommitted changes)
         :param sub_dir: sub directory of the current vcs base directory relative to it
         :param dest_dirs: list of destination directories in which the content of the sub dir is placed or dest dir string
         :raises VCSError if something goes wrong while copying the directories
@@ -199,8 +201,9 @@ class FileDriver(VCSDriver):
             "commit_id": "",
             "commit_message": "",
             "commit_number": -1,
-            "is_unstaged": True,
-            "from_other_branch": False
+            "is_uncommitted": True,
+            "is_from_other_branch": False,
+            "branch": ""
         }
 
     def copy_revision(self, id_or_num, sub_dir, dest_dirs):
@@ -285,19 +288,30 @@ class GitDriver(VCSDriver):
         except VCSError:
             return False
 
+    def _get_branch_for_revision(self, id_or_num):
+        if id_or_num == -1:
+            return self.get_branch()
+        id = self._commit_number_to_id(id_or_num)
+        out = self._exec_command("git branch --contains {}".format(id))
+        print(out)
+        out = out.split("\n")[0].strip()
+        return out.split(" ")[-1]
+
     def get_info_for_revision(self, id_or_num):
         if id_or_num == -1:
             return {
                 "commit_id": "",
                 "commit_message": "[Uncommited]",
                 "commit_number": -1,
-                "is_unstaged": True,
-                "from_other_branch": False
+                "is_uncommitted": True,
+                "is_from_other_branch": False,
+                "branch": self._get_branch_for_revision(id_or_num)
             }
         cid = self._commit_number_to_id(id_or_num)
         lines = self._exec_command("git show {} --oneline".format(cid)).split("\n")
         lines = [line.strip() for line in lines]
         cid, msg = lines[0].split(" ", 1)
+        branch = self._get_branch_for_revision(id_or_num)
         cid = self._normalize_commit_id(cid)
         other_branch = True
         commit_number = -2
@@ -311,8 +325,9 @@ class GitDriver(VCSDriver):
             "commit_id": cid,
             "commit_message": msg,
             "commit_number": commit_number,
-            "is_unstaged": False,
-            "from_other_branch": other_branch
+            "is_uncommitted": False,
+            "is_from_other_branch": other_branch,
+            "branch": branch
         }
 
     def copy_revision(self, id_or_num, sub_dir, dest_dirs):
