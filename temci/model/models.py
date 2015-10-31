@@ -11,50 +11,9 @@ and some custom type checking. Hopefully this will provide a less error prone im
 of a central data structure of this project.
 """
 
-import os
-
-import yaml
-
-
-def expect(data: dict, key: str, exp_type: type = None, data_name: str = None) -> None:
-    """
-    Simple helper method that throws an StructureError if the passed dictionary hasn't the passed key
-    or if the dictionaries value at this key hasn't the expected type.
-    The type parameter is ignored if it's None.
-
-    :param data: passed dictionary
-    :param key: passed key
-    :param exp_type: expected type or None if the type isn't important
-    :param data_name: name of the passed dictionary that makes the error message better understandable
-    :raises StructureError if something isn't the way it should be
-    """
-    data_name = str(data_name) if data_name is not None else "The passed data object"
-
-    if not isinstance(data, dict):
-        raise StructureError("{} isn't of type dict but of type {}".format(data_name, type(data)))
-    if key not in data.keys():
-        raise StructureError("{} has no key {} it was expected".format(data_name, key))
-    if exp_type is not None and not isinstance(data[key], exp_type):
-        raise StructureError("{} has a key {}, but the associated value is of type {}, "
-                             "not of type {} as expected".format(data_name, key, type(data[key]), exp_type))
-
-
-def expect_t(data: dict, type_tuples: dict = None, data_name: str = None) -> None:
-    """
-    Works the same as the expect function, but checks more than one (expected key, expected type) tuple.
-    It checks for each tuple whether the passed dictionary has the expected key that is associated
-    with the a value of the expected type. The type is isn't checked if the expected type is None .
-
-    :param data: passed dictionary
-    :param type_tuples: the key-value-pairs represent the list of (key name, type) tuples.
-    :param data_name: name of the passed dictionary that makes the error message better understandable
-    :raises StructureError if something isn't the way it should be
-    """
-    if isinstance(type_tuples, None):
-        return
-    for key in type_tuples.keys():
-        expect(data, key, exp_type=type_tuples[key], data_name=data_name)
-
+import os, yaml
+from temci.utils.typecheck import *
+from fn import _
 
 class StructureError(ValueError):
     pass
@@ -66,6 +25,11 @@ class MainModel(object):
     to work with the model tree, like storing the model into and retrieving from the
     `info.yaml` file.
     """
+
+    export_type_scheme = Dict({
+        "working_dir": Str(),
+        "revisions": List()
+    })
 
     def __init__(self, working_dir: str, revisions: list = None):
         """
@@ -113,7 +77,9 @@ class MainModel(object):
         :rtype MainModel
         :raises StructureError if the passed dictionary hasn't the expected structure
         """
-        expect_t(data, {"working_dir": str, "revisions": list}, "main model data structure")
+        res = verbose_issinstance(data, cls.export_type_scheme, "main model data structure")
+        if not res:
+            raise StructureError(str(res))
         working_dir = data["working_dir"]
         revisions = [RevisionModel.load_from_dict(rev) for rev in data["revisions"]]
         return MainModel(working_dir, revisions)
@@ -148,6 +114,18 @@ class RevisionModel(object):
     dictionaries.
     """
 
+    export_type_scheme = Dict({
+        "info": Dict({
+            "commit_id": Str(),
+            "commit_message": Str(),
+            "commit_number": Int(_ >= -2),
+            "is_unstaged": BoolLike(),
+            "is_from_other_branch": BoolLike(),
+            "branch": Str()
+        }),
+        "build_cmds": List()
+    })
+
     def __init__(self, info: dict, build_cmds: list = None):
         """
         Constructs a new RevisionModel that represents the revision with
@@ -158,7 +136,7 @@ class RevisionModel(object):
             "commit_message": …,
             "commit_number": …,
             "is_unstaged": True/False,
-            "from_other_branch": True/False,
+            "is_from_other_branch": True/False,
             "branch": str
 
         :param info: given characteristics
@@ -167,12 +145,9 @@ class RevisionModel(object):
         """
         if build_cmds is None:
             build_cmds = []
-        expect_t(info, {"commit_id": int,
-                        "commit_message": str,
-                        "commit_number": int,
-                        "is_unstaged": None,
-                        "from_other_branch": None,
-                        "branch": str}, "Revision info")
+        res = verbose_issinstance(info, self.export_type_scheme["info"], "Revision info")
+        if not res:
+            raise StructureError(str(res))
         self.id = str(info["commit_id"])
         """Id of the represented commit or "" if this model represents uncommitted changes"""
         self.message = str(info["commit_message"])
@@ -202,7 +177,9 @@ class RevisionModel(object):
         :rtype RevisionModel
         :raises StructureError if the passed dictionary hasn't the expected structure
         """
-        expect_t(data, {"info": dict, "build_cmds": list}, "revision data structure")
+        res = verbose_issinstance(data, cls.export_type_scheme, "revision data structure")
+        if not res:
+            raise StructureError(str(res))
         build_cmds = [BuildCmdModel.load_from_dict(d) for d in data["build_cmds"]]
         return RevisionModel(data["info"], build_cmds)
 
@@ -229,6 +206,14 @@ class BuildCmdModel(object):
     """
     Represents a (revision, build command) tuple.
     """
+
+    export_type_scheme = Dict({
+            "cmd": Str(),
+            "build_dir": Str(),
+            "binary_dir": Str(),
+            "binary_number": Int(_ >= 0),
+            "run_cmds": NonExistent() | Dict()
+            })
 
     def __init__(self, cmd: str, build_dir: str, binary_dir: str,
                  binary_number: int = 0, run_cmds: Optional[list] = None):
@@ -269,17 +254,12 @@ class BuildCmdModel(object):
         :raises StructureError if the passed dictionary hasn't the expected structure
         """
         data_name = "(revision, build_cmd) tuple (aka BuildCmdModel) data structure"
-        expect_t(data, {
-            "cmd": str,
-            "build_dir": str,
-            "binary_dir": str,
-            "binary_number": int
-            }, data_name=data_name)
+        res = verbose_issinstance(data, cls.export_type_scheme, data_name)
+        if not res:
+            raise StructureError(str(res))
         run_cmds = []
         if "run_cmds" in data.keys():
-            expect(data, key="run_cmds", exp_type=list, data_name=data_name)
             run_cmds = [RunCmdModel.load_from_dict(m) for m in data["run_cmds"]]
-
         return BuildCmdModel(data["cmd"], data["build_dir"], data["binary_dir"],
                              data["binary_number"], run_cmds)
 
@@ -307,6 +287,11 @@ class BuildCmdModel(object):
 
 class RunCmdModel(object):
 
+    export_type_scheme = Dict({
+        "cmd": Str(),
+        "run_data": NonExistent() | Dict()
+    })
+
     def __init__(self, cmd: string, run_data: RunDataModel = None):
         self.cmd = cmd
         self.run_data = run_data
@@ -325,10 +310,11 @@ class RunCmdModel(object):
         :rtype RunCmdModel
         :raises StructureError if the passed dictionary hasn't the expected structure
         """
-        expect(data, "cmd", str, data_name="Run cmd data structure")
+        res = verbose_issinstance(data, cls.export_type_scheme, data_name="Run cmd data structure")
+        if not res:
+            raise StructureError(str(res))
         model = None
         if "run_data" in data:
-            expect(data, "run_data", dict, data_name="Run cmd data structure")
             model = RunDataModel.load_from_dict(data["run_data"])
         return RunCmdModel(data["cmd"], model)
 
@@ -360,6 +346,11 @@ class RunDataModel(object):
     (revision, build command, run command) tuple.
     """
 
+    export_type_scheme = Dict({
+        "properties": List(Str()),
+        "data": List(Dict(key_type=Str(), value_type=(Int() | Float())))
+    })
+
     def __init__(self, properties: iterable, data: list = None):
         self.properties = properties
         if len(self.properties) == 0:
@@ -388,9 +379,9 @@ class RunDataModel(object):
         :rtype RunDataModel
         :raises StructureError if the passed dictionary hasn't the expected structure
         """
-        expect_t(data, {"properties": list, "data": dict}, "Run data structure")
-        if not all(type(item) is string for item in data["properties"]):
-            raise StructureError("Expected properties list of strings in a run data structure")
+        res = verbose_issinstance(data, cls.export_type_scheme, "Run data structure")
+        if not res:
+            raise StructureError(str(res))
         return RunDataModel(data["properties"], data["data"])
 
     def to_dict(self) -> dict:

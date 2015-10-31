@@ -195,6 +195,17 @@ class TestTypecheckModule(unittest.TestCase):
                 "feature": Either(Exact("yes"), Constraint(lambda x: x > 0, T(int)))
             }))
         )
+        t = Dict({"s": Int()})
+        self.assertEqual(t["s"], Int())
+        self.assertEqual(t[5], NonExistent())
+        t = Dict({"a": Dict({"b": Float()})}, key_type=Str())
+        self.assertEqual(t["a"], Dict({"b": Float()}))
+        self.assertEqual(t["t"], NonExistent())
+        self.assertEqual(t["a"]["b"], Float())
+        t = Dict({"a": Dict({"b": Float()})}, key_type=Str(), value_type=List(Int()), all_keys=False)
+        self.assertEqual(t["a"], Dict({"b": Float()}))
+        self.assertEqual(t["c"], List(Int()))
+        self.assertEqual(t[3], NonExistent())
 
     def test_nonexistent(self):
         t = Dict({"asdf": Either(

@@ -177,6 +177,14 @@ class Type(object):
             raise ConstraintError("{} mustn't be an instance of a Type subclass".format(other))
         return Constraint(other, self)
 
+    def __eq__(self, other):
+        if type(other) == type(self):
+            return self._eq_impl(other)
+        return False
+
+    def _eq_impl(self, other):
+        return False
+
 class Exact(Type):
     """
     Checks for value equivalence.
@@ -199,6 +207,8 @@ class Exact(Type):
     def __str__(self):
         return "Exact({!r})".format(self.exp_value)
 
+    def _eq_impl(self, other):
+        return other.exp_value == self.exp_value
 
 class Either(Type):
     """
@@ -226,6 +236,10 @@ class Either(Type):
 
     def __str__(self):
         return "Either({})".format("|".join(str(type) for type in self.types))
+
+    def _eq_impl(self, other):
+        return len(other.types) == len(self.types) \
+               and all(other.types[i] == self.types[i] for i in range(len(self.types)))
 
 class Union(Either):
     """
@@ -259,6 +273,10 @@ class All(Type):
     def __str__(self):
         return "All[{}]".format("|".join(str(type) for type in self.types))
 
+    def _eq_impl(self, other):
+        return len(other.types) == len(self.types) \
+               and all(other.types[i] == self.types[i] for i in range(len(self.types)))
+
 class Any(Type):
     """
     Checks for the value to be of any type.
@@ -268,6 +286,10 @@ class Any(Type):
 
     def __str__(self):
         return "Any"
+
+    def _eq_impl(self, other):
+        return True
+
 
 class T(Type):
     """
@@ -289,6 +311,9 @@ class T(Type):
     def __str__(self):
         return "T({})".format(self.native_type)
 
+    def _eq_impl(self, other):
+        return other.native_type == self.native_type
+
 
 class Optional(Either):
     """
@@ -304,6 +329,7 @@ class Optional(Either):
 
     def __str__(self):
         return "Optional({})".format(self.types[1])
+
 
 class Constraint(Type):
     """
@@ -344,6 +370,7 @@ class Constraint(Type):
                 descr = "<function>"
         return "{}:{}".format(self.constrained_type, descr)
 
+
 class List(Type):
     """
     Checks for the value to be a list with elements of a given type.
@@ -371,6 +398,9 @@ class List(Type):
     def __str__(self):
         return "List({})".format(self.elem_type)
 
+    def _eq_impl(self, other):
+        return other.elem_type == self.elem_type
+
 
 class _NonExistentVal(object):
     """
@@ -383,7 +413,8 @@ class _NonExistentVal(object):
     def __repr__(self):
         return self.__str__()
 
-_non_existen_val = _NonExistentVal()
+_non_existent_val = _NonExistentVal()
+
 
 class NonExistent(Type):
     """
@@ -395,6 +426,9 @@ class NonExistent(Type):
 
     def __str__(self):
         return "non existent"
+
+    def _eq_impl(self, other):
+        return True
 
 
 class Dict(Type):
@@ -428,7 +462,7 @@ class Dict(Type):
                 if not res:
                     return res
             else:
-                is_non_existent = self.data[key].__instancecheck__(_non_existen_val,
+                is_non_existent = self.data[key].__instancecheck__(_non_existent_val,
                                                                    info.add_to_name("[{!r}]".format(key)))
                 non_existent_val_num += 1
                 if key not in value and not is_non_existent:
@@ -456,6 +490,21 @@ class Dict(Type):
             fmt = "Dict({{{data}}}, {all_keys}, keys={key_type}, values={value_type})"
         return fmt.format(data=data_str, all_keys=self.all_keys, key_type=self.key_type,
                           value_type=self.value_type)
+
+    def __getitem__(self, key):
+        """
+        Returns the Type of the keys value.
+        """
+        if key in self.data:
+            return self.data[key]
+        if not self.all_keys and isinstance(key, self.key_type):
+            return self.value_type
+        return NonExistent()
+
+    def _eq_impl(self, other):
+        # hack improve this method
+        return str(other) == self.__str__()
+
 
 class Int(Type):
     """
@@ -493,6 +542,17 @@ class Int(Type):
             if self.range is not None:
                 arr.append("range={}".format(self.range))
         return "Int({})".format(",".join(arr))
+
+    def _eq_impl(self, other):
+        return other.constraint == self.constraint and other.range == self.range
+
+def NaturalNumber(constraint = None):
+    """
+    Matches all natural numbers (ints larger than zero) that satisfy the optional user defined constrained.
+    """
+    if constraint is not None:
+        return Int(lambda x: x > 0 and constraint(x))
+    return Int(fn._ > 0)
 
 def Float(constraint = None):
     """
