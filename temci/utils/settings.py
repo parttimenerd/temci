@@ -4,21 +4,27 @@ import os, shutil
 import click
 from .util import recursive_contains, recursive_get, \
     recursive_find_key, recursive_exec_for_leafs, Singleton
+from .typecheck import *
+from fn import _
+
+
+class SettingsError(ValueError):
+    pass
+
 
 class Settings(metaclass=Singleton):
-
-    """ Manages the Settings.
     """
-
-  #  __metaclass__ = Singleton
+    Manages the Settings.
+    """
 
     defaults = {
         "tmp_dir": "/tmp/temci",
         "env": {
+            "branch": "auto",
             "randomize_binary": {
                 "enable": True
             },
-            "nice": "10"
+            "nice": 10
         },
         "stat": {
 
@@ -28,50 +34,92 @@ class Settings(metaclass=Singleton):
         }
     }
 
-    prefs = copy.deepcopy(defaults)
+    type_scheme = Dict({
+        "tmp_dir": T(str),
+        "env": Dict({
+            "branch": T(str),
+            "randomize_binary": Dict({
+                "enable": BoolLike()
+            }),
+            "nice": Int(range=range(-19, 19))
+        }),
+        "stat": Dict({
 
-    program = None
+        }),
+        "report": Dict({
 
-    _valid_part_programs = ["env", "stat", "report"]
+        })
+    })
 
-    def __init__(self, program=None):
-        """ Inits a Settingss singleton object and thereby loads the Settings files.
+    def __init__(self):
+        """
+         Inits a Settings singleton object and thereby loads the Settings files.
         It loads the settings files from the app folder (config.yaml) and
         the current working directory (temci.yaml) if they exist.
-        :param program: Name of the part program, this code runs in, e.g. "env", "stat" or "report"
+        :raises SettingsError if some of the settings aren't in the format described via the type_scheme class property
         """
-        self.program = program
+        self.prefs = copy.deepcopy(self.defaults)
+        res = self._validate_settings_dict(self.prefs, "default settings")
+        if not res:
+            self.prefs = copy.deepcopy(self.defaults)
+            raise SettingsError(str(res))
         self.load_from_config_dir()
         self.load_from_current_dir()
         self._setup()
 
     def _setup(self):
+        """
+        Simple setup method that checks if basic directories exist and creates them if necessary.
+        """
         if not os.path.exists(self.prefs["tmp_dir"]):
             os.mkdir(self.prefs["tmp_dir"])
 
     def reset(self):
-        """ Resets the current settings to the defaults.
+        """
+        Resets the current settings to the defaults.
         """
         self.prefs = copy.deepcopy(self.defaults)
+
+    def _validate_settings_dict(self, data, description: str):
+        """
+        Check whether the passed dictionary matches the settings type scheme.
+
+        :param data: passed dictionary
+        :param description: short description of the passed dictionary
+        :return True like object if valid, else string like object which is the error message
+        """
+        return verbose_issinstance(data, self.type_scheme, description)
 
     def load_file(self, file: str):
         """
         Loads the settings from the settings yaml file.
         :param file: path to the file
+        :raises SettingsError if the settings file is incorrect or doesn't exist
         """
-        with open(file, 'r') as stream:
-            map = yaml.load(stream)
-            def func(key, path, value):
-                if key[0] not in self._valid_part_programs or key[0] is self.program:
-                    self.set("/".join(path), value)
-            recursive_exec_for_leafs(map, func)
+        tmp = copy.deepcopy(self.prefs)
+        try:
+            with open(file, 'r') as stream:
+                map = yaml.load(stream)
+
+                def func(key, path, value):
+                    self._set(path, value)
+
+                recursive_exec_for_leafs(map, func)
+        except (yaml.YAMLError, IOError) as err:
+            self.prefs = tmp
+            raise SettingsError(str(err))
+        res = self._validate_settings_dict(self.prefs, "settings with ones from file '{}'".format(file))
+        if not res:
+            self.prefs = tmp
+            raise SettingsError(str(res))
+        self._setup()
 
     def load_from_dir(self, dir: str):
         """
         Loads the settings from the `config.yaml` file inside the passed directory.
         :param dir: path of the directory
         """
-        self.load_file(self, os.path.join(dir, "config.yaml"))
+        self.load_file(os.path.join(dir, "config.yaml"))
 
     def load_from_config_dir(self):
         """
@@ -90,32 +138,28 @@ class Settings(metaclass=Singleton):
         if os.path.exists(conf) and os.path.isfile(conf):
             self.load_file(conf)
 
-    def get(self, key: str, default=None) -> object:
-        """ Get the setting with the given key.
-        Keys can either be simple identifiers of a setting or "/" separated paths (e.g. "env/tmp_path")
-        :param key: name of the Settings
-        :param default: if a default value is passed a non existent Settings doesn't throw an error
-        :return value of the Settings or default (if passed)
-        :raises SettingsError if the Settings is non existent (and no default value is passed)
+    def get(self, key: str):
         """
-        try:
-            keys = self._key_to_list(key)
-            data = self.prefs
-            for sub in keys:
-                data = data[sub]
-            return data
-        except SettingsError:
-            if default is None:
-                raise
-            else:
-                return default
+        Get the setting with the given key.
+        :param key: name of the setting
+        :return value of the setting
+        :raises SettingsError if the setting doesn't exist
+        """
+        path = key.split("/")
+        if not self._validate_key_path(path):
+            raise SettingsError("No such setting {}".format(key))
+        data = self.prefs
+        for sub in path:
+            data = data[sub]
+        return data
 
     def __getitem__(self, key: str):
-        """ Alias for self.get(self, key).
+        """
+        Alias for self.get(self, key).
         """
         return self.get(key)
 
-    def set(self, key: str, value):
+    def _set(self, path: list, value):
         """
         Sets a setting to the passed value (if it exists).
         If the setting has options, setting it sets the boolean option "enable".
@@ -123,58 +167,51 @@ class Settings(metaclass=Singleton):
         :param value: new value of the setting
         :raises SettingsError if the setting doesn't exists
         """
-        keys = self._key_to_list(key)
-        if len(keys) is 2 and type(self.prefs[keys[0]][keys[1]]) is dict:
-            self.prefs[keys[0]][keys[1]]["enable"] = bool(value)
+        self._validate_key_path(path)
+        if len(path) is 2 and type(self.prefs[path[0]][path[1]]) is dict and "enable" in self.defaults[path[0]][path[1]]:
+            self.prefs[path[0]][path[1]]["enable"] = bool(value)
         else:
-            data = self.prefs
-            for sub in keys[0:-1]:
-                data = data[sub]
-            data[keys[-1]] = value
+            tmp = self.prefs
+            for key in path[0:-1]:
+                tmp = tmp[key]
+            tmp[path[-1]] = value
+
+    def set(self, key, value):
+        """
+        Sets the setting key to the passed new value
+        :param key: settings key
+        :param value: new value
+        :raises SettingsError if the setting isn't valid
+        """
+        tmp = copy.deepcopy(self.prefs)
+        path = key.split("/")
+        if self._validate_key_path(path):
+            self._set(path, value)
+            res = self._validate_settings_dict(self.prefs, "settings with new setting ({}={!r})".format(key, value))
+            if not res:
+                self.prefs = tmp
+                raise SettingsError(str(res))
+        else:
+            self.prefs = tmp
+            raise SettingsError("Setting {} doesn't exist".format(key))
         self._setup()
 
     def __setitem__(self, key: str, value):
         """
         Alias for self.set(key, value).
+        :raises SettingsError if the setting isn't valid
         """
+        self.set(key, value)
 
-    def _key_to_list(self, key: str) -> list:
+    def _validate_key_path(self, path: list):
         """
-        Converts a Settings key to a valid list of keys for the different levels of the Settings tree
-        :param key: Settings key
-        :return: list of sub keys
-        :raises: SettingsError if the passed key isn't valid or doesn't exist
+        Validates a path into in to the settings trees,
+        :param path: list of sub keys
+        :return Is this key path valid?
         """
-        keys = key.split("/")
-        if len(keys) > 1:
-            for k in [keys, ("%s/%s" % (self.program, key)).split("/")]:
-                tmp = self.prefs
-                for elem in k:
-                    if tmp is not None and elem in tmp.keys():
-                        tmp = tmp[elem]
-                    else:
-                        tmp = None
-                if tmp is not None:
-                    return k
-            raise SettingsError("No such Settings %s" % key)
-        elif key not in self._valid_part_programs:
-            data = {}
-            for subkey in self.prefs.keys():
-                if subkey not in self._valid_part_programs or subkey is self.program:
-                    data[subkey] = self.prefs[subkey]
-            if recursive_contains(key, data) > 1:
-                raise SettingsError("The key %s is ambiguous." % key)
-            path = recursive_find_key(key, data)
-            if path is not None:
-                return path
-        raise SettingsError("No such Settings %s" % key)
-
-    def set_program(self, name: str):
-        """ Set the part program, that is currently run (e.g. "env", "stat" or "report")
-        """
-        if name not in self._valid_part_programs:
-            raise SettingsError("No such part program %s" % name)
-        self.program = name
-
-class SettingsError(ValueError):
-    pass
+        tmp = self.prefs
+        for item in path:
+            if item not in tmp:
+                return False
+            tmp = tmp[item]
+        return True

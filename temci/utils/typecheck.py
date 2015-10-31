@@ -31,6 +31,8 @@ __all__ = [
     "Int",
     "Float",
     "NonExistent",
+    "BoolLike",
+    "Str",
 
     "Info",
 
@@ -39,8 +41,11 @@ __all__ = [
     "Optional",
     "Constraint",
     "List",
-    "Dict"
+    "Dict",
+    "verbose_issinstance"
 ]
+
+import fn
 
 class ConstraintError(ValueError):
     pass
@@ -331,7 +336,12 @@ class Constraint(Type):
         return True
 
     def __str__(self):
-        descr = self.description if self.description is not None else "<function>"
+        descr = self.description
+        if self.description is None:
+            if isinstance(self.constraint, type(fn._)):
+                descr = str(self.constraint)
+            else:
+                descr = "<function>"
         return "{}:{}".format(self.constrained_type, descr)
 
 class List(Type):
@@ -414,7 +424,7 @@ class Dict(Type):
         non_existent_val_num = 0
         for key in self.data.keys():
             if key in value:
-                res = self.data[key].__instancecheck__(value[key], info)
+                res = self.data[key].__instancecheck__(value[key], info.add_to_name("[{!r}]".format(key)))
                 if not res:
                     return res
             else:
@@ -447,14 +457,42 @@ class Dict(Type):
         return fmt.format(data=data_str, all_keys=self.all_keys, key_type=self.key_type,
                           value_type=self.value_type)
 
-def Int(constraint = None):
+class Int(Type):
     """
-    Alias for Constraint(constraint, T(int)) or T(int)
+    Checks for the value to be of type int and to adhere to some constraints.
     """
-    if constraint is not None:
-        return Constraint(constraint, T(int))
-    return T(int)
 
+    def __init__(self, constraint = None, range = None, description: str = None):
+        """
+        :param constraint: user defined constrained function
+        :param range. range (or list) that the value has to be part of
+        :param description: description of the constraints
+        """
+        self.constraint = constraint
+        self.range = range
+        self.description = description
+
+    def _instancecheck_impl(self, value, info: Info):
+        if not isinstance(value, int) or (self.constraint != None and not self.constraint(value)) \
+                or (self.range != None and value not in self.range):
+            return info.errormsg(self)
+        return info.wrap(True)
+
+    def __str__(self):
+        arr = []
+        if self.description is not None:
+            arr.append(self.description)
+        else:
+            if self.constraint is not None:
+                descr = ""
+                if isinstance(self.constraint, type(fn._)):
+                    descr = str(self.constraint)
+                else:
+                    descr = "<function>"
+                arr.append("constraint={}".format(descr))
+            if self.range is not None:
+                arr.append("range={}".format(self.range))
+        return "Int({})".format(",".join(arr))
 
 def Float(constraint = None):
     """
@@ -462,12 +500,34 @@ def Float(constraint = None):
     """
     if constraint is not None:
         return Constraint(constraint, T(float))
-    return T(int)
+    return T(float)
 
 def Str(constraint = None):
     """
     Alias for Constraint(constraint, T(str)) or T(str)
     """
     if constraint is not None:
-        return Constraint(constraint, T(float))
-    return T(int)
+        return Constraint(constraint, T(str))
+    return T(str)
+
+def BoolLike(constraint = None):
+    """
+    Alias for Constraint(constraint, t) or t, with t being an alias
+    for Constraint(lambda x: x in ["true", "false", 0, 1, True, False])
+    """
+    t = Constraint(lambda x: x in ["true", "false", 0, 1, True, False])
+    if constraint is not None:
+        return Constraint(constraint, t)
+    return t
+
+def verbose_issinstance(value, _type, value_name: str = None):
+    """
+    Verbose version of isinstance that returns a InfoMsg object.
+
+    :param value: value to check
+    :param _type: type or Type to check for
+    :param value_name: name of the passed value (improves the error message)
+    """
+    if not isinstance(_type, Type):
+        _type = T(_type)
+    return _type.__instancecheck__(value, Info(value_name))

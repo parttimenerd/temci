@@ -19,8 +19,11 @@ class VCSDriver:
         self.settings = Settings()
         self.dir = os.path.abspath(dir)
         self.branch = self.get_branch()
-        if self.branch is not None and self.settings.get("branch", default=self.get_branch()) is not self.branch:
-            self.set_branch(Settings().get("branch"))
+        if self.settings.get("env/branch") is "auto" and self.branch is not None:
+            self.settings.set("env/branch", self.branch)
+
+        if self.branch is not None and self.settings.get("env/branch") is not self.branch:
+            self.set_branch(Settings().get("env/branch"))
 
     @staticmethod
     def get_suited_vcs(mode="auto", dir="."):
@@ -293,7 +296,6 @@ class GitDriver(VCSDriver):
             return self.get_branch()
         id = self._commit_number_to_id(id_or_num)
         out = self._exec_command("git branch --contains {}".format(id))
-        print(out)
         out = out.split("\n")[0].strip()
         return out.split(" ")[-1]
 

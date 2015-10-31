@@ -32,6 +32,21 @@ class TestTypecheckModule(unittest.TestCase):
             (4, T(float)),
             (int, T(int))
         )
+        self.assertTypesCorrect(
+            (3, Int()),
+            (3, Int(range=range(2,4))),
+            (True, BoolLike()),
+            (0,  BoolLike()),
+            ({}, Dict()),
+            ("s", Str()),
+            (T(str), T(Type))
+        )
+        self.assertTypesInCorrect(
+            ("fds", Dict()),
+            (4, Float()),
+            (int, T(int)),
+            (4, Int(range=range(5, 6)))
+        )
 
     def test_exact(self):
         self.assertTypesCorrect(
@@ -182,7 +197,6 @@ class TestTypecheckModule(unittest.TestCase):
         )
 
     def test_nonexistent(self):
-        print(T(str) | (T(str)))
         t = Dict({"asdf": Either(
                  NonExistent(),
                  Dict({"ads":  Either(NonExistent(), Int(_ != 4)) })
