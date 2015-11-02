@@ -10,6 +10,7 @@ Requirements
     - pyaml
     - unittest (for unit testing)
     - fn
+    - parsimonious
 - super user rights
 - linux
 - git (for unit testing)

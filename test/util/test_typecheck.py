@@ -1,5 +1,5 @@
 from temci.utils.typecheck import *
-import unittest, collections
+import unittest, collections, timeit
 from fn import _
 
 

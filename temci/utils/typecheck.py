@@ -46,6 +46,7 @@ __all__ = [
 ]
 
 import fn
+import itertools
 
 class ConstraintError(ValueError):
     pass
@@ -503,7 +504,7 @@ class Dict(Type):
 
     def _eq_impl(self, other):
         # hack improve this method
-        return str(other) == self.__str__()
+        return all(self.data[key] == other.data[key] for key in itertools.chain(self.data.keys(), other.data.keys()))
 
 
 class Int(Type):
@@ -546,6 +547,7 @@ class Int(Type):
     def _eq_impl(self, other):
         return other.constraint == self.constraint and other.range == self.range
 
+
 def NaturalNumber(constraint = None):
     """
     Matches all natural numbers (ints larger than zero) that satisfy the optional user defined constrained.
@@ -553,6 +555,7 @@ def NaturalNumber(constraint = None):
     if constraint is not None:
         return Int(lambda x: x > 0 and constraint(x))
     return Int(fn._ > 0)
+
 
 def Float(constraint = None):
     """
@@ -562,6 +565,7 @@ def Float(constraint = None):
         return Constraint(constraint, T(float))
     return T(float)
 
+
 def Str(constraint = None):
     """
     Alias for Constraint(constraint, T(str)) or T(str)
@@ -569,6 +573,7 @@ def Str(constraint = None):
     if constraint is not None:
         return Constraint(constraint, T(str))
     return T(str)
+
 
 def BoolLike(constraint = None):
     """
@@ -580,14 +585,15 @@ def BoolLike(constraint = None):
         return Constraint(constraint, t)
     return t
 
-def verbose_issinstance(value, _type, value_name: str = None):
+
+def verbose_issinstance(value, type, value_name: str = None):
     """
     Verbose version of isinstance that returns a InfoMsg object.
 
     :param value: value to check
-    :param _type: type or Type to check for
+    :param type: type or Type to check for
     :param value_name: name of the passed value (improves the error message)
     """
-    if not isinstance(_type, Type):
-        _type = T(_type)
-    return _type.__instancecheck__(value, Info(value_name))
+    if not isinstance(type, Type):
+        type = T(type)
+    return type.__instancecheck__(value, Info(value_name))

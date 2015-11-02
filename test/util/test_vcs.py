@@ -5,19 +5,23 @@ from temci.utils.settings import Settings
 
 # todo syntax of self.assertEqual
 
+
 def path(name):
     return os.path.abspath(os.path.join(os.path.dirname(__file__), name))
+
 
 def setup():
     try:
         os.rename(path("test_vcs/git"), path("test_vcs/.git"))
         os.rename(path("test_vcs2/git"), path("test_vcs2/.git"))
-    except:
+    except IOError:
         pass
+
 
 def tearDown():
     os.rename(path("test_vcs/.git"), path("test_vcs/git"))
     os.rename(path("test_vcs2/.git"), path("test_vcs2/git"))
+
 
 class TestVCSDriver(unittest.TestCase):
 
