@@ -16,6 +16,8 @@ class VCSDriver:
         It also sets the current branch if it's defined in the Settings
         :param dir: base directory
         """
+        self._exec_command_cache = {}
+        self._exec_err_code_cache = {}
         self.settings = Settings()
         self.dir = os.path.abspath(dir)
         self.branch = self.get_branch()
@@ -96,17 +98,18 @@ class VCSDriver:
     def get_info_for_revision(self, id_or_num):
         """
         Get an info dict for the given commit (-1 represent the uncommitted changes).
-        Structure of the info dict:
-        ```
-        "commit_id"; …,
-        "commit_message": …,
-        "commit_number": …,
-        "is_uncommitted": True/False,
-        "is_from_other_branch": True/False,
-        "branch": … # branch name or empty string if this commit belongs to no branch
-        ```
+        Structure of the info dict::
+
+            "commit_id"; …,
+            "commit_message": …,
+            "commit_number": …,
+            "is_uncommitted": True/False,
+            "is_from_other_branch": True/False,
+            "branch": … # branch name or empty string if this commit belongs to no branch
+
         :param id_or_num: id or number of the commit
         :return info dict
+        :raises VCSError if the number or id isn't valid
         """
         raise NotImplementedError()
 
@@ -145,11 +148,12 @@ class VCSDriver:
                 except OSError as exc2:
                     raise VCSError(str(exc2))
 
-    def _exec_command(self, command, error="Error executing {cmd}: {err}"):
+    def _exec_command(self, command, error="Error executing {cmd}: {err}", cacheable=False):
         """
         Executes the given external command and returns the resulting output.
         :param command: given external command (as string or list)
         :param error: error message with can have a placeholder `cmd` for the command and `èrr` for stderr
+        :param cacheable: can the result of the command be cached to reduce the number of needed calls?
         :return output as string
         :raises VCSError if the external command hasn't exit code 0
         """
@@ -158,6 +162,11 @@ class VCSDriver:
             args = command
         else:
             args = shlex.split(command)
+
+        args_str = "#~#".join(args)
+        if cacheable and args_str in self._exec_command_cache:
+            return self._exec_command_cache[args_str]
+
         proc = subprocess.Popen(args, cwd=abspath(self.dir), stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             universal_newlines=True)
@@ -165,7 +174,38 @@ class VCSDriver:
         if proc.poll() > 0:
             msg = error.format(cmd=command, err=err)
             raise VCSError(msg)
+
+        if cacheable:
+            self._exec_command_cache[args_str] = str(out)
+
         return str(out)
+
+    def _exec_err_code(self, command, cacheable=False):
+        """
+        Executes the given external command and returns its error code.
+        :param command: given external command (as string or list)
+        :param cacheable: can the result of the command be cached to reduce the number of needed calls?
+        :return error code of the command (or 0 if no error occurred)
+        """
+        args = []
+        if type(command) is list:
+            args = command
+        else:
+            args = shlex.split(command)
+
+        args_str = "#~#".join(args)
+        if cacheable and args_str in self._exec_err_code_cache:
+            return self._exec_err_code_cache[args_str]
+
+        proc = subprocess.Popen(args, cwd=abspath(self.dir), universal_newlines=True)
+        out, err = proc.communicate()
+
+        err_code = proc.poll()
+
+        if cacheable:
+            self._exec_err_code_cache[args_str] = err_code
+
+        return err_code
 
 class FileDriver(VCSDriver):
     """
@@ -232,20 +272,20 @@ class GitDriver(VCSDriver):
     def set_branch(self, new_branch):
         if new_branch is self.get_branch():
             return
-        out = self._exec_command("git branch --list".format(new_branch))
+        out = self._exec_command("git branch --list".format(new_branch), cacheable=True)
         if new_branch not in out:
             raise VCSError("No such branch {}".format(new_branch))
         self.branch = new_branch
 
     def has_uncommitted(self):
-        return subprocess.call(shlex.split("git diff --cached --quiet"), cwd=abspath(self.dir)) == 1
+        return self._exec_err_code("git diff --cached --quiet", cacheable=True) == 1
 
     def _list_of_commit_tuples(self):
         """
         Executes `git log BRANCH` and parses it's output lines into tuples (hash, msg).
         :return list of tuples
         """
-        res = self._exec_command("git log --oneline {}".format(self.branch)).split("\n")
+        res = self._exec_command("git log --oneline {}".format(self.branch), cacheable=True).split("\n")
         list = []
         for line in res:
             if len(line.strip()) > 0:
@@ -275,7 +315,7 @@ class GitDriver(VCSDriver):
         :return normalized commit id
         :raises VCSError if something goes wrong
         """
-        out = self._exec_command("git show {}".format(id))
+        out = self._exec_command("git show {}".format(id), cacheable=True)
         out = out.split("\n")[0].strip()
         return out.split(" ")[1]
 
@@ -287,7 +327,7 @@ class GitDriver(VCSDriver):
             return False
         try:
             cid = self._commit_number_to_id(id_or_num)
-            return subprocess.call(shlex.split("git show {}".format(cid)), cwd=abspath(dir)) == 0
+            return self._exec_err_code("git show {}".format(cid), cacheable=True) == 0
         except VCSError:
             return False
 
@@ -295,7 +335,7 @@ class GitDriver(VCSDriver):
         if id_or_num == -1:
             return self.get_branch()
         id = self._commit_number_to_id(id_or_num)
-        out = self._exec_command("git branch --contains {}".format(id))
+        out = self._exec_command("git branch --contains {}".format(id), cacheable=True)
         out = out.split("\n")[0].strip()
         return out.split(" ")[-1]
 
@@ -310,7 +350,7 @@ class GitDriver(VCSDriver):
                 "branch": self._get_branch_for_revision(id_or_num)
             }
         cid = self._commit_number_to_id(id_or_num)
-        lines = self._exec_command("git show {} --oneline".format(cid)).split("\n")
+        lines = self._exec_command("git show {} --oneline".format(cid), cacheable=True).split("\n")
         lines = [line.strip() for line in lines]
         cid, msg = lines[0].split(" ", 1)
         branch = self._get_branch_for_revision(id_or_num)

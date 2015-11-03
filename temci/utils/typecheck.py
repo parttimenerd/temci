@@ -54,15 +54,19 @@ class ConstraintError(ValueError):
 
 class Info(object):
 
-    def __init__(self, value_name: str = None, _app_str: str = None):
+    def __init__(self, value_name: str = None, _app_str: str = None, value = None):
         self.value_name = value_name
         self._app_str = _app_str if _app_str is not None else ""
         if value_name is None:
             self._value_name = "value {{!r}}{}".format(self._app_str)
         else:
             self._value_name = "{}{} of value {{!r}}".format(self.value_name, self._app_str)
-        self.value = None
-        self.has_value = False
+        if value is None:
+            self.value = None
+            self.has_value = False
+        else:
+            self.value = value
+            self.has_value = True
 
     def set_value(self, value):
         self.value = value
@@ -73,14 +77,14 @@ class Info(object):
             raise ValueError("value is not defined")
         return self.value
 
-    def add_to_name(self, app_str):
+    def add_to_name(self, app_str: str):
         """
-
-        :param app_str:
-        :return:
+        Creates a new info object based on this one.
+        :param app_str: app string appended to the own app string to create the app string for the new info object
+        :return: new info object
         :rtype Info
         """
-        return Info(self.value_name, self._app_str + app_str)
+        return Info(self.value_name, self._app_str + app_str, self.value)
 
     def _str(self):
         return self._value_name.format(self.get_value())

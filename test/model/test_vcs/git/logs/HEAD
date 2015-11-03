@@ -1,0 +1,20 @@
+0000000000000000000000000000000000000000 fde5e8c5411e7a31f773543569ab76c9be5f2fd8 Johannes Bechberger <me@mostlynerdless.de> 1445931818 +0100	commit (initial): with abcd
+fde5e8c5411e7a31f773543569ab76c9be5f2fd8 ecc4b55913728f530e61d1a8b62a39d284826d34 Johannes Bechberger <me@mostlynerdless.de> 1445931838 +0100	commit: changed abcd
+ecc4b55913728f530e61d1a8b62a39d284826d34 2bf3fe6559875f1e01d9e43663e6ee18743e9f08 Johannes Bechberger <me@mostlynerdless.de> 1445931850 +0100	commit: changed abcd again
+2bf3fe6559875f1e01d9e43663e6ee18743e9f08 2bf3fe6559875f1e01d9e43663e6ee18743e9f08 Johannes Bechberger <me@mostlynerdless.de> 1445931901 +0100	checkout: moving from master to new_branch
+2bf3fe6559875f1e01d9e43663e6ee18743e9f08 5b6a57a095cc9e8d811cf72a60acbff633e4ef17 Johannes Bechberger <me@mostlynerdless.de> 1445932069 +0100	commit: modified new_dir/file
+5b6a57a095cc9e8d811cf72a60acbff633e4ef17 7763cea01aa9bd80f9b01990797bb57fd43ba63c Johannes Bechberger <me@mostlynerdless.de> 1445932084 +0100	commit: modified new_dir/file again
+7763cea01aa9bd80f9b01990797bb57fd43ba63c 7763cea01aa9bd80f9b01990797bb57fd43ba63c Johannes Bechberger <me@mostlynerdless.de> 1445939845 +0100	checkout: moving from new_branch to new_branch
+7763cea01aa9bd80f9b01990797bb57fd43ba63c 2bf3fe6559875f1e01d9e43663e6ee18743e9f08 Johannes Bechberger <me@mostlynerdless.de> 1445942459 +0100	checkout: moving from new_branch to master
+2bf3fe6559875f1e01d9e43663e6ee18743e9f08 90b09c2339bfd962a93b68523f1958351db8256b Johannes Bechberger <me@mostlynerdless.de> 1445942499 +0100	commit: sdf
+90b09c2339bfd962a93b68523f1958351db8256b 7763cea01aa9bd80f9b01990797bb57fd43ba63c Johannes Bechberger <me@mostlynerdless.de> 1445948296 +0100	checkout: moving from master to new_branch
+7763cea01aa9bd80f9b01990797bb57fd43ba63c 90b09c2339bfd962a93b68523f1958351db8256b Johannes Bechberger <me@mostlynerdless.de> 1445958758 +0100	checkout: moving from new_branch to master
+90b09c2339bfd962a93b68523f1958351db8256b 7763cea01aa9bd80f9b01990797bb57fd43ba63c Johannes Bechberger <me@mostlynerdless.de> 1445960476 +0100	checkout: moving from master to new_branch
+7763cea01aa9bd80f9b01990797bb57fd43ba63c 910535bfb26ab352843dd206ce3e5e827e8d6e4d Johannes Bechberger <me@mostlynerdless.de> 1445960496 +0100	commit: sa
+910535bfb26ab352843dd206ce3e5e827e8d6e4d 90b09c2339bfd962a93b68523f1958351db8256b Johannes Bechberger <me@mostlynerdless.de> 1445960509 +0100	checkout: moving from new_branch to master
+90b09c2339bfd962a93b68523f1958351db8256b 910535bfb26ab352843dd206ce3e5e827e8d6e4d Johannes Bechberger <me@mostlynerdless.de> 1445961048 +0100	checkout: moving from master to new_branch
+910535bfb26ab352843dd206ce3e5e827e8d6e4d 90b09c2339bfd962a93b68523f1958351db8256b Johannes Bechberger <me@mostlynerdless.de> 1445961091 +0100	checkout: moving from new_branch to master
+90b09c2339bfd962a93b68523f1958351db8256b 910535bfb26ab352843dd206ce3e5e827e8d6e4d Johannes Bechberger <me@mostlynerdless.de> 1445972636 +0100	checkout: moving from master to new_branch
+910535bfb26ab352843dd206ce3e5e827e8d6e4d 90b09c2339bfd962a93b68523f1958351db8256b Johannes Bechberger <me@mostlynerdless.de> 1445972679 +0100	checkout: moving from new_branch to master
+90b09c2339bfd962a93b68523f1958351db8256b 910535bfb26ab352843dd206ce3e5e827e8d6e4d Johannes Bechberger <me@mostlynerdless.de> 1446563185 +0100	checkout: moving from master to new_branch
+910535bfb26ab352843dd206ce3e5e827e8d6e4d 90b09c2339bfd962a93b68523f1958351db8256b Johannes Bechberger <me@mostlynerdless.de> 1446563185 +0100	checkout: moving from new_branch to master

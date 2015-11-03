@@ -12,7 +12,7 @@ of a central data structure of this project.
 import os, yaml
 from temci.utils.typecheck import *
 from fn import _
-import temci.utils.vcs as vcs
+
 
 class StructureError(ValueError):
     pass
@@ -45,7 +45,7 @@ class MainModel(object):
         """List of the revision models of this main model"""
 
     @classmethod
-    def load_from_file(cls, file: str) -> MainModel:
+    def load_from_file(cls, file: str):
         """
         Loads the main model from the passed (yaml) file.
         The format is defined in the models module documentation.
@@ -62,7 +62,7 @@ class MainModel(object):
             cls.load_from_dict(data)
 
     @classmethod
-    def load_from_dict(cls, data: dict) -> MainModel:
+    def load_from_dict(cls, data: dict):
         """
         Loads the main model from the passed dictionary.
         It has the following structure (with types instead of values)::
@@ -106,11 +106,11 @@ class MainModel(object):
         }
         return data
 
-    def parse_run_cmd_list(self, text, vcs_driver: vcs.VCSDriver):
+    def clear(self):
         """
-        Parse
+        Removes all revision models.
         """
-        pass
+        self.revisions.clear()
 
 
 class RevisionModel(object):
@@ -125,7 +125,7 @@ class RevisionModel(object):
             "commit_id": Str(),
             "commit_message": Str(),
             "commit_number": Int(_ >= -2),
-            "is_unstaged": BoolLike(),
+            "is_uncommitted": BoolLike(),
             "is_from_other_branch": BoolLike(),
             "branch": Str()
         }),
@@ -141,7 +141,7 @@ class RevisionModel(object):
             "commit_id"; …,
             "commit_message": …,
             "commit_number": …,
-            "is_unstaged": True/False,
+            "is_uncommitted": True/False,
             "is_from_other_branch": True/False,
             "branch": str
 
@@ -170,7 +170,7 @@ class RevisionModel(object):
         """List of child BuildCmdModels"""
 
     @classmethod
-    def load_from_dict(cls, data: dict) -> RevisionModel:
+    def load_from_dict(cls, data: dict):
         """
         Loads a revision model from the given data structure.
         It has the following structure::
@@ -222,7 +222,7 @@ class BuildCmdModel(object):
             })
 
     def __init__(self, cmd: str, build_dir: str, binary_dir: str,
-                 binary_number: int = 0, run_cmds: Optional[list] = None):
+                 binary_number: int = 0, run_cmds: list = None):
         """
         Initializes a model representing a (revision, build command) tuple.
         :param cmd: actual build command
@@ -243,7 +243,7 @@ class BuildCmdModel(object):
         """list of associated RunCmdModels, if there are any"""
 
     @classmethod
-    def load_from_dict(cls, data: dict) -> BuildCmdModel:
+    def load_from_dict(cls, data: dict):
         """
         Loads a BuildCmdModel from the given data structure.
         It has the following structure::
@@ -298,12 +298,19 @@ class RunCmdModel(object):
         "run_data": NonExistent() | Dict()
     })
 
-    def __init__(self, cmd: string, run_data: RunDataModel = None):
+    def __init__(self, cmd: str, run_data = None):
+        """
+
+        :param cmd: run command
+        :param run_data: optional RundDataModel object that belongs to this RunCmdModel
+        :type run_data: RunDataModel
+        :return:
+        """
         self.cmd = cmd
         self.run_data = run_data
 
     @classmethod
-    def load_from_dict(cls, data: dict) -> RunCmdModel:
+    def load_from_dict(cls, data: dict):
         """
         Loads a RunCmdModel from the given data structure.
         It has the following structure::
@@ -357,7 +364,7 @@ class RunDataModel(object):
         "data": List(Dict(key_type=Str(), value_type=(Int() | Float())))
     })
 
-    def __init__(self, properties: iterable, data: list = None):
+    def __init__(self, properties: list, data: list = None):
         self.properties = properties
         if len(self.properties) == 0:
             raise ValueError("A run data model without measurement properties doesn't make sense")
@@ -369,7 +376,7 @@ class RunDataModel(object):
         pass
 
     @classmethod
-    def load_from_dict(cls, data: dict) -> RunDataModel:
+    def load_from_dict(cls, data: dict):
         """
         Loads a RunDataModel from the given data structure.
         It has the following structure::
