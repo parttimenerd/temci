@@ -107,6 +107,10 @@ class MainModel(object):
         }
         return data
 
+    def parse_run_cmd_list(self, text: str = None):
+        pass
+
+
 class RevisionModel(object):
     """
     The instances of this class represent models of the revisions.

@@ -1,11 +1,15 @@
 """
-A parser for the range expressions, that works with the main model and can extend it.
+Parser for the range expressions, that produces lists (of lists) of RangeList objects.
+
+The syntax of range expressions are defined in the grammar that is some where below.
 
 https://github.com/erikrose/parsimonious
 https://github.com/erikrose/parsimonious/blob/master/parsimonious/grammar.py
 """
 
 from parsimonious.grammar import Grammar, NodeVisitor
+import parsimonious
+from temci.utils.typecheck import Str, NonErrorConstraint
 
 class RangeList(object):
     """
@@ -33,6 +37,19 @@ class RangeList(object):
         return "\"" + self.__str__() + "\""
 
 
+class BranchList(RangeList):
+    """
+    Represents all revisions in the current branch.
+    Note: Doesn't implement the filter and additional method properly.
+    """
+
+    def __str__(self):
+        return "[branch]"
+
+    def __repr__(self):
+        return '"[branch]"'
+
+
 class InfList(RangeList):
     """
     Alias for RangeList. A list that contains every element.
@@ -43,14 +60,14 @@ class IntRange(RangeList):
     A range of integers with start an end. That includes every item in between it's borders (and the border values)
     """
 
-    def __init__(self, start, end):
+    def __init__(self, start: int, end: int):
         self.start = start
         self.end = end
 
-    def filter(self, av_list: list) -> list:
+    def filter(self, av_list: set) -> list:
         return [x for x in av_list if self.start <= x <= self.end]
 
-    def additional(self, av_list) -> list:
+    def additional(self, av_list: set) -> list:
         return [x for x in range(self.start, self.end + 1) if x not in av_list]
 
     def __str__(self):
@@ -62,7 +79,7 @@ class IntRangeOpenEnd(RangeList):
     A range of integers that includes every item that is >= its start value.
     """
 
-    def __init__(self, start):
+    def __init__(self, start: int):
         self.start = start
 
     def filter(self, av_list: set) -> list:
@@ -80,7 +97,7 @@ class IntRangeOpenStart(RangeList):
     A range of integers that includes every item that is >= its end value.
     """
 
-    def __init__(self, end):
+    def __init__(self, end: int):
         self.end = end
 
     def filter(self, av_list: set) -> list:
@@ -102,7 +119,7 @@ class ListRangeList(RangeList):
     def __init__(self, raw_list: set):
         self.raw_list = raw_list
 
-    def _has_prefix(self, new_element, elements):
+    def _has_prefix(self, new_element, elements: set):
         if not isinstance(new_element, str):
             return False
         raws = [x for x in self.raw_list if isinstance(x, str) and new_element.startswith(x)]
@@ -121,14 +138,15 @@ class ListRangeList(RangeList):
 
 grammar = Grammar(
     """
+    # for testing purposes
     run = token+
 
-    revision_list = revision_list_item / token
-    revision_list_item = ws* token ws* ";" ws* revision_list ws*
+    revision_list = revision_list_item / revision_list_token_wo_inf
+    revision_list_item = ws* revision_list_token_wo_inf ws* ";" ws* revision_list ws*
 
     build_cmd_list = build_cmd_list_item / bc_token
     build_cmd_list_item = ws* bc_token ws* ";" ws* build_cmd_list ws*
-    bc_token = ws* token ws* ":" ws* str_list ws*
+    bc_token = ws* revision_list_token ws* ":" ws* str_list ws*
 
     path_list = path_list_item / path_list_token
     path_list_item = ws* path_list_token ws* ";" ws* path_list ws*
@@ -142,9 +160,20 @@ grammar = Grammar(
     run_cmd_list_long_token = bc_token ":" str_list
     run_cmd_list_short_token = inf_range ":" str_list
 
+    # used for the "revisions" parameter of "temci report"
+    report_tuple_list = report_tuple_list_item / report_tuple_list_token
+    report_tuple_list_item = ws* report_tuple_list_token ws* ";" ws* run_cmd_list ws*
+    report_tuple_list_token = report_tuple_list_long_token / report_tuple_list_short_token
+    report_tuple_list_long_token = rt_bc_token ":" rt_token
+    report_tuple_list_short_token = inf_range ":" rt_token
+    rt_token = str_list / inf_range
+    rt_bc_token = ws* revision_list_token ws* ":" ws* rt_token ws*
+
     #basic grammar below
 
     token = inf_range / number_range_open_start / number_range_open_end / list / number_range
+    revision_list_token = token / branch
+    revision_list_token_wo_inf = number_range_open_start / number_range_open_end / list / number_range / branch
 
     inf_range = ws* "[..]" ws*
     number_range = ws* "[" ws* number ".." number ws* "]" ws*
@@ -161,6 +190,7 @@ grammar = Grammar(
     atom = string / number
     number = ws* ~r"-[0-9]+|[0-9]+" ws*
     string = ws* ~r"'(\\\\'|(?!').)*'" ws*
+    branch = "[branch]"
     ws = ~r"\ *"
     """
 )
@@ -199,6 +229,9 @@ class Visitor(NodeVisitor):
     def visit_number_range_open_end(self, value, children: list):
         numbers = self._filter_str_and_num(children)
         return IntRangeOpenEnd(numbers[0])
+
+    def visit_branch(self, node, children: list):
+        return BranchList()
 
     def visit_list(self, value, children: list):
         non_empty = [x for x in children if len(x) != 0]
@@ -247,6 +280,9 @@ class Visitor(NodeVisitor):
         return children
 
 class RevisionListVisitor(Visitor):
+    """
+    Visitor for the grammar with default rule revision_list.
+    """
 
     def visit_revision_list(self, value, children: list):
         return children[0]
@@ -263,6 +299,7 @@ def parse_revision_list(text: str) -> list:
     Parses a revision list (see Notes).
     :param text: string to parse
     :return: list of RangeList objects
+    :raises parsimonious.exceptions.ParseError if a parse error occures
     """
     grammar = globals()["grammar"].default("revision_list")
     res = RevisionListVisitor().visit(grammar.parse(text))
@@ -272,6 +309,9 @@ def parse_revision_list(text: str) -> list:
 
 
 class BuildCmdListVisitor(Visitor):
+    """
+    Visitor for the grammar with default rule build_cmd_list.
+    """
 
     def visit_build_cmd_list(self, value, children: list):
         non_empty = self.filter_non_empty(children)
@@ -283,11 +323,13 @@ class BuildCmdListVisitor(Visitor):
             non_empty = [non_empty[0]] + non_empty[1]
         return non_empty
 
+
 def parse_build_cmd_list(text: str) -> list:
     """
     Parses a build cmd list (see Notes).
     :param text: string to parse
     :return: list of lists of RangeList objects
+    :raises parsimonious.exceptions.ParseError if a parse error occures
     """
     grammar = globals()["grammar"].default("build_cmd_list")
     res = BuildCmdListVisitor().visit(grammar.parse(text))
@@ -300,6 +342,9 @@ def parse_build_cmd_list(text: str) -> list:
 
 
 class PathListVisitor(Visitor):
+    """
+    Visitor for the grammar with default rule path_list.
+    """
 
     def visit_path_list(self, value, children: list):
         non_empty = self.filter_non_empty(children)
@@ -331,6 +376,7 @@ def parse_path_list(text: str) -> list:
     Parses a path list (see Notes).
     :param text: string to parse
     :return: list of lists of RangeList and string objects
+    :raises parsimonious.exceptions.ParseError if a parse error occures
     """
     grammar = globals()["grammar"].default("path_list")
     res = PathListVisitor().visit(grammar.parse(text))
@@ -342,6 +388,9 @@ def parse_path_list(text: str) -> list:
 
 
 class RunCmdListVisitor(Visitor):
+    """
+    Visitor for the grammar with default rule run_cmd_list.
+    """
 
     def visit_run_cmd_list(self, value, children: list):
         non_empty = self.filter_non_empty(children)
@@ -373,6 +422,7 @@ def parse_run_cmd_list(text: str) -> list:
     Parses a run cmd list (see Notes).
     :param text: string to parse
     :return: list of lists of RangeList objects
+    :raises parsimonious.exceptions.ParseError if a parse error occures
     """
     grammar = globals()["grammar"].default("run_cmd_list")
     res = RunCmdListVisitor().visit(grammar.parse(text))
@@ -381,3 +431,89 @@ def parse_run_cmd_list(text: str) -> list:
     if isinstance(res[0], RangeList):
         res = [res]
     return res
+
+
+class ReportTupleListVisitor(RunCmdListVisitor):
+    """
+    Visitor for the grammar with default rule report_tuple_list.
+    """
+
+    def visit_report_tuple_list(self, value, children: list):
+        return self.visit_run_cmd_list(value, children)
+
+    def visit_report_tuple_list_item(self, value, children: list):
+        return self.visit_run_cmd_list_item(value, children)
+
+    def visit_report_tuple_list_token(self, value, children: list):
+        return self.visit_run_cmd_list_token(value, children)
+
+    def visit_report_tuple_list_short_token(self, value, children: list):
+        return self.visit_run_cmd_list_short_token(value, children)
+
+    def visit_report_tuple_list_long_token(self, value, children: list):
+        return self.visit_run_cmd_list_long_token(value, children)
+
+
+def parse_report_tuple_list(text: str) -> list:
+    """
+    Parses a run cmd list that is used for parameter "revisions" for "temci report". That's basically the same
+    as the run cmd list. The only difference is that the report tuple list allows inf_range ("[..]") for the
+    last run cmd part and for the build command part. It allows for example::
+
+        [..]:['make']:[..] # use all benchmarkings of binaries built with 'make'
+
+    :param text: string to parse
+    :return: list of lists of RangeList object
+    :raises parsimonious.exceptions.ParseError if a parse error occures
+    """
+    grammar = globals()["grammar"].default("report_tuple_list")
+    res = ReportTupleListVisitor().visit(grammar.parse(text))
+    while isinstance(res[0], list) and len(res) == 1:
+            res = res[0]
+    if isinstance(res[0], RangeList):
+        res = [res]
+    return res
+
+
+def SyntaxCheckedStr(parse_method, description: str) -> NonErrorConstraint:
+    """
+    Returns a typechecker type that checks for the value to be parseable by the passed parse method (yields no errors)
+    that is described by the passed description.
+    """
+    return NonErrorConstraint(parse_method, parsimonious.exceptions.ParseError, Str(), description)
+
+
+def RevisionListStr() -> NonErrorConstraint:
+    """
+    Returns a typecheck type that describes and matches all valid revision list strings.
+    """
+    return SyntaxCheckedStr(parse_revision_list, "revision list")
+
+
+def BuildCmdListStr() -> NonErrorConstraint:
+    """
+    Returns a typecheck type that describes and matches all valid build command list strings.
+    """
+    return SyntaxCheckedStr(parse_build_cmd_list, "build command list")
+
+
+def PathListStr() -> NonErrorConstraint:
+    """
+    Returns a typecheck type that describes and matches all valid path list strings.
+    """
+    return SyntaxCheckedStr(parse_path_list, "path list")
+
+
+def RunCmdListStr() -> NonErrorConstraint:
+    """
+    Returns a typecheck type that describes and matches all valid run command list strings.
+    """
+    return SyntaxCheckedStr(parse_run_cmd_list, "run command list")
+
+
+def ReportTupleListStr() -> NonErrorConstraint:
+    """
+    Returns a typecheck type that describes and matches all valid report tuple list strings (arguments for the
+    "revisions" parameter of "temci report").
+    """
+    return SyntaxCheckedStr(parse_report_tuple_list, "report tuple list")

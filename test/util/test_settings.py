@@ -1,5 +1,5 @@
 from temci.utils.settings import Settings, SettingsError
-import unittest, os
+import unittest, os, shutil
 
 class TestSettings(unittest.TestCase):
 
@@ -27,6 +27,7 @@ class TestSettings(unittest.TestCase):
         self.assertEqual(set.get("env/randomize_binary/enable"), True)
         set.set("env/randomize_binary", False)
         self.assertEqual(set.get("env/randomize_binary/enable"), False)
+        shutil.rmtree("blub", ignore_errors=True)
 
     def test_load_file(self):
         set = Settings()

@@ -5,6 +5,7 @@ import click
 from .util import recursive_contains, recursive_get, \
     recursive_find_key, recursive_exec_for_leafs, Singleton
 from .typecheck import *
+from ..model.parser import RevisionListStr, BuildCmdListStr, PathListStr, RunCmdListStr, ReportTupleListStr
 from fn import _
 
 
@@ -21,13 +22,14 @@ class Settings(metaclass=Singleton):
         "tmp_dir": "/tmp/temci",
         "env": {
             "branch": "auto",
+            "revisions": "[branch]",
             "randomize_binary": {
                 "enable": True
             },
             "nice": 10
         },
         "stat": {
-
+            "run_cmd": "[..]:['']"
         },
         "report": {
 
@@ -38,13 +40,14 @@ class Settings(metaclass=Singleton):
         "tmp_dir": T(str),
         "env": Dict({
             "branch": T(str),
+            "revisions": RevisionListStr(),
             "randomize_binary": Dict({
                 "enable": BoolLike()
             }),
-            "nice": Int(range=range(-19, 19))
+            "nice": Int(range=range(-19, 19)),
         }),
         "stat": Dict({
-
+            "run_cmd": RunCmdListStr()
         }),
         "report": Dict({
 

@@ -85,8 +85,9 @@ class Info(object):
     def _str(self):
         return self._value_name.format(self.get_value())
 
-    def errormsg(self, constraint):
-        return InfoMsg("{} hasn't the expected type {}".format(self._str(), constraint))
+    def errormsg(self, constraint, msg: str = None):
+        app = ": " + msg if msg is not None else ""
+        return InfoMsg("{} hasn't the expected type {}{}".format(self._str(), constraint, app))
 
     def errormsg_cond(self, cond, constraint, value):
         if cond:
@@ -109,7 +110,7 @@ class NoInfo(Info):
     def add_to_name(self, app_str):
         return self
 
-    def errormsg(self, constraint):
+    def errormsg(self, constraint, msg: str = None):
         return False
 
     def errormsg_cond(self, cond, constraint, value):
@@ -282,7 +283,7 @@ class Any(Type):
     """
     Checks for the value to be of any type.
     """
-    def __instancecheck__(self, value, info=NoInfo()):
+    def __instancecheck__(self, value, info: Info =NoInfo()):
         return True
 
     def __str__(self):
@@ -360,6 +361,51 @@ class Constraint(Type):
             return res
         if not self.constraint(value):
             return info.errormsg(self)
+        return True
+
+    def __str__(self):
+        descr = self.description
+        if self.description is None:
+            if isinstance(self.constraint, type(fn._)):
+                descr = str(self.constraint)
+            else:
+                descr = "<function>"
+        return "{}:{}".format(self.constrained_type, descr)
+
+
+class NonErrorConstraint(Type):
+    """
+    Checks the passed value by an user defined constraint that fails if it raise an error.
+    """
+
+    def __init__(self, constraint, error_cls, constrained_type: Type = Any(), description: str = None):
+        """
+        :param constraint: function that doesn't raise an error if the user defined constraint is satisfied
+        :param error_cls: class of the errors the constraint method throws
+        :param constrained_type: Type that the constrain is applied on
+        :param description: short description of the constraint (e.g. ">0")
+        :raises ConstraintError if constrained_type isn't a (typechecker) Types
+        """
+        super().__init__()
+        self._validate_types(constrained_type)
+        self.constraint = constraint
+        self.error_cls = error_cls
+        self.constrained_type = constrained_type
+        self.description = description
+
+    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+        """
+        Checks the passed value to be of the constrained type and to
+        adhere the user defined constraint (that the method doesn't
+        throw the user specified exception).
+        """
+        res = self.constrained_type.__instancecheck__(value, info)
+        if not res:
+            return res
+        try:
+            self.constraint(value)
+        except self.error_cls as err:
+            return info.errormsg(self, msg=str(err))
         return True
 
     def __str__(self):
