@@ -32,8 +32,16 @@ class TestParser(unittest.TestCase):
         correct("[-0..-0]", ["[0..0]"])
         correct("[branch] ;[branch]", ["[branch]", "[branch]"])
         correct("[branch] ;   [branch]", ["[branch]", "[branch]"])
+        correct("[branch] //sdf;   [branch]", ["[branch]", "[branch]"])
         correct("[9,8]; [branch]; ['sdf', '\\'sdfsdf']", ["[9, 8]", "[branch]", "['sdf', ''sdfsdf']"])
+        correct("[9] // wfds ")
+        correct("[9]//")
+        correct("[branch] //sdf")
+        correct("[branch]; [branch]//asd//dsf")
 
+        incorrect("[9]; //")
+        incorrect("//dsaf [9] // wfds ")
+        incorrect("[..]")
         incorrect("[..] ;[..]")
         incorrect("[..] ;   [..]")
         incorrect("[..4..]")
@@ -98,8 +106,8 @@ class TestParser(unittest.TestCase):
             with self.assertRaises(ParseError):
                 print(parse_path_list(text))
 
-        correct("[..] :    'sd'", [["[..]", 'sd']])
-        correct("[..] : 'sd'; [..] : 'sd'", [["[..]", 'sd'], ["[..]", 'sd']])
+        correct("[..] :    'sd'", [["[..]", "[..]", 'sd']])
+        correct("[..] : 'sd'; [..] : 'sd'", [["[..]", "[..]", 'sd']] * 2)
         correct("[..] : ['make'] :'sd'", [["[..]", "['make']", 'sd']])
         correct("   [9..] : ['make'] :'sd'", [["[9..]", "['make']", 'sd']])
         correct("   [..] : ['make'] :'sd'", [["[..]", "['make']", 'sd']])
@@ -135,11 +143,10 @@ class TestParser(unittest.TestCase):
             with self.assertRaises(ParseError):
                 print(parse_run_cmd_list(text))
 
-        correct("[..]: ['d', 'e']", [["[..]", "['d', 'e']"]])
+        correct("[..]: ['d', 'e']", [["[..]", "[..]", "['d', 'e']"]])
         correct("[..]: ['ads', 'sdf']: ['d']", [["[..]", "['ads', 'sdf']", "['d']"]])
-        correct("[..]: ['d', 'e']   ;   [..]: ['d', 'e']", [["[..]", "['d', 'e']"], ["[..]", "['d', 'e']"]])
-        correct("[..]: ['d', 'e']   ;[..]: ['d', 'e'];[..]: [    'd', 'e']     ",
-                [["[..]", "['d', 'e']"], ["[..]", "['d', 'e']"], ["[..]", "['d', 'e']"]])
+        correct("[..]: ['d', 'e']   ;   [..]: ['d', 'e']", [["[..]", "[..]", "['d', 'e']"]] * 2)
+        correct("[..]: ['d', 'e']   ;[..]: ['d', 'e'];[..]: [    'd', 'e']     ",  [["[..]", "[..]", "['d', 'e']"]] * 3)
         correct("[branch]: ['s']: ['s']", [["[branch]", "['s']", "['s']"]])
 
         incorrect("[..]: ['ads'. 'sdf']: ['d']")
@@ -170,16 +177,17 @@ class TestParser(unittest.TestCase):
             with self.assertRaises(ParseError):
                 print(parse_report_tuple_list(text))
 
-        correct("[..]: ['d', 'e']", [["[..]", "['d', 'e']"]])
+        correct("[..]: ['d', 'e']", [["[..]", "[..]", "['d', 'e']"]])
+        correct("[..]: ['d', 'e']//asd", [["[..]", "[..]", "['d', 'e']"]])
         correct("[..]: ['ads', 'sdf']: ['d']", [["[..]", "['ads', 'sdf']", "['d']"]])
-        correct("[..]: ['d', 'e']   ;   [..]: ['d', 'e']", [["[..]", "['d', 'e']"], ["[..]", "['d', 'e']"]])
-        correct("[..]: ['d', 'e']   ;   [..]: ['d', 'e'];   [..]: ['d', 'e']",
-                [["[..]", "['d', 'e']"], ["[..]", "['d', 'e']"], ["[..]", "['d', 'e']"]])
-        correct("[..]: [..]", [["[..]", "[..]"]])
+        correct("[..]: ['d', 'e'] ;   [..]: ['d', 'e']", [["[..]", "[..]", "['d', 'e']"]] * 2)
+        correct("[..]: ['d', 'e']   ;   [..]: ['d', 'e'];   [..]: ['d', 'e']",  [["[..]", "[..]", "['d', 'e']"]] * 3)
+        correct("[..]: [..]", [["[..]", "[..]", "[..]"]])
         correct("[..]: ['ads', 'sdf']: [..]", [["[..]", "['ads', 'sdf']", "[..]"]])
         correct("[..]: [..] : [..]", [["[..]", "[..]", "[..]"]])
         correct("[..]: ['sdfa', 'd'] : [..] ", [["[..]", "['sdfa', 'd']", "[..]"]])
         correct("[branch]: ['s']: [..]", [["[branch]", "['s']", "[..]"]])
+        correct("[..]", [["[..]"] * 3])
 
         incorrect("[..]: ['ads'. 'sdf']: ['d']")
         incorrect("[8,9] : [9] : ['as']")

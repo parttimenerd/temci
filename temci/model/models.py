@@ -1,7 +1,5 @@
 """
 This module contains the model classes that build up the tree like model data structure.
-It's (mostly) independent from any other project module (except utils.util) for the sake of
-easier testing and cleaner design.
 
 The main idea behind this is that this data model is a serializable representation of all data
 that has to be transfered between the the three main program parts (env setup, stat and report).
@@ -14,6 +12,7 @@ of a central data structure of this project.
 import os, yaml
 from temci.utils.typecheck import *
 from fn import _
+import temci.utils.vcs as vcs
 
 class StructureError(ValueError):
     pass
@@ -107,7 +106,10 @@ class MainModel(object):
         }
         return data
 
-    def parse_run_cmd_list(self, text: str = None):
+    def parse_run_cmd_list(self, text, vcs_driver: vcs.VCSDriver):
+        """
+        Parse
+        """
         pass
 
 

@@ -50,9 +50,9 @@ class BranchList(RangeList):
         return '"[branch]"'
 
 
-class InfList(RangeList):
+class InfRange(RangeList):
     """
-    Alias for RangeList. A list that contains every element.
+    Alias for RangeList. A range that contains every element.
     """
 
 class IntRange(RangeList):
@@ -162,10 +162,11 @@ grammar = Grammar(
 
     # used for the "revisions" parameter of "temci report"
     report_tuple_list = report_tuple_list_item / report_tuple_list_token
-    report_tuple_list_item = ws* report_tuple_list_token ws* ";" ws* run_cmd_list ws*
-    report_tuple_list_token = report_tuple_list_long_token / report_tuple_list_short_token
+    report_tuple_list_item = ws* report_tuple_list_token ws* ";" ws* report_tuple_list ws*
+    report_tuple_list_token = report_tuple_list_long_token / report_tuple_list_short_token / report_list_inf_token
     report_tuple_list_long_token = rt_bc_token ":" rt_token
     report_tuple_list_short_token = inf_range ":" rt_token
+    report_list_inf_token = ws* inf_range ws*
     rt_token = str_list / inf_range
     rt_bc_token = ws* revision_list_token ws* ":" ws* rt_token ws*
 
@@ -190,11 +191,12 @@ grammar = Grammar(
     atom = string / number
     number = ws* ~r"-[0-9]+|[0-9]+" ws*
     string = ws* ~r"'(\\\\'|(?!').)*'" ws*
-    branch = "[branch]"
-    ws = ~r"\ *"
+    branch = ws* "[branch]" ws*
+
+    # all ignored stuff (like whitespace or comments)
+    ws = ~r"\ *(//([^;]*)*)*"
     """
 )
-
 
 class Visitor(NodeVisitor):
     """
@@ -234,7 +236,7 @@ class Visitor(NodeVisitor):
         return BranchList()
 
     def visit_list(self, value, children: list):
-        non_empty = [x for x in children if len(x) != 0]
+        non_empty = self.filter_non_empty(children)
         return ListRangeList(non_empty[0])
 
     def visit_list_item(self, value, children: list):
@@ -363,7 +365,8 @@ class PathListVisitor(Visitor):
         return non_empty[0]
 
     def visit_path_list_short_token(self, value, children: list):
-        return self.filter_non_empty(children)
+        res = [InfRange() if x == [] else x for x in children]
+        return res
 
     def visit_path_list_long_token(self, value, children: list):
         children = self.filter_non_empty(children)
@@ -409,7 +412,8 @@ class RunCmdListVisitor(Visitor):
         return non_empty[0]
 
     def visit_run_cmd_list_short_token(self, value, children: list):
-        return self.filter_non_empty(children)
+        res = [InfRange() if x == [] else x for x in children]
+        return res
 
     def visit_run_cmd_list_long_token(self, value, children: list):
         children = self.filter_non_empty(children)
@@ -448,10 +452,15 @@ class ReportTupleListVisitor(RunCmdListVisitor):
         return self.visit_run_cmd_list_token(value, children)
 
     def visit_report_tuple_list_short_token(self, value, children: list):
-        return self.visit_run_cmd_list_short_token(value, children)
+        res = [InfRange() if x == [] else x for x in children]
+        return res
 
     def visit_report_tuple_list_long_token(self, value, children: list):
         return self.visit_run_cmd_list_long_token(value, children)
+
+    def visit_report_list_inf_token(self, value, children: list):
+        non_empty = self.filter_non_empty(children)
+        return non_empty * 3
 
 
 def parse_report_tuple_list(text: str) -> list:
