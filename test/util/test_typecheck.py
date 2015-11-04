@@ -227,3 +227,7 @@ class TestTypecheckModule(unittest.TestCase):
             ({}, t),
             ({"asdf": {"ads": 3}}, t)
         )
+
+    def test_misc(self):
+        self.assertTypesCorrect((3, NaturalNumber()), (1, NaturalNumber()))
+        self.assertTypesInCorrect((0, NaturalNumber()), (-1, NaturalNumber()))

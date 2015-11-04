@@ -44,16 +44,16 @@ def tearDown():
     os.rename(path("test_vcs2/.git"), path("test_vcs2/git"))
 
 
-class TestGitDriver(unittest.TestCase):
+class TestModelBuilder(unittest.TestCase):
 
     commit_msg_master_list = ["sdf", "changed abcd again", "changed abcd", "with abcd"]
 
     @classmethod
-    def setUpClass(cls=None):
+    def setUpClass(cls):
         setup()
 
     @classmethod
-    def tearDownClass(cls=None):
+    def tearDownClass(cls):
         tearDown()
 
     def setUp(self):
@@ -83,85 +83,61 @@ class TestGitDriver(unittest.TestCase):
         list = [rev.message.strip() for rev in self.model.revisions]
         self.assertListEqual(list, [self.commit_msg_master_list[2], self.commit_msg_master_list[0]])
 
-    """
-    def test_is_suited_for_dir(self):
-        self.assertFalse(vcs.GitDriver.is_suited_for_dir(path(".")))
-        self.assertFalse(vcs.GitDriver.is_suited_for_dir(path("test_vcs/new_dir")))
-        self.assertFalse(vcs.GitDriver.is_suited_for_dir(path("test.yaml")))
-        self.assertTrue(vcs.GitDriver.is_suited_for_dir(path("test_vcs")))
+    def test_parse_build_cmd_list(self):
+        def correct(rev_list: str, cmd_list: str, build_dir_list: str, binary_dir_list: str,
+                    expected_commit_id_cmd_dict: dict):
+            self.model.clear()
+            self.builder.parse_revision_list(rev_list, self.vcs)
+            self.builder.parse_build_cmd_list(cmd_list, build_dir_list, binary_dir_list, 0)
+            id_cmd_dict = {}
+            for rev in self.model.revisions:
+                id_cmd_dict[rev.id[0:3]] = [(build.cmd, build.build_dir, build.binary_dir) for build in rev.build_cmds]
+            self.assertDictEqual(id_cmd_dict, expected_commit_id_cmd_dict)
+        expected = {
+            "90b": [('a', 'p', 's'), ('b', 'p', 's')],
+            "fde": [('a', 'p', 's'), ('b', 'p', 's')]
+        }
+        correct("[0..0]; [3..3]", "[branch]:['a', 'b']", "[..]:'p'", "[..]:'s'", expected)
+        correct("[0,3]", "[branch]:['a', 'b']", "[..]:'p'", "[..]:'s'", expected)
+        correct("[3..]; [..0]", "[3..]:['a', 'b']; [..0]:['a', 'b']", "[..]:'p'", "[..]:'s'", expected)
+        correct("[3..]; [..0]", "[branch]:['a', 'b']", "[..]:'p'", "[..]:'s'", expected)
+        correct("[0,3]", "[..]:['a', 'b']", "[0,3]:[..]:'p'", "[0,3]:[..]:'s'", expected)
+        correct("[0,3]", "[0,3]:['a', 'b']", "[0,3]:[..]:'p'", "[0,3]:[..]:'s'", expected)
+        correct("[0,3]", "[0,3]:['a', 'b']", "[0,3]:[..]:'s'; [0,3]:[..]:'p'",
+                "[0,3]:[..]:'p'; [0,3]:[..]:'s'", expected)
+        correct("[0,3]", "[0,3]:['a', 'b']", "[0,3]:['a', 'b']:'s'; [0,3]:[..]:'p'",
+                "[0,3]:[..]:'p'; [0,3]:[..]:'s'", expected)
+        correct("[0,3]", "[0,3]:['a', 'b']", "[0,3]:[..]:'p'", "[..]:[..]:'s'", expected)
+        with self.assertLogs(level='WARN') as cm:
+            correct("[0,3]", "[0,2,3]:['a', 'b']", "[0,3]:[..]:'p'", "[..]:[..]:'s'", expected)
+        self.assertEqual(len(cm.output), 1)
 
-    def test_get_and_set_branch(self):
-        driver = vcs.GitDriver(path("test_vcs"))
-        self.assertEqual(driver.get_branch(), "master")
-        with self.assertRaises(vcs.VCSError):
-            driver.set_branch("new_master")
-        self.assertEqual(driver.get_branch(), "master")
-        driver.set_branch("new_branch")
-        self.assertEqual(driver.get_branch(), "new_branch")
+    def test_parse_run_cmd_list(self):
+        cmds = ["[0, 3]", "[branch]:['a', 'b']", "[..]:'p'", "[..]:'s'"]
+        def correct(run_cmd_list: str, expected_commit_id_cmd_dict: dict):
+            rev_list, cmd_list, build_dir_list, binary_dir_list = cmds
+            self.model.clear()
+            self.builder.parse_revision_list(rev_list, self.vcs)
+            self.builder.parse_build_cmd_list(cmd_list, build_dir_list, binary_dir_list, 0)
+            self.builder.parse_run_cmd_list(run_cmd_list)
+            id_cmd_dict = {}
+            for rev in self.model.revisions:
+                id_cmd_dict[rev.id[0:3]] = [(build.cmd, build.build_dir, build.binary_dir,
+                                             [run_cmd.cmd for run_cmd in build.run_cmds]) for build in rev.build_cmds]
+            self.assertDictEqual(id_cmd_dict, expected_commit_id_cmd_dict)
 
-    def test_has_uncommitted(self):
-        driver = vcs.GitDriver(path("test_vcs2"))
-        self.assertTrue(driver.has_uncommitted())
-        driver = vcs.GitDriver(path("test_vcs"))
-        self.assertFalse(driver.has_uncommitted())
-
-    def test_number_of_revisions(self):
-        driver = vcs.GitDriver(path("test_vcs"))
-        driver.set_branch("master")
-        self.assertEqual(driver.number_of_revisions(), 4)
-        driver.set_branch("new_branch")
-        self.assertEqual(driver.number_of_revisions(), 6)
-
-    def test_validate_revision(self):
-        driver = vcs.GitDriver(path("test_vcs"))
-        driver.set_branch("master")
-        def invalid(id_or_num):
-            self.assertFalse(driver.validate_revision(id_or_num))
-        def valid(id_or_num):
-            self.assertTrue(driver.validate_revision(id_or_num))
-
-    def test_normalize_commit_id(self):
-        driver = vcs.GitDriver(path("test_vcs"))
-        def valid(id, expected_value):
-            self.assertEqual(driver._normalize_commit_id(id), expected_value)
-
-        def invalid(id):
-            with self.assertRaises(vcs.VCSError):
-                driver._normalize_commit_id(id)
-
-        invalid("34")
-        valid("90b09", "90b09c2339bfd962a93b68523f1958351db8256b")
-
-    def test_get_info_for_revision(self):
-        driver = vcs.GitDriver(path("test_vcs"))
-        driver.set_branch("master")
-        def get(id_or_name):
-            return driver.get_info_for_revision(id_or_name)
-
-        def valid(id_or_name, expected_value):
-            self.assertEqual(get(id_or_name), expected_value)
-
-        def invalid(id_or_name):
-            with self.assertRaises(vcs.VCSError):
-                get(id_or_name)
-        invalid(-2)
-        invalid("2dd")
-        invalid("4b")
-        invalid(4)
-        valid(-1, {
-                "commit_id": "",
-                "commit_message": "[Uncommited]",
-                "commit_number": -1,
-                "is_uncommitted": True,
-                "is_from_other_branch": False,
-                "branch": "master"
+        correct("[..]:['r']", {
+            "90b": [('a', 'p', 's', ['r']), ('b', 'p', 's', ['r'])],
+            "fde": [('a', 'p', 's', ['r']), ('b', 'p', 's', ['r'])]
+        })
+        with self.assertLogs(level='WARN') as cm:
+            cmds[0] = "[0, 3]"
+            correct("[0]:['a', 'b', 'c']:['r']", {
+                "90b": [('a', 'p', 's', ['r']), ('b', 'p', 's', ['r'])],
+                "fde": [('a', 'p', 's', []), ('b', 'p', 's', [])]
             })
-        valid(0, {
-                "commit_id": "90b09c2339bfd962a93b68523f1958351db8256b",
-                "commit_message": "sdf",
-                "commit_number": 0,
-                "is_uncommitted": False,
-                "is_from_other_branch": False,
-                "branch": "master"
-            })
-"""
+            cmds[0] = "[0]"
+        self.assertEqual(len(cm.output), 1)
+
+    def test_get_main_model_subset(self):
+        pass

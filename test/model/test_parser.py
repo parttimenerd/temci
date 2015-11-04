@@ -96,9 +96,9 @@ class TestParser(unittest.TestCase):
                 res = parse_path_list(text)
             except ParseError as exp:
                 msg = text + ": " + str(exp)
+            self.assertEqual("", msg)
             self.assertTrue(isinstance(text, PathListStr()))
             if res_strs:
-                self.assertEqual("", msg)
                 self.assertListEqual(res_strs, [[str(x2) for x2 in x] for x in res])
 
         def incorrect(text):
@@ -111,12 +111,13 @@ class TestParser(unittest.TestCase):
         correct("[..] : ['make'] :'sd'", [["[..]", "['make']", 'sd']])
         correct("   [9..] : ['make'] :'sd'", [["[9..]", "['make']", 'sd']])
         correct("   [..] : ['make'] :'sd'", [["[..]", "['make']", 'sd']])
+        correct("   [9] : ['make'] :'sd'", [["[9]", "['make']", 'sd']])
         correct("   [9,2] : ['make'] :'sd'", [["[9, 2]", "['make']", 'sd']])
         correct("[9,3,4] : [''] :'sdf'", [["[9, 3, 4]", "['']", 'sdf']])
         correct("[branch]: ['s']: 'sd'", [["[branch]", "['s']", 'sd']])
+        correct("[..] : [..] : 'sd'", [["[..]", "[..]", 'sd']])
 
         incorrect("[..]: [9] : 'sd'")
-        incorrect("[..] : [..] : 'sd'")
         incorrect("[..]: [9] : ")
         incorrect("[..] : [..] : ")
         incorrect("[..]: [9] ")
@@ -133,8 +134,8 @@ class TestParser(unittest.TestCase):
                 res = parse_run_cmd_list(text)
             except ParseError as exp:
                 msg = text + ": " + str(exp)
+            self.assertEqual("", msg)
             if res_strs:
-                self.assertEqual("", msg)
                 self.assertListEqual(res_strs, [[str(x2) for x2 in x] for x in res])
             self.assertTrue(isinstance(text, RunCmdListStr()))
 
@@ -148,10 +149,11 @@ class TestParser(unittest.TestCase):
         correct("[..]: ['d', 'e']   ;   [..]: ['d', 'e']", [["[..]", "[..]", "['d', 'e']"]] * 2)
         correct("[..]: ['d', 'e']   ;[..]: ['d', 'e'];[..]: [    'd', 'e']     ",  [["[..]", "[..]", "['d', 'e']"]] * 3)
         correct("[branch]: ['s']: ['s']", [["[branch]", "['s']", "['s']"]])
+        correct("[..] : [..] : ['as']", [["[..]", "[..]", "['as']"]])
 
+        incorrect("[..] : [..] : [..]")
         incorrect("[..]: ['ads'. 'sdf']: ['d']")
         incorrect("[..]: ['ads'. 'sdf']: [..]")
-        incorrect("[..] : [..] : ['as']")
         incorrect("[8,9] : [9] : ['as']")
         incorrect("[..]: 'as'")
         incorrect("[..]: ['a']; ")

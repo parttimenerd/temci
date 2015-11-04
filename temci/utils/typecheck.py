@@ -33,6 +33,7 @@ __all__ = [
     "NonExistent",
     "BoolLike",
     "Str",
+    "NaturalNumber",
 
     "Info",
 
@@ -42,7 +43,7 @@ __all__ = [
     "Constraint",
     "List",
     "Dict",
-    "verbose_issinstance"
+    "verbose_isinstance"
 ]
 
 import fn
@@ -121,6 +122,9 @@ class NoInfo(Info):
         return cond
 
     def errormsg_non_existent(self, constraint):
+        return False
+
+    def errormsg_too_many(self, constraint, value_len, constraint_len):
         return False
 
     def wrap(self, result: bool):
@@ -636,7 +640,7 @@ def BoolLike(constraint = None):
     return t
 
 
-def verbose_issinstance(value, type, value_name: str = None):
+def verbose_isinstance(value, type, value_name: str = None):
     """
     Verbose version of isinstance that returns a InfoMsg object.
 

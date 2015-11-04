@@ -13,7 +13,7 @@ from temci.utils.typecheck import Str, NonErrorConstraint
 
 class RangeList(object):
     """
-    The basic range.
+    The basic abstract range.
     """
 
     def filter(self, av_list: set) -> list:
@@ -31,10 +31,10 @@ class RangeList(object):
         return []
 
     def __str__(self):
-        return "[..]"
+        raise NotImplementedError()
 
     def __repr__(self):
-        return "\"" + self.__str__() + "\""
+        raise NotImplementedError()
 
 
 class BranchList(RangeList):
@@ -52,8 +52,14 @@ class BranchList(RangeList):
 
 class InfRange(RangeList):
     """
-    Alias for RangeList. A range that contains every element.
+    A range that contains every element.
     """
+
+    def __str__(self):
+        return "[..]"
+
+    def __repr__(self):
+        return "\"" + self.__str__() + "\""
 
 class IntRange(RangeList):
     """
@@ -117,7 +123,10 @@ class ListRangeList(RangeList):
     """
 
     def __init__(self, raw_list: set):
-        self.raw_list = raw_list
+        if isinstance(raw_list, str) or isinstance(raw_list, int):
+            self.raw_list = [raw_list]
+        else:
+            self.raw_list = raw_list
 
     def _has_prefix(self, new_element, elements: set):
         if not isinstance(new_element, str):
@@ -151,13 +160,14 @@ grammar = Grammar(
     path_list = path_list_item / path_list_token
     path_list_item = ws* path_list_token ws* ";" ws* path_list ws*
     path_list_token = path_list_long_token / path_list_short_token
-    path_list_long_token = bc_token ":" string
+    path_list_long_token = bc_w_inf_token ":" string
     path_list_short_token = inf_range ":" string
+    bc_w_inf_token = ws* revision_list_token ws* ":" ws* str_list_or_inf_range ws*
 
     run_cmd_list = run_cmd_list_item / run_cmd_list_token
     run_cmd_list_item = ws* run_cmd_list_token ws* ";" ws* run_cmd_list ws*
     run_cmd_list_token = run_cmd_list_long_token / run_cmd_list_short_token
-    run_cmd_list_long_token = bc_token ":" str_list
+    run_cmd_list_long_token = bc_w_inf_token ":" str_list
     run_cmd_list_short_token = inf_range ":" str_list
 
     # used for the "revisions" parameter of "temci report"
@@ -218,7 +228,7 @@ class Visitor(NodeVisitor):
         return [x for x in children if type(x) is not list or len(x) != 0]
 
     def visit_inf_range(self, _1, _2):
-        return RangeList()
+        return InfRange()
 
     def visit_number_range(self, value, children: list):
         numbers = self._filter_str_and_num(children)

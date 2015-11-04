@@ -91,7 +91,7 @@ class Settings(metaclass=Singleton):
         :param description: short description of the passed dictionary
         :return True like object if valid, else string like object which is the error message
         """
-        return verbose_issinstance(data, self.type_scheme, description)
+        return verbose_isinstance(data, self.type_scheme, description)
 
     def load_file(self, file: str):
         """

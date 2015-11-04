@@ -76,7 +76,7 @@ class MainModel(object):
         :rtype MainModel
         :raises StructureError if the passed dictionary hasn't the expected structure
         """
-        res = verbose_issinstance(data, cls.export_type_scheme, "main model data structure")
+        res = verbose_isinstance(data, cls.export_type_scheme, "main model data structure")
         if not res:
             raise StructureError(str(res))
         working_dir = data["working_dir"]
@@ -151,7 +151,7 @@ class RevisionModel(object):
         """
         if build_cmds is None:
             build_cmds = []
-        res = verbose_issinstance(info, self.export_type_scheme["info"], "Revision info")
+        res = verbose_isinstance(info, self.export_type_scheme["info"], "Revision info")
         if not res:
             raise StructureError(str(res))
         self.id = str(info["commit_id"])
@@ -183,7 +183,7 @@ class RevisionModel(object):
         :rtype RevisionModel
         :raises StructureError if the passed dictionary hasn't the expected structure
         """
-        res = verbose_issinstance(data, cls.export_type_scheme, "revision data structure")
+        res = verbose_isinstance(data, cls.export_type_scheme, "revision data structure")
         if not res:
             raise StructureError(str(res))
         build_cmds = [BuildCmdModel.load_from_dict(d) for d in data["build_cmds"]]
@@ -206,6 +206,12 @@ class RevisionModel(object):
             "build_cmds": [cmd.to_dict() for cmd in self.build_cmds]
         }
         return data
+
+    def __str__(self):
+        return self.id[0:10]
+
+    def __repr__(self):
+        return "RevisionModel(id={})".format(self.id[0:10])
 
 
 class BuildCmdModel(object):
@@ -260,7 +266,7 @@ class BuildCmdModel(object):
         :raises StructureError if the passed dictionary hasn't the expected structure
         """
         data_name = "(revision, build_cmd) tuple (aka BuildCmdModel) data structure"
-        res = verbose_issinstance(data, cls.export_type_scheme, data_name)
+        res = verbose_isinstance(data, cls.export_type_scheme, data_name)
         if not res:
             raise StructureError(str(res))
         run_cmds = []
@@ -298,16 +304,17 @@ class RunCmdModel(object):
         "run_data": NonExistent() | Dict()
     })
 
-    def __init__(self, cmd: str, run_data = None):
+    def __init__(self, cmd: str, run_data=None):
         """
 
         :param cmd: run command
         :param run_data: optional RundDataModel object that belongs to this RunCmdModel
         :type run_data: RunDataModel
-        :return:
         """
         self.cmd = cmd
+        """Run command"""
         self.run_data = run_data
+        """Optional RundDataModel object that belongs to this RunCmdModel"""
 
     @classmethod
     def load_from_dict(cls, data: dict):
@@ -323,7 +330,7 @@ class RunCmdModel(object):
         :rtype RunCmdModel
         :raises StructureError if the passed dictionary hasn't the expected structure
         """
-        res = verbose_issinstance(data, cls.export_type_scheme, data_name="Run cmd data structure")
+        res = verbose_isinstance(data, cls.export_type_scheme, value_name="Run cmd data structure")
         if not res:
             raise StructureError(str(res))
         model = None
@@ -392,7 +399,7 @@ class RunDataModel(object):
         :rtype RunDataModel
         :raises StructureError if the passed dictionary hasn't the expected structure
         """
-        res = verbose_issinstance(data, cls.export_type_scheme, "Run data structure")
+        res = verbose_isinstance(data, cls.export_type_scheme, "Run data structure")
         if not res:
             raise StructureError(str(res))
         return RunDataModel(data["properties"], data["data"])
