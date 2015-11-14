@@ -10,7 +10,7 @@ class TestTypecheckModule(unittest.TestCase):
             msg = "Value {!r} doesn't adhere to {!s}".format(value, type_constraint)
             res = type_constraint.__instancecheck__(value, Info("abc"))
             self.assertTrue(bool(res), msg="{}: {!s}".format(msg, res))
-            self.assertTrue(isinstance(value, type_constraint), msg=msg)
+            self.assertTrue(bool(isinstance(value, type_constraint)), msg=msg)
 
     def assertTypesInCorrect(self, *tuples: object):
         for (value, type_constraint) in tuples:
@@ -206,6 +206,8 @@ class TestTypecheckModule(unittest.TestCase):
         self.assertEqual(t["a"], Dict({"b": Float()}))
         self.assertEqual(t["c"], List(Int()))
         self.assertEqual(t[3], NonExistent())
+        with self.assertRaises(ValueError):
+            t[4] = Int()
 
     def test_nonexistent(self):
         t = Dict({"asdf": Either(
@@ -228,6 +230,25 @@ class TestTypecheckModule(unittest.TestCase):
             ({"asdf": {"ads": 3}}, t)
         )
 
+    def test_tuple(self):
+        self.assertTypesCorrect(
+            ((3, 4), Tuple(Int(), Int())),
+            (("ds",), Tuple(Str())),
+            ((), Tuple())
+        )
+        self.assertTypesInCorrect(
+            ((4,), Tuple(Float())),
+            ((), Tuple(Int())),
+            (4, Tuple(Int()))
+        )
+        self.assertTrue(Tuple(Int(), Int()), Tuple(Int(), Int()))
+
     def test_misc(self):
         self.assertTypesCorrect((3, NaturalNumber()), (1, NaturalNumber()))
         self.assertTypesInCorrect((0, NaturalNumber()), (-1, NaturalNumber()))
+
+    def test_typecheck(self):
+        typecheck(3, Int())
+        typecheck(3, int)
+        with self.assertRaises(TypeError):
+            typecheck(3, Str())

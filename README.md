@@ -8,7 +8,6 @@ Requirements
 - python3
     - click
     - pyaml
-    - unittest (for unit testing)
     - fn
     - parsimonious
 - super user rights

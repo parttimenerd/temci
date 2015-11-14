@@ -42,8 +42,10 @@ __all__ = [
     "Optional",
     "Constraint",
     "List",
+    "Tuple",
     "Dict",
-    "verbose_isinstance"
+    "verbose_isinstance",
+    "typecheck"
 ]
 
 import fn
@@ -163,9 +165,9 @@ class Type(object):
         return "Type[]"
 
     def _validate_types(self, *types):
-        for type in types:
-            if not isinstance(type, Type):
-                raise ConstraintError("{} is not an instance of a Type subclass".format(type))
+        for t in types:
+            if not isinstance(t, Type):
+                raise ConstraintError("{} is not an instance of a Type subclass".format(t))
 
     def __and__(self, other):
         """
@@ -176,7 +178,11 @@ class Type(object):
     def __or__(self, other):
         """
         Alias for Either(self, other).
+        The only difference is that it flattens trees of Either instances
         """
+        if isinstance(other, Either):
+            other.types.index(other, 0)
+            return other
         return Either(self, other)
 
     def __floordiv__(self, other):
@@ -225,14 +231,14 @@ class Either(Type):
     Checks for the value to be of one of several types.
     """
 
-    def __init__(self, *types: Type):
+    def __init__(self, *types: list):
         """
         :param types: list of types (or SpecialType subclasses)
         :raises ConstraintError if some of the contraints aren't (typechecker) Types
         """
         super().__init__()
         self._validate_types(*types)
-        self.types = types
+        self.types = list(types)
 
     def _instancecheck_impl(self, value, info: Info = NoInfo()):
         """
@@ -250,6 +256,12 @@ class Either(Type):
     def _eq_impl(self, other):
         return len(other.types) == len(self.types) \
                and all(other.types[i] == self.types[i] for i in range(len(self.types)))
+
+    def __or__(self, other):
+        if isinstance(other, Either):
+            self.types.append(other.types)
+            return self
+        return Either(self, other)
 
 class Union(Either):
     """
@@ -457,6 +469,41 @@ class List(Type):
         return other.elem_type == self.elem_type
 
 
+class Tuple(Type):
+    """
+    Checks for the value to be a tuple (or a list) with elements of the given types.
+    """
+
+    def __init__(self, *elem_types):
+        """
+        :param elem_types: types of elements
+        :raises ConstraintError if elem_type isn't a (typechecker) Types
+        """
+        super().__init__()
+        for elem_type in elem_types:
+            self._validate_types(elem_type)
+        self.elem_types = elem_types
+
+    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+        if not (isinstance(value, list) or isinstance(value, tuple)) or len(self.elem_types) != len(value):
+            return info.errormsg(self)
+        if len(self.elem_types) == 0:
+            return info.wrap(True)
+        for (i, elem) in enumerate(value):
+            new_info = info.add_to_name("[{}]".format(i))
+            res = self.elem_types[i].__instancecheck__(elem, new_info)
+            if not res:
+                return res
+        return info.wrap(True)
+
+    def __str__(self):
+        return "Tuple({})".format(", ".join(str(t) for t in self.elem_types))
+
+    def _eq_impl(self, other):
+        return len(other.elem_types) == len(self.elem_types) and \
+               all(a == b for (a, b) in itertools.product(self.elem_types, other.elem_types))
+
+
 class _NonExistentVal(object):
     """
     Helper class for NonExistent Type.
@@ -546,7 +593,7 @@ class Dict(Type):
         return fmt.format(data=data_str, all_keys=self.all_keys, key_type=self.key_type,
                           value_type=self.value_type)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> Type:
         """
         Returns the Type of the keys value.
         """
@@ -556,7 +603,18 @@ class Dict(Type):
             return self.value_type
         return NonExistent()
 
-    def _eq_impl(self, other):
+    def __setitem__(self, key, value):
+        """
+        Sets the Type of the keys values.
+        """
+        if (key in self.data and isinstance(value, self.value_type)) or\
+            (isinstance(key, self.key_type) and isinstance(value, self.value_type)):
+            self.data[key] = value
+        else:
+            raise ValueError("Key or value have wrong types")
+
+
+    def _eq_impl(self, other) -> bool:
         # hack improve this method
         return all(self.data[key] == other.data[key] for key in itertools.chain(self.data.keys(), other.data.keys()))
 
@@ -651,3 +709,41 @@ def verbose_isinstance(value, type, value_name: str = None):
     if not isinstance(type, Type):
         type = T(type)
     return type.__instancecheck__(value, Info(value_name))
+
+
+def typecheck(value, type, value_name: str = None):
+    """
+    Like verbose_isinstance but raises an error if the value hasn't the expected type.
+
+    :param value: passed value
+    :param type: expected type of the value
+    :param value_name: optional description of the value
+    :raises TypeError
+    """
+    res = verbose_isinstance(value, type, value_name)
+    if not res:
+        raise TypeError(str(res))
+
+"""
+# Hack: Implement a typed() decorator for runtime type testing
+
+class typed(object):
+
+    def __init__(self, *args, **kwargs):
+        print(args, kwargs)
+
+    def __call__(self, f):
+        def wrapped_f(*args, **kwargs):
+            print(args, kwargs)
+            print("dsf")
+            f(*args, **kwargs)
+        return wrapped_f
+
+@typed(3)
+def func(a, b, c, d = 4, *ds):
+    return "abc"
+
+func(55)
+
+exit()
+"""

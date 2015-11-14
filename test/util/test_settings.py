@@ -1,5 +1,6 @@
 from temci.utils.settings import Settings, SettingsError
 import unittest, os, shutil
+from temci.utils.typecheck import *
 
 class TestSettings(unittest.TestCase):
 
@@ -34,3 +35,9 @@ class TestSettings(unittest.TestCase):
         set.load_file(os.path.join(os.path.dirname(__file__), "test.yaml"))
         self.assertEqual(set.get("tmp_dir"), "/tmp/abc")
         self.assertEqual(set.get("env/nice"), 5)
+
+    def test_modify(self):
+        Settings().modify_setting("abcd", type_scheme=Dict(), default_value={})
+        self.assertEqual(Settings()["abcd"], {})
+        self.assertEqual(Settings().get_default_value("abcd"), {})
+        self.assertEqual(Settings().get_type_scheme("abcd"), Dict())

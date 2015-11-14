@@ -31,8 +31,14 @@ class Settings(metaclass=Singleton):
         "stat": {
             "run_cmd": "[..]:['']"
         },
+        "stats": {
+            "properties": ["ov-time"],
+            "tester": "t",
+            "uncertainty_range": (0.01, 0.3),
+            "groups": []
+        },
         "report": {
-
+            "reporter": "console",
         }
     }
 
@@ -48,11 +54,16 @@ class Settings(metaclass=Singleton):
         }),
         "stat": Dict({
             "run_cmd": RunCmdListStr()
-        }),
+        }, all_keys=False),
+        "stats": Dict({
+            "properties": List(Str()) | List(Tuple(Str(), Str())),
+            "tester": Str(),
+            "uncertainty_range": Tuple(Float(_ >= 0), Float(_ >= 0))
+        }, all_keys=False),
         "report": Dict({
-
-        })
-    })
+            "reporter": Str(),
+        }, all_keys=False)
+    }, all_keys=False)
 
     def __init__(self):
         """
@@ -149,7 +160,7 @@ class Settings(metaclass=Singleton):
         :raises SettingsError if the setting doesn't exist
         """
         path = key.split("/")
-        if not self._validate_key_path(path):
+        if not self.validate_key_path(path):
             raise SettingsError("No such setting {}".format(key))
         data = self.prefs
         for sub in path:
@@ -170,7 +181,8 @@ class Settings(metaclass=Singleton):
         :param value: new value of the setting
         :raises SettingsError if the setting doesn't exists
         """
-        self._validate_key_path(path)
+        self.validate_key_path(path)
+        # todo remove "enable" stuff
         if len(path) is 2 and type(self.prefs[path[0]][path[1]]) is dict and "enable" in self.defaults[path[0]][path[1]]:
             self.prefs[path[0]][path[1]]["enable"] = bool(value)
         else:
@@ -188,7 +200,7 @@ class Settings(metaclass=Singleton):
         """
         tmp = copy.deepcopy(self.prefs)
         path = key.split("/")
-        if self._validate_key_path(path):
+        if self.validate_key_path(path):
             self._set(path, value)
             res = self._validate_settings_dict(self.prefs, "settings with new setting ({}={!r})".format(key, value))
             if not res:
@@ -206,7 +218,7 @@ class Settings(metaclass=Singleton):
         """
         self.set(key, value)
 
-    def _validate_key_path(self, path: list):
+    def validate_key_path(self, path: list):
         """
         Validates a path into in to the settings trees,
         :param path: list of sub keys
@@ -218,3 +230,57 @@ class Settings(metaclass=Singleton):
                 return False
             tmp = tmp[item]
         return True
+
+    def modify_setting(self, key: str, type_scheme: Type, default_value):
+        """
+        Modifies the setting with the given key and adds it if it doesn't exist.
+        :param key: key of the setting
+        :param type_scheme: Type of the setting
+        :param default_value: default value of the setting
+        :raises SettingsError if the settings domain (the key without the last element) doesn't exist
+        :raises TypeError if the default value doesn't adhere the type scheme
+        """
+        path = key.split("/")
+        domain = "/".join(path[:-1])
+        if len(path) > 1 and not self.validate_key_path(path[:-1]) \
+                and not isinstance(self.get(domain), dict):
+            raise SettingsError("Setting domain {} doesn't exist".format(domain))
+        typecheck(default_value, type_scheme)
+        tmp_def = self.defaults
+        tmp_typ = self.type_scheme
+        tmp_prefs = self.prefs
+        for subkey in path[:-1]:
+            tmp_typ = tmp_typ[subkey]
+            tmp_def = tmp_def[subkey]
+            tmp_prefs = tmp_prefs[subkey]
+        tmp_typ[path[-1]] = type_scheme
+        tmp_def[path[-1]] = default_value
+        tmp_prefs[path[-1]] = default_value
+
+    def get_type_scheme(self, key: str) -> Type:
+        """
+        Returns the type scheme of the given key.
+        :param key: given key
+        :return: type scheme
+        :raises SettingsError if the setting with the given key doesn't exist
+        """
+        if not self.validate_key_path(key.split("/")):
+            raise SettingsError("Setting {} doesn't exist".format(key))
+        tmp_typ = self.type_scheme
+        for subkey in key.split("/"):
+            tmp_typ = tmp_typ[subkey]
+        return tmp_typ
+
+    def get_default_value(self, key: str):
+        """
+        Returns the default value of the given key.
+        :param key: given key
+        :return: default value
+        :raises SettingsError if the setting with the given key doesn't exist
+        """
+        if not self.validate_key_path(key.split("/")):
+            raise SettingsError("Setting {} doesn't exist".format(key))
+        tmp_def = self.defaults
+        for subkey in key.split("/"):
+            tmp_def = tmp_def[subkey]
+        return tmp_def
