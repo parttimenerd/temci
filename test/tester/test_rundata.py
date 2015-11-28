@@ -1,8 +1,10 @@
 from temci.utils.settings import Settings
 from temci.utils.typecheck import *
 from temci.tester.rundata import RunData, RunDataStatsHelper
+from temci.tester.report import ConsoleReporter
 from copy import deepcopy
 import unittest
+
 
 class RunDataTester(unittest.TestCase):
 
@@ -30,6 +32,7 @@ class RunDataTester(unittest.TestCase):
             "data": {"a": [3], "ov-time": [4]}
         })
 
+
 class RunDataStatsHelperTest(unittest.TestCase):
 
     def setUp(self):
@@ -46,7 +49,7 @@ class RunDataStatsHelperTest(unittest.TestCase):
                     "data": {"ov-time": [1, 2]}
                 },
                 {
-                    "attributes": {"nr": 0},
+                    "attributes": {"nr": 1},
                     "data": {"ov-time": [1.0, 2.2]}
                 }
             ]
@@ -73,7 +76,7 @@ class RunDataStatsHelperTest(unittest.TestCase):
             tmp = deepcopy(valid)
             tmp["stats"].update({"properties": "t"})
             RunDataStatsHelper.init_from_dicts(tmp, valid["runs"])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             RunDataStatsHelper.init_from_dicts(valid["stats"], [{
                     "attributes": {"nr": 0},
                     "data": {"ov-time": [1, "4"]}
@@ -88,8 +91,8 @@ class RunDataStatsHelperTest(unittest.TestCase):
         test_properties([("ov-time", "description")], [("ov-time", "description")])
 
     def test_small_methods(self):
-        self.helper.estimate_time()
-        self.helper.estimate_time_for_next_round()
+        #self.helper.estimate_time()
+        #self.helper.estimate_time_for_next_round()
         self.helper.get_program_ids_to_bench()
 
     def test_add_data_block(self):
@@ -99,6 +102,7 @@ class RunDataStatsHelperTest(unittest.TestCase):
             self.helper.add_data_block(2, {"ov-time": [3, 4]})
 
     def test_add_run_data(self):
+        ConsoleReporter(self.helper).report()
         self.helper.add_run_data()
         self.helper.add_data_block(2, {"ov-time": [3, 4]})
         self.assertEqual(len(self.helper.runs[2]["ov-time"]), 2)

@@ -7,8 +7,8 @@ these objects.
 from .testers import Tester, TesterRegistry
 from ..utils.typecheck import *
 from ..utils.settings import Settings
+import scipy
 
-#todo write tests!!!
 
 class RunData(object):
     """
@@ -49,7 +49,7 @@ class RunData(object):
         for prop in data_block:
             if prop not in self.data:
                 self.data[prop] = []
-            self.data[prop] += data_block[prop]
+            self.data[prop].extend(data_block[prop])
 
     def __len__(self) -> int:
         return len(list(self.data.values()))
@@ -69,6 +69,16 @@ class RunData(object):
             "data": self.data
         }
 
+    def __str__(self):
+        return repr(self.attributes)
+
+    def description(self):
+        if "description" in self.attributes:
+            return self.attributes["description"]
+        else:
+            return repr(self.attributes)
+
+
 class RunDataStatsHelper(object):
     """
     This class helps to simplify the work with a set of run data observations.
@@ -78,13 +88,16 @@ class RunDataStatsHelper(object):
         """
         Don't use the constructor use init_from_dicts if possible.
         :param stats: to simplify the conversion of this object into a dictionary structure
-        :param properties: list of (property name, property description) tuples
+        :param properties: list of (property name, property description) or just a list of names tuples
         :param tester:
         :param runs: list of run data objects
         """
         self.stats = stats
+        if isinstance(properties, List(Str())):
+            properties = [(prop, prop) for prop in properties]
         self.properties = properties
         self.tester = tester
+        typecheck(runs, List(T(RunData)))
         self.runs = runs
 
     @classmethod
@@ -115,13 +128,11 @@ class RunDataStatsHelper(object):
         res = verbose_isinstance(stats, Settings.type_scheme["stats"], value_name="stats parameter")
         if not res:
             raise ValueError(res)
-        res = verbose_isinstance(runs, List(Dict({
-                    "data": Dict(key_type=Str(), value_type=List(Int()|Float()), all_keys=False),
+        typecheck(runs, List(Dict({
+                    "data": Dict(key_type=Str(), value_type=List(Int()|Float()), all_keys=False) | NonExistent(),
                     "attributes": Dict(key_type=Str(), all_keys=False)
-                })),
+                }, all_keys=False)),
                 value_name="runs parameter")
-        if not res:
-            raise ValueError(res)
         properties = stats["properties"]
         props_w_descr = []
         props_wo_descr = []
@@ -134,7 +145,13 @@ class RunDataStatsHelper(object):
             props_wo_descr = properties
             props_w_descr = [(name, name) for name in properties]
         tester = TesterRegistry().get_for_name(stats["tester"], stats["uncertainty_range"])
-        run_datas = [RunData(props_wo_descr, run["data"], run["attributes"]) for run in runs]
+        run_datas = []
+        for run in runs:
+            if "data" not in run:
+                run["data"] = {}
+                for prop in props_wo_descr:
+                    run["data"][prop] = []
+            run_datas.append(RunData(props_wo_descr, run["data"], run["attributes"]))
         return RunDataStatsHelper(stats, props_w_descr, tester, run_datas)
 
     def to_dict(self) -> dict:
@@ -152,11 +169,28 @@ class RunDataStatsHelper(object):
     def _is_equal(self, property: str, data1: RunData, data2: RunData) -> bool:
         return self.tester.is_equal(data1[property], data2[property])
 
-    def _estimate_time_for_run_datas(self, run_bin_size: int, data1: RunData, data2: RunData) -> float:
+    def _is_unequal(self, property: str, data1: RunData, data2: RunData) -> bool:
+        return self.tester.is_unequal(data1[property], data2[property])
+
+    def _speed_up(self, property: str, data1: RunData, data2: RunData):
+        """
+        Calculates the speed up from the second to the first
+        (e.g. the first is RESULT * 100 % faster than the second).
+        """
+        return (scipy.mean(data2[property]) - scipy.mean(data1[property])) \
+               / scipy.mean(data1[property])
+
+    def _estimate_time_for_run_datas(self, run_bin_size: int, data1: RunData, data2: RunData,
+                                     min_runs: int, max_runs: int) -> float:
+        if min(len(data1), len(data2)) == 0:
+            return max_runs
         needed_runs = []
         for (prop, descr) in self.properties:
-            needed_runs.append(self.tester.estimate_needed_runs(data1[prop], data2[prop], run_bin_size))
-        avg_time = max(sum(i for i in data1["ov-time"]) / len(data1), sum(i for i in data2["ov-time"]) / len(data2))
+            estimate = self.tester.estimate_needed_runs(data1[prop], data2[prop],
+                                                                run_bin_size, min_runs, max_runs)
+            needed_runs.append(estimate)
+        #print("needed_runs", needed_runs)
+        avg_time = max(scipy.mean(data1["ov-time"]), scipy.mean(data2["ov-time"]))
         return max(needed_runs) * avg_time
 
     def get_program_ids_to_bench(self) -> list:
@@ -168,38 +202,48 @@ class RunDataStatsHelper(object):
         for (i, run) in enumerate(self.runs):
             if i in to_bench:
                 continue
-            for (j, run2) in enumerate(self.runs):
+            for j in range(i):
+                if j in to_bench:
+                    continue
+                run2 = self.runs[j]
                 if any(self._is_uncertain(prop, run, run2) for (prop, descr) in self.properties):
                     to_bench.add(i)
                     to_bench.add(j)
         return list(to_bench)
 
-    def estimate_time(self, run_bin_size: int = 10) -> float:
+    def estimate_time(self, run_bin_size: int, min_runs: int, max_runs: int) -> float:
         """
         Roughly erstimates the time needed to finish benchmarking all program blocks.
         It doesn't take any parallelism into account. Therefore divide the number by the used parallel processes.
         :param run_bin_size: times a program block is benchmarked in a single block of time
-        :return estimated time in seconds
+        :param min_runs: minimum number of allowed runs
+        :param max_runs: maximum number of allowed runs
+        :return estimated time in seconds or float("inf") if no proper estimation could be made
         """
         to_bench = self.get_program_ids_to_bench()
         max_times = [0 for i in to_bench]
         for i in to_bench:
             run = self.runs[i]
             for j in to_bench:
-                max_time = self._estimate_time_for_run_datas(run_bin_size, run, self.runs[j])
+                max_time = self._estimate_time_for_run_datas(run_bin_size, run, self.runs[j],
+                                                             min_runs, max_runs)
                 max_times[i] = max(max_times[i], max_time)
                 max_times[j] = max(max_times[j], max_time)
+                if max_time == float("inf"):
+                    return float("inf")
         return sum(max_times)
 
-    def estimate_time_for_next_round(self, run_bin_size: int = 10) -> float:
+    def estimate_time_for_next_round(self, run_bin_size: int, all: bool) -> float:
         """
         Roughly estimates the time needed for the next benchmarking round.
         :param run_bin_size: times a program block is benchmarked in a single block of time and the size of a round
+        :param all: expect all program block to be benchmarked
         :return estimated time in seconds
         """
         summed = 0
-        for i in self.get_program_ids_to_bench():
-            summed += sum(self.runs[i]["ov-time"]) / len(self.runs[i])
+        to_bench = range(0, len(self.runs)) if all else self.get_program_ids_to_bench()
+        for i in to_bench:
+            summed += scipy.mean(self.runs[i]["ov-time"]) * run_bin_size
         return summed
 
     def add_run_data(self, data: list = None, attributes: dict = None) -> int:
@@ -231,11 +275,12 @@ class RunDataStatsHelper(object):
 
             - data: # set of two run data objects
               properties: # information for each property that is equal, ...
-                - prop:
-                  equal: True/False
-                  uncertain: True/False
-                  p_val: probability of the null hypothesis
-                  description: description of the property
+                  -prop:
+                      - equal: True/False
+                        uncertain: True/False
+                        p_val: probability of the null hypothesis
+                        speed_up: speed up from the first to the second
+                        description: description of the property
 
         :param with_equal: with tuple with at least one "equal" property
         :param with_unequal: ... unequal property
@@ -249,20 +294,18 @@ class RunDataStatsHelper(object):
                 data = (self.runs[i], self.runs[j])
                 props = {}
                 for (prop, descr) in self.properties:
-                    props[prop]["p_val"] = self.tester.test(data[0][prop], data[1][prop])
-                    props[prop]["description"] = descr
-                    if with_equal and self._is_equal(prop, *data):
-                        props[prop]["equal"] = True
-                    if with_unequal and not self._is_equal(prop, *data):
-                        props[prop]["equal"] = False
-                    if with_uncertain:
-                        props[prop] = self._is_uncertain(prop, *data)
-                    else:
-                        if self._is_uncertain(prop, *data):
-                            props.__delitem__(prop)
+                    map = {"p_val": self.tester.test(data[0][prop], data[1][prop]),
+                           "speed_up": self._speed_up(prop, *data),
+                           "description": descr,
+                           "equal": self._is_equal(prop, *data),
+                           "unequal": self._is_unequal(prop, *data),
+                           "uncertain": self._is_uncertain(prop, *data)}
+                    if map["unequal"] == with_unequal and map["equal"] == with_equal \
+                            and map["uncertain"] == with_uncertain:
+                        props[prop] = map
                 if len(props) > 0:
                     arr.append({
-                        "data": set(data),
+                        "data": data,
                         "properties": props
                     })
         return arr

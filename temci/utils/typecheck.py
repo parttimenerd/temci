@@ -26,21 +26,30 @@ For more examples look into the test_typecheck.py file.
 __all__ = [
     "Type",
     "Exact",
+    "ExactEither",
     "T",
     "Any",
     "Int",
     "Float",
     "NonExistent",
-    "BoolLike",
+    "Bool",
     "Str",
     "NaturalNumber",
+    "FileName",
+    "FileNameOrStdOut",
+    "ValidYamlFileName",
+    "PositiveInt",
+    "StrList",
 
     "Info",
+    "Description",
+    "Default",
 
     "All",
     "Either",
     "Optional",
     "Constraint",
+    "NonErrorConstraint",
     "List",
     "Tuple",
     "Dict",
@@ -49,7 +58,8 @@ __all__ = [
 ]
 
 import fn
-import itertools
+import itertools, os, yaml, click
+
 
 class ConstraintError(ValueError):
     pass
@@ -112,6 +122,13 @@ class Info(object):
     def wrap(self, result: bool):
         return InfoMsg(result)
 
+    def __getitem__(self, item):
+        raise NotImplementedError()
+
+    def __setitem__(self, key, value):
+        raise NotImplementedError()
+
+
 class NoInfo(Info):
 
     def add_to_name(self, app_str):
@@ -132,6 +149,7 @@ class NoInfo(Info):
     def wrap(self, result: bool):
         return result
 
+
 class InfoMsg(object):
 
     def __init__(self, msg_or_bool):
@@ -144,10 +162,48 @@ class InfoMsg(object):
     def __bool__(self):
         return self.success
 
+
+class Description(object):
+    """
+    A description of a Type, that annotates it.
+    Usage example::
+
+        Int() // Description("Description of Int()")
+    """
+
+    def __init__(self, description: str):
+        typecheck(description, str)
+        self.description = description
+
+    def __str__(self):
+        return self.description
+
+
+class Default(object):
+    """
+    A default value annotation for a Type.
+    Usage example::
+
+        Int() // Default(3)
+
+    Especially useful to declare the default value for a key of an dictionary.
+    Allows to use Dict(...).get_default() -> dict.
+    """
+
+    def __init__(self, default):
+        self.default = default
+
+
 class Type(object):
     """
     A simple type checker type class.
     """
+
+    def __init__(self):
+        self.description = None
+        self.default = None
+        self.typecheck_default = True
+        self.completion_hints = {}
 
     def __instancecheck__(self, value, info: Info = NoInfo()):
         """
@@ -188,7 +244,17 @@ class Type(object):
     def __floordiv__(self, other):
         """
         Alias for Constraint(other, self). Self mustn't be a Type.
+        If other is a string the description property of this Type object is set.
+        It also can annotate the object with Description or Default objects.
         """
+        if isinstance(other, str) or isinstance(other, Description):
+            self.description = str(other)
+            return self
+        if isinstance(other, Default):
+            self.default = other
+            if self.typecheck_default:
+                typecheck(self.default.default, self)
+            return self
         if isinstance(other, Type):
             raise ConstraintError("{} mustn't be an instance of a Type subclass".format(other))
         return Constraint(other, self)
@@ -200,6 +266,24 @@ class Type(object):
 
     def _eq_impl(self, other):
         return False
+
+    def get_default(self):
+        if self.default is None:
+            raise ValueError("{} has no default value.".format(self))
+        return self.default.default
+
+    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> str:
+        if defaults is None:
+            defaults = self.get_default()
+        else:
+            typecheck(defaults, self)
+        i_str = " " * indents * indentation
+        y_str = yaml.dump(defaults).strip()
+        if y_str.endswith("\n..."):
+            y_str = y_str[0:-4]
+        strs = list(map(lambda x: i_str + x, y_str.split("\n")))
+        return strs if str_list else "\n".join(strs)
+
 
 class Exact(Type):
     """
@@ -226,6 +310,15 @@ class Exact(Type):
     def _eq_impl(self, other):
         return other.exp_value == self.exp_value
 
+    def __or__(self, other):
+        if isinstance(other, ExactEither):
+            other.exp_values.insert(0, self.exp_value)
+            return other
+        if isinstance(other, Exact):
+            return ExactEither(self.exp_value, other.exp_value)
+        return Either(self, other)
+
+
 class Either(Type):
     """
     Checks for the value to be of one of several types.
@@ -247,7 +340,7 @@ class Either(Type):
         for type in self.types:
             res = type.__instancecheck__(value, info)
             if res:
-                return True
+                return info.wrap(True)
         return info.errormsg(self)
 
     def __str__(self):
@@ -259,14 +352,64 @@ class Either(Type):
 
     def __or__(self, other):
         if isinstance(other, Either):
-            self.types.append(other.types)
+            self.types += other.types
             return self
         return Either(self, other)
+
+
+class ExactEither(Type):
+    """
+    Checks for the value to be of one of several exact values.
+    """
+
+    def __init__(self, *exp_values: list):
+        """
+        :param exp_values: list of types (or SpecialType subclasses)
+        :raises ConstraintError if some of the contraints aren't (typechecker) Types
+        """
+        super().__init__()
+        self.exp_values = list(exp_values)
+        self._update_completion_hints()
+
+    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+        """
+        Does the type of the value match one of the expected types?
+        """
+        if value in self.exp_values:
+            return info.wrap(True)
+        return info.errormsg(self)
+
+    def __str__(self):
+        return "ExactEither({})".format("|".join(repr(val) for val in self.exp_values))
+
+    def _eq_impl(self, other):
+        return len(other.exp_values) == len(self.exp_values) \
+               and all(other.exp_values[i] == self.exp_values[i] for i in range(len(self.exp_values)))
+
+    def __or__(self, other):
+        if isinstance(other, ExactEither):
+            self.exp_values += other.exp_values
+            self._update_completion_hints()
+            return self
+        if isinstance(other, Exact):
+            self.exp_values.append(other.exp_value)
+            self._update_completion_hints()
+            return self
+        return Either(self, other)
+
+    def _update_completion_hints(self):
+        self.completion_hints = {
+            "zsh": "({})".format(" ".join(repr(val) for val in self.exp_values)),
+            "fish": {
+                "hint": self.exp_values
+            }
+        }
 
 class Union(Either):
     """
     Alias for Either. Checks for the value to be of one of several types.
     """
+
 
 class All(Type):
     """
@@ -289,8 +432,8 @@ class All(Type):
         for type in self.types:
             res = type.__instancecheck__(value, info)
             if not res:
-               return res
-        return True
+                return res
+        return info.wrap(True)
 
     def __str__(self):
         return "All[{}]".format("|".join(str(type) for type in self.types))
@@ -303,8 +446,8 @@ class Any(Type):
     """
     Checks for the value to be of any type.
     """
-    def __instancecheck__(self, value, info: Info =NoInfo()):
-        return True
+    def __instancecheck__(self, value, info: Info = NoInfo()):
+        return info.wrap(True)
 
     def __str__(self):
         return "Any"
@@ -381,7 +524,7 @@ class Constraint(Type):
             return res
         if not self.constraint(value):
             return info.errormsg(self)
-        return True
+        return info.wrap(True)
 
     def __str__(self):
         descr = self.description
@@ -426,7 +569,7 @@ class NonErrorConstraint(Type):
             self.constraint(value)
         except self.error_cls as err:
             return info.errormsg(self, msg=str(err))
-        return True
+        return info.wrap(True)
 
     def __str__(self):
         descr = self.description
@@ -446,6 +589,7 @@ class List(Type):
     def __init__(self, elem_type=Any()):
         """
         :param elem_type: type of elements
+        :param must_contain: the elements the value has to contain at least
         :raises ConstraintError if elem_type isn't a (typechecker) Types
         """
         super().__init__()
@@ -460,7 +604,7 @@ class List(Type):
             res = self.elem_type.__instancecheck__(elem, new_info)
             if not res:
                 return res
-        return True
+        return info.wrap(True)
 
     def __str__(self):
         return "List({})".format(self.elem_type)
@@ -547,7 +691,7 @@ class Dict(Type):
         :raises ConstraintError if one of the given types isn't a (typechecker) Types
         """
         super().__init__()
-        self.data = data if data is not None else dict()
+        self.data = data if data is not None else {}
         self._validate_types(*self.data.values())
         self._validate_types(key_type, value_type)
         self.all_keys = all_keys
@@ -583,7 +727,7 @@ class Dict(Type):
                 return res
         if self.all_keys and len(self.data) - non_existent_val_num != len(value):
             return info.errormsg_too_many(self, len(value), len(self.data))
-        return True
+        return info.wrap(True)
 
     def __str__(self):
         fmt = "Dict({data}, keys={key_type}, values={value_type})"
@@ -613,30 +757,84 @@ class Dict(Type):
         else:
             raise ValueError("Key or value have wrong types")
 
+    def get_description(self, key: str) -> str:
+        """
+        Returns the description for the passed key or None if there isn't one.
+        :param key: passed key
+        """
+        return self[key].description
 
     def _eq_impl(self, other) -> bool:
-        # hack improve this method
-        return all(self.data[key] == other.data[key] for key in itertools.chain(self.data.keys(), other.data.keys()))
+        return all(self.data[key] == other.data[key] and self.get_description(key) == other.get_description(key)
+                   for key in itertools.chain(self.data.keys(), other.data.keys()))
 
+    def get_default(self) -> dict:
+        default_dict = {}
+        if self.default is not None:
+            default_dict = self.default.default
+        for key in self.data:
+            if key not in default_dict:
+                default_dict[key] = self[key].get_default()
+        return default_dict
+
+    def get_default_yaml(self, indent: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> str:
+        if len(self.data.keys()) == 0:
+            ret = "!!map {}"
+            return [ret] if str_list else ret
+        if defaults is None:
+            defaults = self.get_default()
+        else:
+            typecheck(defaults, self)
+
+        strs = []
+        keys = sorted(self.data.keys())
+        for i in range(0, len(keys)):
+            #if i != 0:
+            strs.append("")
+            key = keys[i]
+            if self.data[key].description is not None:
+                comment_lines = self.data[key].description.split("\n")
+                comment_lines = map(lambda x: "# " + x, comment_lines)
+                strs.extend(comment_lines)
+            key_yaml = yaml.dump(key).split("\n")[0]
+            if len(self.data[key].get_default_yaml(str_list=True, defaults=defaults[key])) == 1 and \
+                    (not isinstance(self.data[key], Dict) or len(self.data[key].data.keys()) == 0):
+                value_yaml = self.data[key].get_default_yaml(defaults=defaults[key])
+                strs.append("{}: {}".format(key_yaml, value_yaml.strip()))
+            else:
+                value_yaml = self.data[key].get_default_yaml(1, indentation, str_list=True, defaults=defaults[key])
+                strs.append("{}:".format(key_yaml))
+                strs.extend(value_yaml)
+        i_str = " " * indent * indentation
+        ret_strs = list(map(lambda x: i_str + x, strs))
+        return ret_strs if str_list else "\n".join(ret_strs)
 
 class Int(Type):
     """
     Checks for the value to be of type int and to adhere to some constraints.
     """
 
-    def __init__(self, constraint = None, range = None, description: str = None):
+    def __init__(self, constraint = None, range: range = None, description: str = None):
         """
         :param constraint: user defined constrained function
         :param range. range (or list) that the value has to be part of
         :param description: description of the constraints
         """
+        super().__init__()
         self.constraint = constraint
         self.range = range
         self.description = description
+        if range is not None and len(range) <= 10:
+            self.completion_hints = {
+                "zsh": "({})".format(" ".join(str(x) for x in range)),
+                "fish": {
+                    "hint": list(self.range)
+                }
+            }
 
     def _instancecheck_impl(self, value, info: Info):
-        if not isinstance(value, int) or (self.constraint != None and not self.constraint(value)) \
-                or (self.range != None and value not in self.range):
+        if not isinstance(value, int) or (self.constraint is not None and not self.constraint(value)) \
+                or (self.range is not None and value not in self.range):
             return info.errormsg(self)
         return info.wrap(True)
 
@@ -660,9 +858,161 @@ class Int(Type):
         return other.constraint == self.constraint and other.range == self.range
 
 
+class StrList(Type, click.ParamType):
+    """
+    A comma separated string list which contains elements from a fixed of allowed values.
+    """
+
+    name = "coma_sep_str_list"
+
+    def __init__(self):
+        super().__init__()
+        self.allowed_values = None
+
+    def __or__(self, other):
+        if isinstance(other, Exact) and isinstance(other.exp_value, Str()):
+            if self.allowed_values is None:
+                self.allowed_values = [other.exp_value]
+            else:
+                self.allowed_values.append(other.exp_value)
+            return self
+        return super().__or__(other)
+
+    def _instancecheck_impl(self, value, info: Info):
+        res = List(Str()).__instancecheck__(value, info)
+        if not res:
+            return info.errormsg(self, "Not a list of strings")
+        if self.allowed_values is None or all(val in self.allowed_values for val in value):
+            return info.wrap(True)
+        return info.errormsg(self, "Does contain invalid elements")
+
+    def convert(self, value, param, ctx):
+        if isinstance(value, self):
+            return value
+        elif isinstance(value, str):
+            value = str(value)
+            return value.split(",")
+        self.fail("{} is no valid comma separated string list".format(value), param, ctx)
+
+    def __str__(self):
+        if self.allowed_values is None:
+            return "StrList()"
+        else:
+            return "StrList(allowed={})".format(repr(self.allowed_values))
+
+    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> str:
+        if defaults is None:
+            defaults = self.get_default()
+        else:
+            typecheck(defaults, self)
+        i_str = " " * indents * indentation
+        ret_str = i_str + "[{}]".format(", ".join(defaults))
+        return [ret_str] if str_list else ret_str
+
+
+class Str(Type):
+
+    def __init__(self, constraint = None):
+        super().__init__()
+        self.constraint = constraint
+
+    def _instancecheck_impl(self, value, info: Info):
+        if not isinstance(value, str):
+            return info.errormsg(self)
+        if self.constraint is not None and not self.constraint(value):
+            return info.errormsg(self)
+        return info.wrap(True)
+
+    def __str__(self):
+        if self.constraint is not None:
+            return "Str({})".format(repr(self.constraint))
+        else:
+            return "Str()"
+
+
+class FileName(Str):
+    """
+    A valid file name. If the file doesn't exist, at least the parent directory must exist.
+    """
+
+    def __init__(self, constraint = None, allow_std=False):
+        super().__init__()
+        self.constraint = constraint
+        self.completion_hints = {
+            "zsh": "_files",
+            "fish": {
+                "files": True
+            }
+        }
+        self.allow_std = allow_std
+
+    def _instancecheck_impl(self, value, info: Info):
+        if not isinstance(value, str):
+            return info.errormsg(self)
+        if self.allow_std and value == "-" and (self.constraint is None or self.constraint(value)):
+            return info.wrap(True)
+        is_valid = True
+        if os.path.exists(value):
+            if os.path.isfile(value) and os.access(os.path.abspath(value), os.W_OK)\
+                    and (self.constraint is None or self.constraint(value)):
+                return info.wrap(True)
+            return info.errormsg(self)
+        abs_name = os.path.abspath(value)
+        dir_name = os.path.dirname(abs_name)
+        if os.path.exists(dir_name) and os.access(dir_name, os.EX_OK) and os.access(dir_name, os.W_OK) \
+            and (self.constraint is None or self.constraint(value)):
+            return info.wrap(True)
+        return info.errormsg(self)
+
+    def __str__(self):
+        if self.constraint is not None:
+            return "FileName({}, allow_std={})".format(repr(self.constraint), self.allow_std)
+        else:
+            return "FileName(allow_std={})".format(self.allow_std)
+
+
+class ValidYamlFileName(Str):
+    """
+    A valid file name that refers to a valid YAML file.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.completion_hints = {
+            "zsh": "_files",
+            "fish": {
+                "files": True
+            }
+        }
+
+    def _instancecheck_impl(self, value, info: Info):
+        if not isinstance(value, str):
+            return info.errormsg(self)
+        if not os.path.exists(value) or not os.path.isfile(value):
+            return info.errormsg(self)
+        try:
+            with open(value, "r") as f:
+                 yaml.load(f.readline())
+        except (IOError, yaml.YAMLError) as ex:
+            return info.errormsg(self)
+        return info.wrap(True)
+
+    def __str__(self):
+        return "ValidYamlFileName()"
+
+
 def NaturalNumber(constraint = None):
     """
-    Matches all natural numbers (ints larger than zero) that satisfy the optional user defined constrained.
+    Matches all natural numbers (ints >= 0) that satisfy the optional user defined constrained.
+    """
+    if constraint is not None:
+        return Int(lambda x: x >= 0 and constraint(x))
+    return Int(fn._ >= 0)
+
+
+def PositiveInt(constraint = None):
+    """
+    Matches all positive integers that satisfy the optional user defined constrained.
     """
     if constraint is not None:
         return Int(lambda x: x > 0 and constraint(x))
@@ -678,23 +1028,20 @@ def Float(constraint = None):
     return T(float)
 
 
-def Str(constraint = None):
+def FileNameOrStdOut():
     """
-    Alias for Constraint(constraint, T(str)) or T(str)
+    A valid file name or "-" for standard out.
     """
-    if constraint is not None:
-        return Constraint(constraint, T(str))
-    return T(str)
+    return FileName(allow_std=True)
 
-
-def BoolLike(constraint = None):
-    """
-    Alias for Constraint(constraint, t) or t, with t being an alias
-    for Constraint(lambda x: x in ["true", "false", 0, 1, True, False])
-    """
-    t = Constraint(lambda x: x in ["true", "false", 0, 1, True, False])
-    if constraint is not None:
-        return Constraint(constraint, t)
+def Bool():
+    t = T(bool)
+    t.completion_hints = {
+        "zsh": "(true false)",
+        "fish":{
+            "hint": ["true", "false"]
+        }
+    }
     return t
 
 
@@ -708,7 +1055,9 @@ def verbose_isinstance(value, type, value_name: str = None):
     """
     if not isinstance(type, Type):
         type = T(type)
-    return type.__instancecheck__(value, Info(value_name))
+    if not isinstance(value, type):
+        return type.__instancecheck__(value, Info(value_name))
+    return InfoMsg(True)
 
 
 def typecheck(value, type, value_name: str = None):
@@ -720,9 +1069,8 @@ def typecheck(value, type, value_name: str = None):
     :param value_name: optional description of the value
     :raises TypeError
     """
-    res = verbose_isinstance(value, type, value_name)
-    if not res:
-        raise TypeError(str(res))
+    if not isinstance(value, type):
+        raise TypeError(str(verbose_isinstance(value, type, value_name)))
 
 """
 # Hack: Implement a typed() decorator for runtime type testing

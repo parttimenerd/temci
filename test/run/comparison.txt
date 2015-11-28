@@ -1,0 +1,125 @@
+# Just playing music, coding and some searching on the internet
+
+ls                   ( 9510 single benchmarkings)
+	 cache-misses mean =     7738.6, deviation =  25.91475% (    2005.4)
+	 cycles       mean = 1.8528e+06, deviation =  11.84558% (2.1947e+05)
+	 instructions mean = 1.4259e+06, deviation =   1.45439% (2.0738e+04)
+	 ov-time      mean =   0.030828, deviation =  15.53176% ( 0.0047882)
+	 task-clock   mean =    0.66675, deviation =  12.59180% (  0.083956)
+ls with color        ( 9510 single benchmarkings)
+	 cache-misses mean =     8025.9, deviation =  26.05608% (    2091.2)
+	 cycles       mean = 1.8762e+06, deviation =  12.61027% ( 2.366e+05)
+	 instructions mean = 1.4254e+06, deviation =   1.45574% ( 2.075e+04)
+	 ov-time      mean =   0.030963, deviation =  15.47104% ( 0.0047903)
+	 task-clock   mean =    0.67695, deviation =  13.09815% (  0.088668)
+Equal program blocks
+####################
+	 ls vs ls with color
+		 cache-misses p val =   0.00000%, speed up =   3.71304%
+		 cycles       p val =   0.00000%, speed up =   1.26482%
+		 task-clock   p val =   0.00000%, speed up =   1.53067%
+Unequal program blocks
+####################
+All program blocks
+####################
+	 ls vs ls with color
+		 cache-misses p val =   0.00000%, speed up =   3.71304%
+		 cycles       p val =   0.00000%, speed up =   1.26482%
+		 instructions p val =   9.68389%, speed up =  -0.03503%
+		 ov-time      p val =   5.22738%, speed up =   0.43731%
+		 task-clock   p val =   0.00000%, speed up =   1.53067%
+
+# Just viewing a film on arte.tv
+
+ls                   ( 5000 single benchmarkings)
+	 cache-misses mean =     9878.9, deviation =  21.93377% (    2166.8)
+	 cycles       mean = 1.9285e+06, deviation =  22.26003% (4.2928e+05)
+	 instructions mean = 1.4244e+06, deviation =   1.45033% (2.0659e+04)
+	 ov-time      mean =   0.040186, deviation =  25.58400% (  0.010281)
+	 task-clock   mean =    0.74757, deviation =  22.50965% (   0.16828)
+ls with color        ( 5000 single benchmarkings)
+	 cache-misses mean =     9998.8, deviation =  22.36979% (    2236.7)
+	 cycles       mean = 1.9348e+06, deviation =  22.66984% (4.3862e+05)
+	 instructions mean =  1.424e+06, deviation =   1.45645% ( 2.074e+04)
+	 ov-time      mean =   0.040119, deviation =  25.84367% (  0.010368)
+	 task-clock   mean =    0.74968, deviation =  23.10633% (   0.17322)
+Equal program blocks
+####################
+	 ls vs ls with color
+		 cache-misses p val =   0.64664%, speed up =   1.21438%
+		 cycles       p val =  46.35628%, speed up =   0.32995%
+		 instructions p val =  30.01587%, speed up =  -0.03012%
+		 ov-time      p val =  74.34140%, speed up =  -0.16822%
+		 task-clock   p val =  53.68156%, speed up =   0.28221%
+Unequal program blocks
+####################
+All program blocks
+####################
+	 ls vs ls with color
+		 cache-misses p val =   0.64664%, speed up =   1.21438%
+		 cycles       p val =  46.35628%, speed up =   0.32995%
+		 instructions p val =  30.01587%, speed up =  -0.03012%
+		 ov-time      p val =  74.34140%, speed up =  -0.16822%
+		 task-clock   p val =  53.68156%, speed up =   0.28221%
+
+# Just viewing a film on arte.tv without cpusets
+
+ls                   ( 5000 single benchmarkings)
+	 cache-misses mean =     8979.7, deviation =  37.29636% (    3349.1)
+	 cycles       mean = 2.1939e+06, deviation =  33.95766% (7.4499e+05)
+	 instructions mean = 1.4402e+06, deviation =   1.80731% (2.6029e+04)
+	 ov-time      mean =   0.018187, deviation =  44.41816% ( 0.0080784)
+	 task-clock   mean =    0.83106, deviation =  36.36427% (   0.30221)
+ls with color        ( 5000 single benchmarkings)
+	 cache-misses mean =     8878.7, deviation =  36.74027% (    3262.1)
+	 cycles       mean = 2.1879e+06, deviation =  33.77097% (7.3887e+05)
+	 instructions mean = 1.4394e+06, deviation =   1.46888% (2.1143e+04)
+	 ov-time      mean =   0.017992, deviation =  43.72072% ( 0.0078663)
+	 task-clock   mean =    0.82895, deviation =  35.91049% (   0.29768)
+Equal program blocks
+####################
+	 ls vs ls with color
+		 cycles       p val =  68.62668%, speed up =  -0.27324%
+		 task-clock   p val =  72.60661%, speed up =  -0.25295%
+Unequal program blocks
+####################
+All program blocks
+####################
+	 ls vs ls with color
+		 cache-misses p val =  12.68839%, speed up =  -1.12417%
+		 cycles       p val =  68.62668%, speed up =  -0.27324%
+		 instructions p val =   7.70808%, speed up =  -0.05823%
+		 ov-time      p val =  22.14979%, speed up =  -1.07208%
+		 task-clock   p val =  72.60661%, speed up =  -0.25295%
+
+# normal nice values
+ls with /bin/sh      (   95 single benchmarkings)
+	 cache-misses mean =     10547.32632, deviation =  24.26809% (    2559.6)
+	 cycles       mean =   2794975.29474, deviation =   5.38458% ( 1.505e+05)
+	 instructions mean =   2334745.37895, deviation =   0.93185% (2.1756e+04)
+	 ov-time      mean =         0.06255, deviation =  14.72776% ( 0.0092124)
+	 task-clock   mean =         1.03477, deviation =   8.33864% (  0.086286)
+
+# high io nice value (realtime)
+ls with /bin/sh      (   95 single benchmarkings)
+	 cache-misses mean =     10547.32632, deviation =  24.26809% (    2559.6)
+	 cycles       mean =   2794975.29474, deviation =   5.38458% ( 1.505e+05)
+	 instructions mean =   2334745.37895, deviation =   0.93185% (2.1756e+04)
+	 ov-time      mean =         0.06255, deviation =  14.72776% ( 0.0092124)
+	 task-clock   mean =         1.03477, deviation =   8.33864% (  0.086286)
+
+# high io nice value and nice is -10
+ls with /bin/sh      (   95 single benchmarkings)
+	 cache-misses mean =     10746.67368, deviation =  34.80722% (    3740.6)
+	 cycles       mean =   2794369.57895, deviation =   8.46477% (2.3654e+05)
+	 instructions mean =   2338858.64211, deviation =   1.05199% (2.4605e+04)
+	 ov-time      mean =         0.03889, deviation =   2.67463% ( 0.0010402)
+	 task-clock   mean =         1.03946, deviation =  11.47350% (   0.11926)
+
+# high io nice value and nice is -15
+ls with /bin/sh      (   95 single benchmarkings)
+	 cache-misses mean =     10062.47368, deviation =  20.15236% (    2027.8)
+	 cycles       mean =   2771094.96842, deviation =   4.70189% (1.3029e+05)
+	 instructions mean =   2333858.95789, deviation =   0.99961% ( 2.333e+04)
+	 ov-time      mean =         0.04748, deviation =  17.73581% ( 0.0084215)
+	 task-clock   mean =         1.02431, deviation =   7.03174% (  0.072027)

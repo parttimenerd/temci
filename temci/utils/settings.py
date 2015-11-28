@@ -1,13 +1,16 @@
 import yaml
 import copy
-import os, shutil
+import os, shutil, logging
 import click
-from .util import recursive_contains, recursive_get, \
+from temci.utils.util import recursive_contains, recursive_get, \
     recursive_find_key, recursive_exec_for_leafs, Singleton
-from .typecheck import *
-from ..model.parser import RevisionListStr, BuildCmdListStr, PathListStr, RunCmdListStr, ReportTupleListStr
+from temci.utils.typecheck import *
+import multiprocessing
+from temci.model.parser import RevisionListStr, BuildCmdListStr, PathListStr, RunCmdListStr, ReportTupleListStr
 from fn import _
 
+def ValidCPUCoreNumber():
+    return Int(range=range(0, multiprocessing.cpu_count()))
 
 class SettingsError(ValueError):
     pass
@@ -18,52 +21,47 @@ class Settings(metaclass=Singleton):
     Manages the Settings.
     """
 
-    defaults = {
-        "tmp_dir": "/tmp/temci",
-        "env": {
-            "branch": "auto",
-            "revisions": "[branch]",
-            "randomize_binary": {
-                "enable": True
-            },
-            "nice": 10
-        },
-        "stat": {
-            "run_cmd": "[..]:['']"
-        },
-        "stats": {
-            "properties": ["ov-time"],
-            "tester": "t",
-            "uncertainty_range": (0.01, 0.3),
-            "groups": []
-        },
-        "report": {
-            "reporter": "console",
-        }
-    }
-
     type_scheme = Dict({
-        "tmp_dir": T(str),
-        "env": Dict({
-            "branch": T(str),
-            "revisions": RevisionListStr(),
-            "randomize_binary": Dict({
-                "enable": BoolLike()
-            }),
-            "nice": Int(range=range(-19, 19)),
-        }),
-        "stat": Dict({
-            "run_cmd": RunCmdListStr()
-        }, all_keys=False),
+        "settings_file": Str() // Description("Additional settings file") // Default(""),
+        "tmp_dir": Str() // Default("/tmp/temci"),
+        "log_level": ExactEither("info", "warn", "error", "quiet") // Default("info"),
         "stats": Dict({
-            "properties": List(Str()) | List(Tuple(Str(), Str())),
-            "tester": Str(),
-            "uncertainty_range": Tuple(Float(_ >= 0), Float(_ >= 0))
+            "properties": StrList() // Default(["ov-time"]),
+            "tester": Str() // Default("t"),
+            "uncertainty_range": Tuple(Float(_ >= 0), Float(_ >= 0)) // Default((0.05, 0.15))
         }, all_keys=False),
         "report": Dict({
-            "reporter": Str(),
-        }, all_keys=False)
+            "reporter": Str() // Default("console"),
+            "out": FileNameOrStdOut() // Default("-"),
+            "in": Str() // Default("run_output.yaml")
+        }, all_keys=False),
+        "run": Dict({
+            "discarded_blocks": NaturalNumber() // Description("First n blocks that are discarded") // Default(10),
+            "min_runs": NaturalNumber() // Default(10),
+            "max_runs": NaturalNumber() // Default(100),
+            "max_time": NaturalNumber() // Default(3600), # in seconds
+            "run_block_size": Int(_ > 0, description="bigger than zero") // Default(5),
+            "in": FileName() // Default("in"),
+            "out": FileName() // Default("run_output.yaml"),
+            "exec_plugins": Dict({
+
+            }),
+            "cpuset": Dict({
+                "active": Bool() // Description("Use cpuset functionality?") // Default(True),
+                "base_core_number": ValidCPUCoreNumber() // Description("Number of cpu cores for the base "
+                                                                 "(remaining part of the) system") // Default(1),
+                "parallel": Int(_ >= -1) // Description("0: benchmark sequential, "
+                                                      "> 0: benchmark parallel with n instances, "
+                                                      "-1: determine n automatically") // Default(0),
+                "sub_core_number": ValidCPUCoreNumber() // Description("Number of cpu cores per parallel running program.")
+                                   // Default(1)
+            }),
+            "show_report": Bool() // Default(True)
+                // Description("Print console report if log_level=info"),
+            "append": Bool() // Default(False) // Description("Append to the output file instead of overwriting")
+        })
     }, all_keys=False)
+    config_file_name = "temci.yaml"
 
     def __init__(self):
         """
@@ -72,7 +70,7 @@ class Settings(metaclass=Singleton):
         the current working directory (temci.yaml) if they exist.
         :raises SettingsError if some of the settings aren't in the format described via the type_scheme class property
         """
-        self.prefs = copy.deepcopy(self.defaults)
+        self.prefs = copy.deepcopy(self.type_scheme.get_default())
         res = self._validate_settings_dict(self.prefs, "default settings")
         if not res:
             self.prefs = copy.deepcopy(self.defaults)
@@ -87,12 +85,21 @@ class Settings(metaclass=Singleton):
         """
         if not os.path.exists(self.prefs["tmp_dir"]):
             os.mkdir(self.prefs["tmp_dir"])
+        log_level = self["log_level"]
+        logging.Logger.disabled = log_level == "quiet"
+        logger = logging.getLogger()
+        if log_level == "info":
+            logger.setLevel(level=logging.INFO)
+        elif log_level == "warn":
+            logger.setLevel(level=logging.WARNING)
+        elif log_level == "error":
+            logger.setLevel(level=logging.ERROR)
 
     def reset(self):
         """
         Resets the current settings to the defaults.
         """
-        self.prefs = copy.deepcopy(self.defaults)
+        self.prefs = copy.deepcopy(self.type_scheme.get_default())
 
     def _validate_settings_dict(self, data, description: str):
         """
@@ -148,9 +155,8 @@ class Settings(metaclass=Singleton):
         """
         Loads the settings from the `temci.yaml` file from the current working directory if it exists.
         """
-        conf = "temci.yaml"
-        if os.path.exists(conf) and os.path.isfile(conf):
-            self.load_file(conf)
+        if os.path.exists(self.config_file_name) and os.path.isfile(self.config_file_name):
+            self.load_file(self.config_file_name)
 
     def get(self, key: str):
         """
@@ -174,22 +180,19 @@ class Settings(metaclass=Singleton):
         return self.get(key)
 
     def _set(self, path: list, value):
-        """
-        Sets a setting to the passed value (if it exists).
-        If the setting has options, setting it sets the boolean option "enable".
-        :param key: name of the setting to modify
-        :param value: new value of the setting
-        :raises SettingsError if the setting doesn't exists
-        """
-        self.validate_key_path(path)
-        # todo remove "enable" stuff
-        if len(path) is 2 and type(self.prefs[path[0]][path[1]]) is dict and "enable" in self.defaults[path[0]][path[1]]:
-            self.prefs[path[0]][path[1]]["enable"] = bool(value)
-        else:
-            tmp = self.prefs
-            for key in path[0:-1]:
-                tmp = tmp[key]
-            tmp[path[-1]] = value
+        tmp_pref = self.prefs
+        tmp_type = self.type_scheme
+        for key in path[0:-1]:
+            if key not in tmp_pref:
+                tmp_pref[key] = {}
+                tmp_type[key] = Dict(all_keys=False, key_type=Str())
+            tmp_pref = tmp_pref[key]
+            tmp_type = tmp_type[key]
+        tmp_pref[path[-1]] = value
+        if path[-1] not in tmp_type.data:
+            tmp_type[path[-1]] = Any() // Default(value)
+        if path == "settings_file" and value is not "":
+            self.load_file(value)
 
     def set(self, key, value):
         """
@@ -200,15 +203,11 @@ class Settings(metaclass=Singleton):
         """
         tmp = copy.deepcopy(self.prefs)
         path = key.split("/")
-        if self.validate_key_path(path):
-            self._set(path, value)
-            res = self._validate_settings_dict(self.prefs, "settings with new setting ({}={!r})".format(key, value))
-            if not res:
-                self.prefs = tmp
-                raise SettingsError(str(res))
-        else:
+        self._set(path, value)
+        res = self._validate_settings_dict(self.prefs, "settings with new setting ({}={!r})".format(key, value))
+        if not res:
             self.prefs = tmp
-            raise SettingsError("Setting {} doesn't exist".format(key))
+            raise SettingsError(str(res))
         self._setup()
 
     def __setitem__(self, key: str, value):
@@ -231,7 +230,10 @@ class Settings(metaclass=Singleton):
             tmp = tmp[item]
         return True
 
-    def modify_setting(self, key: str, type_scheme: Type, default_value):
+    def has_key(self, key: str) -> bool:
+        return self.validate_key_path(key.split("/"))
+
+    def modify_setting(self, key: str, type_scheme: Type):
         """
         Modifies the setting with the given key and adds it if it doesn't exist.
         :param key: key of the setting
@@ -245,17 +247,19 @@ class Settings(metaclass=Singleton):
         if len(path) > 1 and not self.validate_key_path(path[:-1]) \
                 and not isinstance(self.get(domain), dict):
             raise SettingsError("Setting domain {} doesn't exist".format(domain))
-        typecheck(default_value, type_scheme)
-        tmp_def = self.defaults
         tmp_typ = self.type_scheme
         tmp_prefs = self.prefs
         for subkey in path[:-1]:
             tmp_typ = tmp_typ[subkey]
-            tmp_def = tmp_def[subkey]
             tmp_prefs = tmp_prefs[subkey]
         tmp_typ[path[-1]] = type_scheme
-        tmp_def[path[-1]] = default_value
-        tmp_prefs[path[-1]] = default_value
+        if path[-1] in tmp_prefs:
+            if type_scheme.typecheck_default:
+                typecheck(tmp_prefs[path[-1]], type_scheme)
+            tmp_typ[path[-1]] = type_scheme
+        else:
+            tmp_prefs[path[-1]] = type_scheme.get_default()
+
 
     def get_type_scheme(self, key: str) -> Type:
         """
@@ -284,3 +288,23 @@ class Settings(metaclass=Singleton):
         for subkey in key.split("/"):
             tmp_def = tmp_def[subkey]
         return tmp_def
+
+    def default(self, value, key: str):
+        """
+
+        :param value:
+        :param key:
+        :return:
+        """
+        if value is None:
+            return self[key]
+        typecheck(value, self.get_type_scheme(key))
+        return value
+
+    def store_into_file(self, file_name):
+        """
+        Stores the current settings into a yaml file with comments.
+        :param file_name: name of the resulting file
+        """
+        with open(file_name, "w") as f:
+            print(self.type_scheme.get_default_yaml(defaults=self.prefs), file=f)

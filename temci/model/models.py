@@ -58,7 +58,7 @@ class MainModel(object):
         if not os.path.exists(file):
             raise FileExistsError(file)
         with open(file, 'r') as stream:
-            data = yaml.load(stream)
+            data = yaml.load(stream, Loader=yaml.CLoader)
             cls.load_from_dict(data)
 
     @classmethod

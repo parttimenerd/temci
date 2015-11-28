@@ -10,6 +10,7 @@ class TestSettings(unittest.TestCase):
     def test_get(self):
         set = Settings()
         self.assertEqual(set.get("tmp_dir"), "/tmp/temci")
+        set["env/nice"] = 10
         self.assertEqual(set.get("env/nice"), 10)
         with self.assertRaises(SettingsError):
             set.get("non existent")

@@ -1,3 +1,5 @@
+import subprocess
+
 def recursive_contains(key, data, compare_value=False):
     """
     Evaluates how often the key is a key (or value with lists) in data (and it's sub lists or dicts)-
@@ -64,6 +66,37 @@ def recursive_exec_for_leafs(data: dict, func, _path_prep=[]):
             recursive_exec_for_leafs(data[subkey], func, _path_prep=_path_prep + [subkey])
         else:
             func(subkey, _path_prep + [subkey], data[subkey])
+
+
+def recursive_has_leaf_duplicates(data: dict, func, _path_prep=[], _return_set: set = None):
+    """
+    Executes the function for every leaf key (a key without any sub keys) of the data dict tree.
+    And returns False if the list of function return values has duplicates otherwise False.
+    :param data: dict tree
+    :param func: function that gets passed the leaf key, the key path and the actual value and returns a value
+    """
+    if type(data) is not dict:
+        return
+    _return_set = _return_set if _return_set is not None else set()
+    for sub_key in data.keys():
+        if type(data[sub_key]) is dict:
+            res = recursive_has_leaf_duplicates(data[sub_key], func, _path_prep + [sub_key], _return_set)
+            if res:
+                return True
+        else:
+            res = func(sub_key, _path_prep + [sub_key], data[sub_key])
+            if res in _return_set:
+                return True
+            _return_set.add(res)
+    return False
+
+
+def ensure_root():
+    proc = subprocess.Popen(["/usr/bin/sudo", "-n", "/usr/bin/id"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc.communicate()
+    if proc.poll() > 0:
+        raise EnvironmentError("This program needs to be run with super user privileges")
 
 
 class Singleton(type):

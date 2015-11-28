@@ -10,11 +10,14 @@ class TestRegistry(unittest.TestCase):
 
         class MockRegistry(AbstractRegistry):
 
-            def __init__(self):
-                super().__init__(["abcd"], "test", True, ["plugin"])
+            settings_key_path = "abcd"
+            use_key = "test"
+            use_list = True
+            default = ["plugin"]
+            _register = {}
 
         with self.assertRaises(ValueError):
-            MockRegistry().get_for_name("asd")
+            MockRegistry.get_for_name("asd")
 
         @register(MockRegistry, "plugin", Dict(), {})
         class Plugin:
@@ -26,19 +29,22 @@ class TestRegistry(unittest.TestCase):
             def __init__(self, a):
                 self.a = a
 
-        self.assertListEqual(MockRegistry().get_used(), ["plugin"])
+        self.assertListEqual(MockRegistry.get_used(), ["plugin"])
         Settings()["abcd/test"] = ["plugin2", "plugin"]
-        self.assertListEqual(MockRegistry().get_used(), ["plugin2", "plugin"])
+        self.assertListEqual(MockRegistry.get_used(), ["plugin2", "plugin"])
 
         Settings().modify_setting("abc", Dict(all_keys=False), {})
 
         class MockRegistryNoList(AbstractRegistry):
 
-            def __init__(self):
-                super().__init__(["abc"], "test", False, "plugin")
+            settings_key_path = "abc"
+            use_key = "test"
+            use_list = False
+            default = "plugin"
+            _register = {}
 
         with self.assertRaises(ValueError):
-            MockRegistryNoList().get_for_name("asd")
+            MockRegistryNoList.get_for_name("asd")
 
         @register(MockRegistryNoList, "plugin", Dict(), {})
         class Plugin:
@@ -50,6 +56,6 @@ class TestRegistry(unittest.TestCase):
             def __init__(self, a):
                 self.a = a
 
-        self.assertEqual(MockRegistryNoList().get_used(), "plugin")
+        self.assertEqual(MockRegistryNoList.get_used(), "plugin")
         Settings()["abc/test"] = "plugin2"
-        self.assertEqual(MockRegistryNoList().get_used(), "plugin2")
+        self.assertEqual(MockRegistryNoList.get_used(), "plugin2")
