@@ -147,13 +147,12 @@ class PreheatPlugin(AbstractRunDriverPlugin):
 
 
 @register(ExecRunDriver, "other_nice", Dict({
-    "nice": Int(range=range(-20, 20)) // Description("Niceness values range from -20 (most favorable "
-                                                     "to the process) to 19 (least favorable to the process).")
+    "nice": Int(range=range(-20, 20)) // Description("Niceness values for other processes.")
                                       // Default(18)
 }))
 class OtherNicePlugin(AbstractRunDriverPlugin):
     """
-    Allows the setting of the nice value of all other processes (that have nice > -10).
+    Allows the setting of the nice value of all other processes (tha have nice > -10).
     """
 
     def __init__(self, misc_settings):
@@ -190,11 +189,12 @@ class OtherNicePlugin(AbstractRunDriverPlugin):
 
 
 @register(ExecRunDriver, "stop_start", Dict({
-    "min_nice": Int(range=range(-20, 20)) // Default(-20)
+    "min_nice": Int(range=range(-15, 20)) // Default(-10)
+                // Description("Processes with lower nice values are ignored.")
 }))
 class StopStartPlugin(AbstractRunDriverPlugin):
     """
-    Stop all other processes that have at least a certain nice value during benchmarking.
+    Stop almost all other processes.
     """
 
     def __init__(self, misc_settings):
@@ -205,7 +205,7 @@ class StopStartPlugin(AbstractRunDriverPlugin):
 
     def setup(self):
         ensure_root()
-        for line in self._exec_command("sudo /bin/ps --noheaders -e -o pid,nice").split("\n"):
+        for line in self._exec_command("/bin/ps --noheaders -e -o pid,nice").split("\n"):
             line = line.strip()
             arr = list(filter(lambda x: len(x) > 0, line.split(" ")))
             if len(arr) == 0:
@@ -221,7 +221,7 @@ class StopStartPlugin(AbstractRunDriverPlugin):
             try:
                 os.kill(pid, signal)
             except BaseException as ex:
-                logging.error(ex)
+                pass
 
     def teardown(self):
         self._send_signal(signal.SIGCONT)

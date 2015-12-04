@@ -133,7 +133,7 @@ class RunDataStatsHelper(object):
                     "attributes": Dict(key_type=Str(), all_keys=False)
                 }, all_keys=False)),
                 value_name="runs parameter")
-        properties = stats["properties"]
+        properties = list(stats["properties"])
         props_w_descr = []
         props_wo_descr = []
         if len(properties) is 0:
@@ -221,7 +221,7 @@ class RunDataStatsHelper(object):
         :return estimated time in seconds or float("inf") if no proper estimation could be made
         """
         to_bench = self.get_program_ids_to_bench()
-        max_times = [0 for i in to_bench]
+        max_times = [0 for i in self.runs]
         for i in to_bench:
             run = self.runs[i]
             for j in to_bench:

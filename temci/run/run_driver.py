@@ -195,12 +195,13 @@ class AbstractRunDriver(AbstractRegistry):
 
 
 @register(RunDriverRegistry, "exec", Dict({
-    "runner": (Exact("simple") | Exact("perf_stat")) // Default("perf_stat"),
-    "properties": StrList() // Description("only needed for perf_stat runner")
+    "runner": (Exact("simple") | Exact("perf_stat")) // Default("perf_stat")
+            // Description("Used test driver. 'perf stat' uses the perf-stat(1) tool."),
+    "properties": ListOrTuple(Str()) // Description("Measured properties. Only needed for 'perf stat' runner.")
                               // Default(["task-clock", "branch-misses", "cache-references",
                                           "cache-misses", "cycles", "instructions"]),
     "perf_stat_repeat": PositiveInt() // Description("If runner=perf_stat make measurements of the program"
-                                                     "repeated n times. Therefore scale the number of times a program"
+                                                     "repeated n times. Therefore scale the number of times a program."
                                                      "is benchmarked.") // Default(1)
 }))
 class ExecRunDriver(AbstractRunDriver):
@@ -289,7 +290,7 @@ class ExecRunDriver(AbstractRunDriver):
             return m
         
         cmds = [modify_cmd(cmd) for cmd in block["run_cmds"]]
-        res = BenchmarkingResultBlock(self.misc_settings["properties"] + ["ov-time"])
+        res = BenchmarkingResultBlock(list(self.misc_settings["properties"]) + ["ov-time"])
         for i in range(runs):
             exec_res = self._exec_command(cmds, block, cpuset, set_id)
             res.add_run_data(parse_perf_stat(exec_res))

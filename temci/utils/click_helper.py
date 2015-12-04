@@ -1,77 +1,32 @@
+import warnings
+
 import click, sys
 from temci.utils.typecheck import *
 from temci.utils.settings import Settings
 import temci.utils.util as util
+from temci.utils.registry import AbstractRegistry
+import typing as t
 
 
-def option_path_to_string(path: list) -> str:
-    return "_".join(path)
-
-
-def string_to_option_path(string: str, tree: dict) -> list:
-    str_list = string.split("_")
-
-    def sub_func(str_list: list, sub_tree: dict) -> list:
-        typecheck(sub_tree, dict)
-        for i in range(1, len(str_list) + 1):
-            sub_key = "_".join(str_list[:i])
-            if sub_key in sub_tree:
-                if len(str_list[:i]) == len(str_list):
-                    return [sub_key]
-                else:
-                    return [sub_key] + sub_func(str_list[i:], sub_tree[sub_key])
-
-        return None
-
-    return sub_func(str_list, tree)
-
-
-def type_scheme_option(type_scheme: Dict):
+def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = False,
+                       callback = None, short: str = None):
     """
-    Works like click.option, but uses the passed type scheme to produce options.
-
-
-    :param type_scheme: type scheme to get the options from
-    :param default_value: default values for the type scheme
-    :param prefix: prefix of the options name
-    :return: function that annotates a function like click.option(...)
+    Is essentially a wrapper around click.option that works with type schemes.
+    :param option_name: name of the option
+    :param type_scheme: type scheme to use
+    :param is_flag: is this option a "--ABC/--no-ABC" like flag
+    :param callback: callback that is called with the parameter and the argument and has to return its argument
+    :param short: short name of the option (ignored if flag=True)
     """
-    default_value = type_scheme.get_default()
-    if util.recursive_has_leaf_duplicates(default_value,
-                                          lambda _1, path, _2: option_path_to_string(path)):
-        raise ValueError("Would generate duplicate options")
-    func = _type_scheme_option(type_scheme, default_value, [])
-    #print(type(func))
-    return func
-
-
-def _type_scheme_option(type_scheme: Type, default_value, prefix: list):
-    """
-
-    :param type_scheme: type scheme to get the options from
-    :param default_value: default values for the type scheme
-    :param prefix: prefix of the options name
-    :return: function that annotates a function like click.option(...)
-    """
-
-    typecheck(type_scheme, Dict)
-
-    def func(decorated_func):
-        res_func = decorated_func
-        for key in reversed(sorted(type_scheme.data.keys())):
-            sub_scheme = type_scheme[key]
-            sub_default = default_value[key]
-            if isinstance(sub_scheme, Dict):
-                res_func = _type_scheme_option(sub_scheme, sub_default, prefix + [key])(res_func)
-            else:
-                res_func = _type_scheme_option_raw(option_path_to_string(prefix + [key]),
-                                                   sub_scheme, sub_default,
-                                                   type_scheme.get_description(key))(res_func)
-        return res_func
-    return func
-
-def _type_scheme_option_raw(option_name: str, type_scheme: Type, default_value, help_text: str = None):
     __type_scheme = type_scheme
+    __short = short
+    help_text = type_scheme.description
+    has_default = True
+    default_value = None
+    try:
+        default_value = type_scheme.get_default()
+    except ValueError:
+        has_default = False
     def raw_type(_type):
         while isinstance(_type, Constraint) or isinstance(_type, NonErrorConstraint):
             _type = _type.constrained_type
@@ -97,7 +52,7 @@ def _type_scheme_option_raw(option_name: str, type_scheme: Type, default_value, 
             type_scheme = type_scheme.types[0]
         while isinstance(type_scheme, Constraint) or isinstance(type_scheme, NonErrorConstraint):
             type_scheme = type_scheme.constrained_type
-        if isinstance(type_scheme, List):
+        if isinstance(type_scheme, List) or isinstance(type_scheme, ListOrTuple):
             multiple = True
             type_scheme = type_scheme.elem_type
         if isinstance(type_scheme, click.ParamType):
@@ -117,21 +72,38 @@ def _type_scheme_option_raw(option_name: str, type_scheme: Type, default_value, 
         else:
             used_raw_type = raw_type(type_scheme)
         option_args = {
-            "default": default_value,
-            "show_default": True,
-            "type": used_raw_type
+            "type": used_raw_type,
+            "callback": None,
+            "multiple": multiple
         }
+        if has_default:
+            option_args["default"] = default_value
+            option_args["show_default"] = True
         if not isinstance(option_args["type"], click.ParamType):
             option_args["callback"] = validate(_type_scheme)
             if not isinstance(option_args["type"], Either(T(tuple), T(str))):
                 option_args["type"] = raw_type(option_args["type"])
+        if callback is not None:
+            if option_args["callback"] is None:
+                option_args["callback"] = lambda ctx, param, value: callback(param, value)
+            else:
+                old_callback = option_args["callback"]
+                option_args["callback"] = lambda ctx, param, value: callback(param, old_callback(ctx, param, value))
+        if is_flag:
+            option_args["is_flag"] = True
+
         #print(type(option_args["callback"]), option_name, type_scheme)
         if help_text is not None:
             typecheck(help_text, Str())
             option_args["help"] = help_text
-        f = click.option("--{}".format(option_name), **option_args)(decorated_func)
+        if is_flag:
+            del(option_args["type"])
+            return click.option("--{name}/--no-{name}".format(name=option_name), **option_args)(decorated_func)
+        if __short is not None:
+            return click.option("--{}".format(option_name), "-" + __short, **option_args)(decorated_func)
+        else:
+            return click.option("--{}".format(option_name), **option_args)(decorated_func)
         #print(type(f()))
-        return f
     return func
 
 
@@ -153,35 +125,214 @@ def validate(type_scheme):
     return func
 
 
-def settings(**kwargs):
-    type_scheme = Settings().type_scheme
-    default_values = type_scheme.get_default()
-    for key in kwargs:
-            arr = string_to_option_path(key, default_values)
-            if arr is not None:
-                settings_key = "/".join(arr)
-                Settings()[settings_key] = kwargs[key]
+class CmdOption:
+    """
+    Represents a command line option.
+    """
+
+    def __init__(self, option_name, settings_key: str = None, type_scheme: Type = None,
+                 short: str = None, completion_hints: dict = None, is_flag: bool = None):
+        """
+        Initializes a option either based on a setting (via settings key) or on a type scheme.
+        If this is backed by a settings key, the setting is automatically set.
+        If is_flag is None, it is set True if type_scheme is an instance of Bool() or BoolOrNone()
+
+        :param option_name: name of the option
+        :param settings_key:
+        :param type_scheme: type scheme with default value
+        :param short: short version of the option (ignored if is_flag=True)
+        :param completion_hints: additional completion hints (dict with keys for each shell)
+        :param is_flag: is the option a "--ABC/--no-ABC" flag like option?
+        :return:
+        """
+        typecheck(option_name, Str())
+        self.option_name = option_name
+        typecheck([settings_key, short], List(Str() | E(None)))
+        self.settings_key = settings_key
+        self.short = short
+        self.completion_hints = completion_hints
+        if (settings_key is None) == (type_scheme is None):
+            raise ValueError("settings_key and type_scheme are both None (or not None)")
+        self.type_scheme = Settings().get_type_scheme(settings_key) if settings_key is not None else type_scheme
+        if type_scheme is not None and not isinstance(type_scheme, click.ParamType):
+            self.callback = lambda x: None
+        if settings_key is not None and not isinstance(self.type_scheme, click.ParamType):
+            self.callback = lambda param, val: Settings().__setitem__(settings_key, val)
+        else:
+            self.callback = None
+        self.description = self.type_scheme.description
+        self.has_description = self.description is not None
+        if not self.has_description:
+            warnings.warn("Option {} is without documentation.".format(option_name))
+        self.has_default = True
+        try:
+            self.default = self.type_scheme.get_default()
+        except ValueError:
+            self.has_default = False
+        if hasattr(self.type_scheme, "completion_hints") and self.completion_hints is None:
+            self.completion_hints = self.type_scheme.completion_hints
+        self.is_flag = is_flag is True or (is_flag is None and type(self.type_scheme) in [Bool, BoolOrNone])
+        if self.is_flag:
+            self.completion_hints = None
+            self.short = None
+            def callback(param, val):
+                if val is not None:
+                    Settings()[settings_key] = val
+                return val
+            self.callback = callback
+        self.has_completion_hints = self.completion_hints is not None
+        self.has_short = short is not None
+
+    def __lt__(self, other) -> bool:
+        """
+        Compare by option_name.
+        """
+        typecheck(other, CmdOption)
+        return self.option_name < other.option_name
+
+    @classmethod
+    def from_registry(cls, registry: type, name_prefix: str = None) -> 'CmdOptionList':
+        """
+        Creates a list of CmdOption objects from an registry.
+        It creates an activation flag (--OPT/--no-OPT) for each registered plugin and
+        creates for each plugin preference an option with name OPT_PREF. Deeper nesting
+        is intentionally not supported.
+
+        :param registry:
+        :param name_prefix: prefix of each option name (usable to avoid ambiguity problems)
+        :return list of CmdOptions
+        :rtype List[CmdOption]
+        """
+        assert issubclass(registry, AbstractRegistry)
+        typecheck_locals(locals(), name_prefix=Str()|E(None))
+        name_prefix = name_prefix if name_prefix is not None else ""
+        ret_list = CmdOptionList()
+        for plugin in registry._register:
+            active_key = "{}_active".format("/".join([registry.settings_key_path, plugin]))
+            ret_list.append(CmdOption(
+                option_name=name_prefix + plugin,
+                settings_key=active_key
+            ))
+            misc_key = "{}_misc".format("/".join(registry.settings_key_path.split("/") + [plugin]))
+            misc = Settings().get_type_scheme(misc_key)
+            typecheck(misc, Dict)
+            for misc_sub_key in misc.data:
+                misc_sub = misc[misc_sub_key]
+                if not isinstance(misc_sub, Dict):
+                    ret_list.append(CmdOption(
+                        option_name="{}{}_{}".format(name_prefix, plugin, misc_sub_key),
+                        settings_key="{}/{}".format(misc_key, misc_sub_key)
+                    ))
+        return ret_list
+
+    @classmethod
+    def from_non_plugin_settings(cls, settings_domain: str,
+                                 exclude: t.List[Str] = None, name_prefix: str = None) -> 'CmdOptionList':
+        """
+        Creates a list of CmdOption object from all sub settings (in the settings domain).
+        It excludes all sub settings that are either in the exclude list or end with
+        "_active" or "_misc" (used for plugin settings).
+        Also every setting that is of type Dict is ignored.
+
+        :param settings_domain: settings domain to look into (or "" for the root domain)
+        :param exclude: list of sub keys to exclude
+        :return list of CmdOptions
+        :rtype List[CmdOption]
+        """
+        exclude = exclude or []
+        name_prefix = name_prefix or ""
+        typecheck_locals(locals(), settings_domain=str, exclude=List(Str()), name_prefix=Str())
+        domain = Settings().type_scheme
+        if settings_domain != "":
+            domain = Settings().get_type_scheme(settings_domain)
+        ret_list = []
+        for sub_key in domain.data:
+            if sub_key not in exclude and all(not sub_key.endswith(suf) for suf in ["_active", "_misc"]) \
+               and not isinstance(domain[sub_key], Dict):
+                ret_list.append(CmdOption(
+                    option_name=name_prefix + sub_key,
+                    settings_key=settings_domain + "/" + sub_key if settings_domain != "" else sub_key
+                ))
+        return CmdOptionList(*ret_list)
 
 
-def settings_completion_dict(**kwargs):
-    type_scheme = Settings().type_scheme
-    default_values = type_scheme.get_default()
-    comp_dict = {}
-    for key in kwargs:
-        arr = string_to_option_path(key, default_values)
-        if arr is not None:
-            settings_key = "/".join(arr)
-            type_scheme = Settings().get_type_scheme(settings_key)
-            descr = type_scheme.description
-            default = type_scheme.get_default()
-            comp_dict[key] = {
-                "default": default
-            }
-            if descr is not None:
-                comp_dict[key]["description"] = descr
-            if hasattr(type_scheme, "completion_hints"):
-                comp_dict[key]["completion_hints"] = type_scheme.completion_hints
-    return comp_dict
+class CmdOptionList:
+    """
+    A simple list for CmdOptions that supports list flattening.
+    """
+
+    def __init__(self, *options: t.Union[CmdOption, 'CmdOptionList']):
+        self.options = []
+        for option in options:
+            self.append(option)
+
+    def append(self, options: t.Union[CmdOption, 'CmdOptionList']) -> 'CmdOptionList':
+        """
+        Appends the passed CmdÖptionList or CmdOption and flattens the resulting list.
+        :param options: CmdÖptionList or CmdOption
+        :return self
+        """
+        typecheck_locals(locals(), options=T(CmdOptionList)|T(CmdOption))
+        if isinstance(options, CmdOption):
+            self.options.append(options)
+        else:
+            self.options.extend(options.options)
+        return self
+
+    def set_short(self, option_name: str, new_short: str) -> 'CmdOptionList':
+        """
+        Sets the short option name of the included option with the passed name.
+        :param option_name: passed option name
+        :param new_short: new short option name
+        :return: self
+        :raises IndexError if the option with the passed name doesn't exist
+        """
+        self[option_name].short = new_short
+        return self
+
+    def __getitem__(self, key: t.Union[int, str]) -> CmdOption:
+        """
+        Get the included option with the passed name or at the passed index.
+        :param key: passed name or index
+        :return: found cmd option
+        :raises IndexError if the option doesn't exist
+        """
+        if isinstance(key. int):
+            return self.options[key]
+        for option in self.options:
+            if option.option_name == key:
+                return option
+        raise IndexError("No such key {!r}".format(key))
+
+    def __iter__(self):
+        return self.options.__iter__()
+
+def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = None):
+    """
+    Wrapper around click.option that works with CmdOption objects.
+    If option is a list of CmdOptions then the type_scheme_option decorators are chained.
+    Also supports nested lists in the same manner.
+
+    :param option: CmdOption or (possibly nested) list of CmdOptions
+    :param name_prefix: prefix of all options
+    :return click.option(...) like decorator
+    """
+    typecheck(option, T(CmdOption) | T(CmdOptionList))
+    name_prefix = name_prefix or ""
+    typecheck(name_prefix, Str())
+    if isinstance(option, CmdOption):
+        return type_scheme_option(option_name=name_prefix + option.option_name,
+                                  type_scheme=option.type_scheme,
+                                  short=option.short,
+                                  is_flag=option.is_flag,
+                                  callback=option.callback
+                                  )
+
+    def func(f):
+        for opt in sorted(option.options):
+            f = cmd_option(opt, name_prefix)(f)
+        return f
+    return func
 
 #@annotate(Dict({"count": Int(), "abc": Str(), "d": Dict({
 #    "abc": NaturalNumber()

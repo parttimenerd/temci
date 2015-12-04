@@ -1,13 +1,13 @@
 from ..utils.typecheck import *
 from .run_worker_pool import RunWorkerPool, ParallelRunWorkerPool
-from .run_driver import RunProgramBlock, BenchmarkingResultBlock
+from .run_driver import RunProgramBlock, BenchmarkingResultBlock, RunDriverRegistry, ExecRunDriver
 import temci.run.run_driver_plugin
 from ..tester.rundata import RunDataStatsHelper, RunData
 from ..utils.settings import Settings
 from ..tester.testers import TesterRegistry
-from temci.tester.report_processor import ReportProcessor
+from temci.tester.report_processor import ReportProcessor, ReporterRegistry
 from temci.tester.report import ConsoleReporter
-import time, logging, humanfriendly, yaml, sys, math
+import time, logging, humanfriendly, yaml, sys, math, pytimeparse
 
 class RunProcessor:
     """
@@ -53,7 +53,7 @@ class RunProcessor:
         self.max_runs = max(Settings()["run/min_runs"], Settings()["run/max_runs"]) + self.pre_runs
         self.min_runs = min(Settings()["run/min_runs"], Settings()["run/max_runs"]) + self.pre_runs
         self.start_time = round(time.time())
-        self.end_time = self.start_time + Settings()["run/max_time"]
+        self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"])
         self.block_run_count = 0
 
     def _finished(self):
@@ -82,7 +82,8 @@ class RunProcessor:
             while self.block_run_count <= self.pre_runs or not self._finished():
                 last_round_span = time.time() - last_round_time
                 last_round_time = time.time()
-                if Settings()["log_level"] == "info" and self.block_run_count > self.pre_runs:
+                if Settings()["log_level"] == "info" and self.block_run_count > self.pre_runs and \
+                        ("exec" != RunDriverRegistry.get_used() or "start_stop" not in ExecRunDriver.get_used()):
                     last_round_actual_estimate = \
                         self.stats_helper.estimate_time_for_next_round(self.run_block_size,
                                                                        all=self.block_run_count < self.min_runs)
@@ -137,5 +138,5 @@ class RunProcessor:
         with open(file_name, "w") as f:
             f.write(yaml.dump(self.stats_helper.to_dict()["runs"]))
 
-    def print_report(self):
-        ConsoleReporter(stats_helper=self.stats_helper).report()
+    def print_report(self) -> str:
+        ReporterRegistry.get_for_name("console", self.stats_helper).report()

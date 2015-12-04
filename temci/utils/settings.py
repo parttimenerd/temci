@@ -6,7 +6,6 @@ from temci.utils.util import recursive_contains, recursive_get, \
     recursive_find_key, recursive_exec_for_leafs, Singleton
 from temci.utils.typecheck import *
 import multiprocessing
-from temci.model.parser import RevisionListStr, BuildCmdListStr, PathListStr, RunCmdListStr, ReportTupleListStr
 from fn import _
 
 def ValidCPUCoreNumber():
@@ -22,27 +21,38 @@ class Settings(metaclass=Singleton):
     """
 
     type_scheme = Dict({
-        "settings_file": Str() // Description("Additional settings file") // Default(""),
-        "tmp_dir": Str() // Default("/tmp/temci"),
-        "log_level": ExactEither("info", "warn", "error", "quiet") // Default("info"),
+        "settings_file": Str() // Description("Additional settings file") // Default("")
+                    // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
+        "tmp_dir": DirName() // Default("/tmp/temci") // Description("Used temporary directory"),
+        "log_level": ExactEither("info", "warn", "error", "quiet") // Default("info")
+                     // Description("Logging level"),
         "stats": Dict({
-            "properties": StrList() // Default(["ov-time"]),
-            "tester": Str() // Default("t"),
+            "properties": ListOrTuple(Str()) // Default(["ov-time", "cache-misses", "cycles",
+                                                "task-clock", "instructions", "branch-misses", "cache-references"])
+                        // CompletionHint(zsh="(" + " ".join(["ov-time", "cache-misses", "cycles", "task-clock",
+                                                              "instructions", "branch-misses", "cache-references"])
+                                              + ")")
+                        // Description("Properties to use for reporting and null hypothesis tests"),
             "uncertainty_range": Tuple(Float(_ >= 0), Float(_ >= 0)) // Default((0.05, 0.15))
+                        // Description("Range of p values that allow no conclusion.")
         }, all_keys=False),
         "report": Dict({
-            "reporter": Str() // Default("console"),
-            "out": FileNameOrStdOut() // Default("-"),
-            "in": Str() // Default("run_output.yaml")
+          #  "reporter": Str() // Default("console") // Description(),
+            "in": Str() // Default("run_output.yaml") // Description("File that contains the benchmarking results")
+                    // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
         }, all_keys=False),
         "run": Dict({
             "discarded_blocks": NaturalNumber() // Description("First n blocks that are discarded") // Default(10),
-            "min_runs": NaturalNumber() // Default(10),
-            "max_runs": NaturalNumber() // Default(100),
-            "max_time": NaturalNumber() // Default(3600), # in seconds
-            "run_block_size": Int(_ > 0, description="bigger than zero") // Default(5),
-            "in": FileName() // Default("in"),
-            "out": FileName() // Default("run_output.yaml"),
+            "min_runs": NaturalNumber() // Default(20) // Description("Minimum number of benchmarking runs"),
+            "max_runs": NaturalNumber() // Default(100) // Description("Maximum number of benchmarking runs"),
+            "max_time": ValidTimeSpan() // Default("10min") // Description(""), # in seconds
+            "run_block_size": PositiveInt() // Default(5)
+                              // Description("Number of benchmarking runs that are done together"),
+            "in": Str() // Default("input.exec.yaml")
+                  // Description("Input file with the program blocks to benchmark")
+                  // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
+            "out": Str() // Default("run_output.yaml") // Description("Output file for the benchmarking results")
+                    // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
             "exec_plugins": Dict({
 
             }),

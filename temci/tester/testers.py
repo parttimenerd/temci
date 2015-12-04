@@ -18,7 +18,8 @@ class TesterRegistry(AbstractRegistry):
     settings_key_path = "stats"
     use_key = "tester"
     use_list = False
-    default = "t"
+    default = "anderson"
+    _register = {}
 
 
 class Tester(object, metaclass=util.Singleton):
@@ -51,7 +52,7 @@ class Tester(object, metaclass=util.Singleton):
         return res
 
     def _test_impl(self, data1: list, data2: list) -> float:
-        return getattr(st, self.scipy_stat_method)(data1, data2)[1]
+        return getattr(st, self.scipy_stat_method)(data1, data2)[-1]
 
     def is_uncertain(self, data1: np.array, data2: np.array) -> bool:
         return min(len(data1), len(data2)) == 0 or \
@@ -121,3 +122,23 @@ class TTester(Tester):
     """
 
     scipy_stat_method = "ttest_ind"
+
+
+@register(TesterRegistry, name="ks", misc_type=Dict())
+class TTester(Tester):
+    """
+    Uses the Kolmogorov-Smirnov statistic on 2 samples.
+    """
+
+    scipy_stat_method = "ks_2samp"
+
+
+@register(TesterRegistry, name="anderson", misc_type=Dict())
+class TTester(Tester):
+    """
+    Uses the Kolmogorov-Smirnov statistic on 2 samples.
+    """
+
+    scipy_stat_method = "anderson_ksamp"
+    def _test_impl(self, data1: list, data2: list) -> float:
+        return st.anderson_ksamp([data1, data2])[-1]

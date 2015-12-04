@@ -28,22 +28,27 @@ __all__ = [
     "Exact",
     "ExactEither",
     "T",
+    "E",
     "Any",
     "Int",
     "Float",
     "NonExistent",
     "Bool",
+    "BoolOrNone",
     "Str",
     "NaturalNumber",
     "FileName",
     "FileNameOrStdOut",
     "ValidYamlFileName",
     "PositiveInt",
-    "StrList",
+    "DirName",
+    "ValidTimeSpan",
 
     "Info",
     "Description",
     "Default",
+    "CompletionHint",
+    "YAML_FILE_COMPLETION_HINT",
 
     "All",
     "Either",
@@ -51,13 +56,16 @@ __all__ = [
     "Constraint",
     "NonErrorConstraint",
     "List",
+    "StrList",
+    "ListOrTuple",
     "Tuple",
     "Dict",
     "verbose_isinstance",
-    "typecheck"
+    "typecheck",
+    "typecheck_locals"
 ]
 
-import fn
+import fn, pytimeparse
 import itertools, os, yaml, click
 
 
@@ -193,6 +201,19 @@ class Default(object):
     def __init__(self, default):
         self.default = default
 
+YAML_FILE_COMPLETION_HINT = "_files -g '*\.yaml'"
+
+class CompletionHint(object):
+    """
+    A completion hint annotation for a type.
+    Usage example::
+
+        Int() // Completion(zsh="_files")
+    """
+
+    def __init__(self, **hints):
+        self.hints = hints
+
 
 class Type(object):
     """
@@ -245,7 +266,7 @@ class Type(object):
         """
         Alias for Constraint(other, self). Self mustn't be a Type.
         If other is a string the description property of this Type object is set.
-        It also can annotate the object with Description or Default objects.
+        It also can annotate the object with Description, Default or CompletionHint objects.
         """
         if isinstance(other, str) or isinstance(other, Description):
             self.description = str(other)
@@ -254,6 +275,10 @@ class Type(object):
             self.default = other
             if self.typecheck_default:
                 typecheck(self.default.default, self)
+            return self
+        if isinstance(other, CompletionHint):
+            for shell in other.hints:
+                self.completion_hints[shell] = other.hints[shell]
             return self
         if isinstance(other, Type):
             raise ConstraintError("{} mustn't be an instance of a Type subclass".format(other))
@@ -317,6 +342,13 @@ class Exact(Type):
         if isinstance(other, Exact):
             return ExactEither(self.exp_value, other.exp_value)
         return Either(self, other)
+
+
+def E(exp_value):
+    """
+    Alias for Exact.
+    """
+    return Exact(exp_value)
 
 
 class Either(Type):
@@ -613,6 +645,38 @@ class List(Type):
         return other.elem_type == self.elem_type
 
 
+class ListOrTuple(Type):
+    """
+    Checks for the value to be a list or tuple with elements of a given type.
+    """
+
+    def __init__(self, elem_type=Any()):
+        """
+        :param elem_type: type of elements
+        :param must_contain: the elements the value has to contain at least
+        :raises ConstraintError if elem_type isn't a (typechecker) Types
+        """
+        super().__init__()
+        self._validate_types(elem_type)
+        self.elem_type = elem_type
+
+    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+        if not isinstance(value, T(list) | T(tuple)):
+            return info.errormsg(self)
+        for (i, elem) in enumerate(list(value)):
+            new_info = info.add_to_name("[{}]".format(i))
+            res = self.elem_type.__instancecheck__(elem, new_info)
+            if not res:
+                return res
+        return info.wrap(True)
+
+    def __str__(self):
+        return "ListOrTuple({})".format(self.elem_type)
+
+    def _eq_impl(self, other):
+        return other.elem_type == self.elem_type
+
+
 class Tuple(Type):
     """
     Checks for the value to be a tuple (or a list) with elements of the given types.
@@ -824,7 +888,7 @@ class Int(Type):
         self.constraint = constraint
         self.range = range
         self.description = description
-        if range is not None and len(range) <= 10:
+        if range is not None and len(range) <= 20:
             self.completion_hints = {
                 "zsh": "({})".format(" ".join(str(x) for x in range)),
                 "fish": {
@@ -1001,6 +1065,107 @@ class ValidYamlFileName(Str):
         return "ValidYamlFileName()"
 
 
+class DirName(Str):
+    """
+    A valid directory name. If the directory doesn't exist, at least the parent directory must exist.
+    """
+
+    def __init__(self, constraint = None):
+        super().__init__()
+        self.constraint = constraint
+        self.completion_hints = {
+            "zsh": "_directories",
+            "fish": {
+                "files": True
+            }
+        }
+
+    def _instancecheck_impl(self, value, info: Info):
+        if not isinstance(value, str):
+            return info.errormsg(self)
+        is_valid = True
+        if os.path.exists(value):
+            if os.path.isdir(value) and os.access(os.path.abspath(value), os.W_OK)\
+                    and (self.constraint is None or self.constraint(value)):
+                return info.wrap(True)
+            return info.errormsg(self)
+        abs_name = os.path.abspath(value)
+        dir_name = os.path.dirname(abs_name)
+        if os.path.exists(dir_name) and os.access(dir_name, os.EX_OK) and os.access(dir_name, os.W_OK) \
+            and (self.constraint is None or self.constraint(value)):
+            return info.wrap(True)
+        return info.errormsg(self)
+
+    def __str__(self):
+        if self.constraint is not None:
+            return "DirName({})".format(repr(self.constraint))
+        else:
+            return "DirName()"
+
+
+class BoolOrNone(Type, click.ParamType):
+    """
+    Like Bool but with a third value none that declares that the value no boolean value.
+    It has None as its default value (by default).
+    """
+
+    name = "bool_or_none"
+
+    def __init__(self):
+        super().__init__()
+        self.completion_hints = {
+            "zsh": "(true, false, none)",
+            "fish": {
+                "hint": ["true", "false", "none"]
+            }
+        }
+        self.default = None
+
+    def _instancecheck_impl(self, value, info: Info):
+        res = ExactEither(True, False, None).__instancecheck__(value, info)
+        return info.errormsg_cond(self, bool(res), str(res))
+
+    def convert(self, value, param, ctx):
+        if isinstance(value, self):
+            return value
+        elif isinstance(value, str):
+            value = value.lower()
+            if value == "true" :
+                return True
+            elif value == "false":
+                return False
+            elif value == "none":
+                return None
+        self.fail("{} is no valid bool or 'none'".format(value), param, ctx)
+
+    def __str__(self):
+        return "BoolOrNone()"
+
+
+class ValidTimeSpan(Type, click.ParamType):
+    """
+    A string that is parseable as timespan by pytimeparse.
+    E.g. "32m" or "2h 32m".
+    """
+
+    name = "valid_timespan"
+
+    def __init__(self):
+        super().__init__()
+
+    def _instancecheck_impl(self, value, info: Info):
+        res = Str().__instancecheck__(value, info)
+        return info.errormsg_cond(self, res and pytimeparse.parse(value), value)
+
+    def convert(self, value, param, ctx):
+        if isinstance(value, self):
+            return value
+        self.fail("{} is no valid time span".format(value), param, ctx)
+
+    def __str__(self):
+        return "ValidTimespan()"
+
+
 def NaturalNumber(constraint = None):
     """
     Matches all natural numbers (ints >= 0) that satisfy the optional user defined constrained.
@@ -1070,7 +1235,27 @@ def typecheck(value, type, value_name: str = None):
     :raises TypeError
     """
     if not isinstance(value, type):
+        print(value, type, value_name)
         raise TypeError(str(verbose_isinstance(value, type, value_name)))
+
+
+def typecheck_locals(locals: dict, **variables: dict):
+    """
+    Like typecheck but checks several variables for their associated expected type.
+    The advantage against typecheck is that it sets the value descriptions properly.
+    Example usage::
+
+        def func(a: str, b: int):
+            typecheck_locals(locals(), a=Str(), b=Int())
+
+    :param locals: directory to get the variable values from
+    :param variables: variable names with their associated expected types
+    :raises TypeError
+    """
+    typecheck(locals, Dict(all_keys=False, key_type=Str()))
+    for var in variables:
+        typecheck(locals[var], variables[var], value_name=var)
+
 
 """
 # Hack: Implement a typed() decorator for runtime type testing

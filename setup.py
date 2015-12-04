@@ -9,8 +9,8 @@ setup(
         'Click',
         'humanfriendly',
         'fn',
-        'parsimonious',
         'pyaml',
+        'typing', 'seaborn', 'pytimeparse'
     ],
     entry_points='''
         [console_scripts]

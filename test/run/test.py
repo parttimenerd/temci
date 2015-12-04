@@ -13,11 +13,12 @@ class Test(unittest.TestCase):
         Settings()["run/driver"] = "exec"
         Settings()["run/exec_misc/runner"] = "perf_stat"
         Settings()["run/out"] = path("run_output2.yaml")
-        Settings()["run/in"] = path("console_run.yaml")
+        Settings()["run/in"] = path("console_run.exec.yaml")
         Settings()["report/in"] = path("run_output2.yaml")
         Settings()["run/min_runs"] = 100
         Settings()["run/max_runs"] = 100
-        Settings()["stats/properties"] = ["ov-time", "cache-misses", "cycles", "task-clock", "instructions"]
+        Settings()["stats/properties"] = ["ov-time", "cache-misses", "cycles",
+                                          "task-clock", "instructions", "branch-misses", "cache-references"]
         Settings()["run/cpuset/active"] = True
         Settings()["run/cpuset/parallel"] = 1
         Settings()["run/exec_plugins/exec_active"] = ["stop_start"]#["nice", "env_randomize", "other_nice", "stop_start"]
