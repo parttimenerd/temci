@@ -22,14 +22,17 @@ class RunData(object):
         a dictionary of optional attributes that describe its program block.
         :raises ValueError if something is wrong with data or the properties don't include 'ov-time'
         """
-        typecheck(properties, List(T(str)))
+        typecheck(properties, List(T(str)) | E("all"))
         typecheck(attributes, Exact(None) | Dict(key_type=Str(), all_keys=False))
         self.properties = properties
         if 'ov-time' not in properties and properties != "all":
             raise ValueError("Properties don't include the overall time ('ov-time')")
         self.data = {}
-        for prop in self.properties:
-            self.data[prop] = []
+        if properties == "all":
+            self.data = None
+        else:
+            for prop in self.properties:
+                self.data[prop] = []
         if data is not None:
             self.add_data_block(data)
         self.attributes = {} if attributes is None else attributes
@@ -41,6 +44,9 @@ class RunData(object):
         :raises ValueError if not all properties have values associated or if they are not of equal length
         """
         typecheck(data_block, Dict(key_type=Str(), value_type= List(Int() | Float()), all_keys=False))
+        if self.properties == "all":
+            self.properties = data_block.keys()
+            self.data = []
         if any(prop not in data_block for prop in self.properties):
             raise ValueError("Not all properties have associated values in the passed dictionary.")
         values = list(data_block.values())

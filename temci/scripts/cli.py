@@ -1,9 +1,14 @@
+import shutil
+import subprocess
+
 from temci.run.run_processor import RunProcessor
+from temci.build.assembly import AssemblyProcessor
+from temci.build.build_processor import BuildProcessor
 import temci.run.run_driver as run_driver
 from temci.tester.report import ReporterRegistry
 from temci.utils.settings import Settings
 from temci.tester.report_processor import ReportProcessor
-import click, sys, yaml, logging
+import click, sys, yaml, logging, json, os
 from temci.utils.typecheck import *
 from temci.utils.click_helper import type_scheme_option, cmd_option, CmdOption, CmdOptionList
 
@@ -22,11 +27,13 @@ def cli():
 
 
 command_docs = {
+    "build": "Build program blocks",
     "run": "Benchmark some program blocks",
     "report": "Generate a report from benchmarking result",
     "init": "Create a temci settings file in the current directory with the current settings",
     "completion": "Creates completion files for several shells.",
-    "exec": "Use the run driver the benchmark some programs"
+    "exec": "Use the run driver the benchmark some programs",
+    "clean": "Clean up the temporary files"
 }
 
 common_options = CmdOptionList(
@@ -62,6 +69,10 @@ for reporter in ReporterRegistry._register:
     options = CmdOption.from_non_plugin_settings("report/{}_misc".format(reporter), name_prefix=reporter)
     report_options.append(options)
 
+build_options = CmdOptionList(
+    CmdOption.from_non_plugin_settings("build")
+)
+
 misc_commands = {
     "init": {
         "common": CmdOptionList(),
@@ -88,7 +99,8 @@ misc_commands = {
                                     completion_hints={"zsh": "_command"}),
                           run_options["run_driver_specific"]["exec"],
                           run_options["common"]
-                          )
+                          ),
+    "clean": CmdOptionList()
 }
 misc_commands_description = {
     "completion": {
@@ -184,6 +196,19 @@ def init():
 @cmd_option(misc_commands["init"]["sub_commands"]["settings"])
 def settings(**kwargs):
     Settings().store_into_file("temci.yaml")
+
+
+@cli.command(short_help=command_docs["build"])
+@click.argument('build_file', type=click.Path(exists=True))
+@cmd_option(common_options)
+def build(build_file: str, **kwargs):
+    Settings()["build/in"] = build_file
+    BuildProcessor().build()
+
+@cli.command(short_help=command_docs["exec"])
+@cmd_option(common_options)
+def clean():
+    shutil.rmtree(Settings()["tmp_dir"])
 
 
 @cli.group(short_help=command_docs["completion"])
@@ -294,6 +319,9 @@ _temci(){{
             (report)
                 _arguments "2: :_files -g '*\.yaml' "\
             ;;
+            (build)
+                _arguments "2: :_files -g '*\.yaml' "\
+            ;;
         esac
         ;;
         """.format(drivers="|".join(sorted(run_driver.RunDriverRegistry._register.keys())))
@@ -332,7 +360,7 @@ _temci(){{
                 *.yaml)
                     args=(
                     $common_opts
-                    {opts}
+                    {report_opts}
                     )
                     _arguments "1:: :echo 3" $args && ret=0
                 ;;
@@ -340,7 +368,21 @@ _temci(){{
                     _arguments "1:: :echo 3" && ret=0
             esac
         ;;
-    """.format(opts=process_options(report_options))
+        (build)
+            case $words[2] in
+                *.yaml)
+                    args=(
+                    $common_opts
+                    {build_opts}
+                    )
+                    _arguments "1:: :echo 3" $args && ret=0
+                ;;
+                *)
+                    _arguments "1:: :echo 3" && ret=0
+            esac
+        ;;
+    """.format(report_opts=process_options(report_options),
+               build_opts=process_options(build_options))
 
     for misc_cmd in misc_cmds_w_subcmds:
         ret_str += """
@@ -521,6 +563,9 @@ def bash(**kwargs):
         local report_common_opts=(
             {report_common_opts}
         )
+        local build_common_opts=(
+            {build_common_opts}
+        )
 
         {run_code}
 
@@ -533,6 +578,17 @@ def bash(**kwargs):
                     args=(
                         $common_opts
                         $report_common_opts
+                    )
+                    COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
+                ;;
+                esac
+                ;;
+            build)
+                case $prev in
+                *.yaml)
+                    args=(
+                        $common_opts
+                        $build_common_opts
                     )
                     COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
                 ;;
@@ -559,6 +615,7 @@ def bash(**kwargs):
                 return 0
                 ;;
             report)
+            build)
                 local IFS=$'\n'
                 local LASTCHAR=' '
                 COMPREPLY=($(compgen -o plusdirs -o nospace -f -X '!*.yaml' \
@@ -589,7 +646,8 @@ def bash(**kwargs):
                run_code=process_run(),
                run_drivers="|".join(run_options["run_driver_specific"].keys()),
                misc_commands_case_code=process_misc_commands_case(),
-               misc_commands_code=process_misc_commands()
+               misc_commands_code=process_misc_commands(),
+               build_common_opts=process_options(build_options)
                )
     with open("/tmp/temci_bash_completion.sh", "w") as f:
         f.write(file_structure)
@@ -597,22 +655,77 @@ def bash(**kwargs):
         f.flush()
 
 
+@cli.command(short_help="Wrapper around the gnu assembler")
+@click.argument("call", type=str)
+def assembler(call: str):
+    call = call.split(" ")
+    input_file = os.path.abspath(call[-1])
+    config = json.loads(os.environ["RANDOMIZATION"]) if "RANDOMIZATION" in os.environ else {}
+    as_tool = os.environ["USED_AS"] if "USED_AS" in os.environ else "/usr/bin/as"
+
+    def exec(cmd):
+        proc = subprocess.Popen(["/bin/bash", "-c", cmd], stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                universal_newlines=True)
+        out, err = proc.communicate()
+        if proc.poll() > 0:
+            return str(err)
+        return None
+
+    processor = AssemblyProcessor(config)
+    shutil.copy(input_file, "/tmp/temci_assembler.s")
+    call[0] = as_tool
+    shutil.copy("/tmp/temci_assembler.s", input_file)
+    processor.process(input_file)
+    ret = exec(" ".join(call))
+    if ret is None:
+        return
+    for i in range(0, 6):
+        shutil.copy("/tmp/temci_assembler.s", input_file)
+        processor.process(input_file, small_changes=True)
+        ret = exec(" ".join(call))
+        if ret is None:
+            return
+        #else:
+        #    logging.debug("Another try")
+    if processor.config["file_structure"]:
+        logging.warning("Disabled file structure randomization")
+        config["file_structure"] = False
+        for i in range(0, 6):
+            processor = AssemblyProcessor(config)
+            shutil.copy("/tmp/temci_assembler.s", input_file)
+            processor.process(input_file)
+            ret = exec(" ".join(call))
+            if ret is None:
+                return
+            logging.info("Another try")
+    logging.error(ret)
+    shutil.copy("/tmp/temci_assembler.s", input_file)
+    ret = exec(" ".join(call))
+    if ret is not None:
+        logging.error(ret)
+        exit(1)
+
+
+@cli.command(short_help="Compile all needed binaries in the temci scripts folder")
+def setup():
+    from temci.setup.setup import make_scripts
+    make_scripts()
+
 #sys.argv[1:] = ["exec", "-wd", "ls", "-wd", "ls ..", "-wd", "ls /tmp", "--min_runs", "5", "--max_runs", "5",
 #                "--out", "ls_100.yaml", "--stop_start"]
-sys.argv[1:] = ["report", "run_output.yaml"]
+#sys.argv[1:] = ["report", "run_output.yaml"]
 #sys.argv[1:] = ["init", "settings"]
 #sys.argv[1:] = ["completion", "zsh"]
-
+#sys.argv[1:] = ["assembler", "'dsafasdf sdaf'"]
 # default = Settings().type_scheme.get_default_yaml()
 # print(str(default))
 # print(yaml.load(default) == Settings().type_scheme.get_default())
 
-"""
-temci run sdf.exec.yaml
+if len(sys.argv) == 1:
+    sys.argv[1:] = ['build', os.path.join(os.path.abspath("."), 'build.yaml')]
+    os.chdir(os.path.abspath("../../../test/hadori"))
 
-temci report console result.yaml
-
-temci init run_file
-"""
+#print(repr(sys.argv))
 
 cli()

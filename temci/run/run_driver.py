@@ -1,7 +1,14 @@
 """
 This modules contains the base run driver, needed helper classes and registries.
 """
+import os
 
+import datetime
+
+import shutil
+
+from temci.utils.settings import Settings
+from temci.utils.vcs import VCSDriver
 from ..utils.typecheck import *
 from ..utils.registry import AbstractRegistry, register
 from .cpuset import CPUSet
@@ -9,6 +16,7 @@ from copy import deepcopy
 import logging, time, random, subprocess
 from collections import namedtuple
 import shlex, gc
+from fn import _
 
 class RunDriverRegistry(AbstractRegistry):
     """
@@ -27,7 +35,7 @@ class RunProgramBlock:
     An object that contains every needed information of a program block.
     """
 
-    def __init__(self, data, attributes: dict, run_driver: type = None):
+    def __init__(self, id: int, data, attributes: dict, run_driver: type = None):
         """
 
         :param data:
@@ -44,6 +52,7 @@ class RunProgramBlock:
         self.data.update(data)
         self.attributes = attributes
         self.is_enqueued = False
+        self.id = id
         """Is this program block enqueued in a run worker pool queue?"""
 
     def __getitem__(self, key: str):
@@ -76,7 +85,7 @@ class RunProgramBlock:
         return RunProgramBlock(deepcopy(self.data), self.attributes, self.run_driver_class)
 
     @classmethod
-    def from_dict(cls, data, run_driver: type = None):
+    def from_dict(cls, id: int, data, run_driver: type = None):
         """
         Structure of data::
 
@@ -93,7 +102,7 @@ class RunProgramBlock:
             "attributes": Dict(all_keys=False, key_type=Str()),
             "run_config": Dict(all_keys=False)
         }))
-        return RunProgramBlock(data["run_config"], data["attributes"], run_driver)
+        return RunProgramBlock(id, data["run_config"], data["attributes"], run_driver)
 
     def to_dict(self):
         return {
@@ -195,21 +204,20 @@ class AbstractRunDriver(AbstractRegistry):
 
 
 @register(RunDriverRegistry, "exec", Dict({
-    "runner": (Exact("simple") | Exact("perf_stat")) // Default("perf_stat")
-            // Description("Used test driver. 'perf stat' uses the perf-stat(1) tool."),
-    "properties": ListOrTuple(Str()) // Description("Measured properties. Only needed for 'perf stat' runner.")
+    "perf_stat_props": ListOrTuple(Str()) // Description("Measured properties")
                               // Default(["task-clock", "branch-misses", "cache-references",
                                           "cache-misses", "cycles", "instructions"]),
     "perf_stat_repeat": PositiveInt() // Description("If runner=perf_stat make measurements of the program"
                                                      "repeated n times. Therefore scale the number of times a program."
-                                                     "is benchmarked.") // Default(1)
-}))
+                                                     "is benchmarked.") // Default(1),
+    "runner": ExactEither("perf_stat") // Description("Used benchmarking runner")
+                              // Default("perf_stat")
+}, all_keys=False))
 class ExecRunDriver(AbstractRunDriver):
     """
     Implements a simple run driver that just executes one of the passed run_cmds
     in each benchmarking run.
-    It meausures the time either simply by taking the time the execution takes
-    (runner=simple) or by using the perf stat tool (runner=perf_stat).
+    It meausures the time  using the perf stat tool (runner=perf_stat).
     """
 
     settings_key_path = "run/exec_plugins"
@@ -217,15 +225,50 @@ class ExecRunDriver(AbstractRunDriver):
     use_list = True
     default = ["nice", "preheat"]
     block_type_scheme = Dict({
-        "run_cmds": List(Str()),
-        "env": Dict(all_keys=False, key_type=Str()),
-        "cmd_prefix": List(Str())
+        "run_cmd": (List(Str()) | Str()) // Description("Commands to benchmark"),
+        "env": Dict(all_keys=False, key_type=Str()) // Description("Environment vairables"),
+        "cmd_prefix": List(Str()) // Description("Command to append before the commands to benchmark"),
+        "revision": (Int(_ >= -1) | Str()) // Description("Used revision (or revision number)."
+                                                        "-1 is the current revision."),
+        "cwd": (List(Str())|Str()) // Description("Execution directories for each command")
     })
     block_default = {
         "env": {},
-        "cmd_prefix": []
+        "cmd_prefix": [],
+        "revision": -1,
+        "cwds": "."
     }
     _register = {}
+
+    def __init__(self, misc_settings: dict = None):
+        super().__init__(misc_settings)
+        if isinstance(self.misc_settings["run_cmd"], Str()):
+            self.misc_settings["run_cmds"] = [self.misc_settings["run_cmd"]]
+        else:
+            self.misc_settings["run_cmds"] = self.misc_settings["run_cmd"]
+        if isinstance(self.misc_settings["cwd"], List(Str())):
+            if len(self.misc_settings["cwd"]) != len(self.misc_settings["run_cmd"]):
+                raise ValueError("Number of passed working directories is unequal with number of passed run commands")
+            self.misc_settings["cwds"] = self.misc_settings["cwd"]
+        else:
+            self.misc_settings["cwds"] = [self.misc_settings["cwd"]] * len(self.misc_settings["run_cmds"])
+        self.uses_vcs = self.misc_settings["revision"] != -1
+        self.vcs_driver = None
+        self.tmp_dir = ""
+        if self.uses_vcs:
+            self.vcs_driver = VCSDriver.get_suited_vcs(".")
+            self.tmp_dir = os.path.join(Settings()["tmp_dir"], datetime.datetime.now().strftime("%s%f"))
+            os.mkdir(self.tmp_dir)
+        self.dirs = {}
+
+    def _setup_block(self, block: RunProgramBlock):
+        if self.uses_vcs:
+            if block.id not in self.dirs:
+                self.dirs[block.id] = os.path.join(self.tmp_dir, str(block.id))
+                os.mkdir(self.dirs[block.id])
+                self.vcs_driver.copy_revision(block["revision"], ".", self.dirs[block.id])
+            block["working_dir"] = self.dirs[block.id]
+        super()._setup_block(block)
 
     def benchmark(self, block: RunProgramBlock, runs: int,
                   cpuset: CPUSet = None, set_id: int = 0) -> BenchmarkingResultBlock:
@@ -237,7 +280,6 @@ class ExecRunDriver(AbstractRunDriver):
         gc.disable()
         try:
             res = {
-                "simple": self._simple,
                 "perf_stat": self._perf_stat
             }[runner](block, runs, cpuset, set_id)
         except BaseException:
@@ -257,26 +299,12 @@ class ExecRunDriver(AbstractRunDriver):
     ExecResult = namedtuple("ExecResult", ['time', 'stderr'])
     """ A simple named tuple named ExecResult with to properties: time and stderr """
 
-    def _simple(self, block: RunProgramBlock, runs: int,
-                cpuset: CPUSet = None, set_id: int = 0) -> BenchmarkingResultBlock:
-        """
-        Implements a simple
-        :param block: passed block
-        :return:
-        """
-        res = BenchmarkingResultBlock(["ov-time"])
-        for i in range(runs):
-            res.add_run_data({
-                "ov-time": self._exec_command(block["run_cmds"], block, cpuset, set_id).time
-            })
-        return res
-
     def _perf_stat(self, block: RunProgramBlock, runs: int,
                    cpuset: CPUSet = None, set_id: int = 0) -> BenchmarkingResultBlock:
         do_repeat = self.misc_settings["perf_stat_repeat"] > 1
         def modify_cmd(cmd):
             return "perf stat {repeat} -x ';' -e {props} -- {cmd}".format(
-                props=",".join(self.misc_settings["properties"]),
+                props=",".join(self.misc_settings["perf_stat_props"]),
                 cmd=cmd,
                 repeat="--repeat {}".format(self.misc_settings["perf_stat_repeat"]) if do_repeat else ""
             )
@@ -306,7 +334,9 @@ class ExecRunDriver(AbstractRunDriver):
         :return: time in seconds the execution needed to finish
         """
         typecheck(cmds, List(Str()))
-        cmd = random.choice(cmds)
+        rand_index = random.randrange(0, len(cmds))
+        cmd = cmds[rand_index]
+        cwd = block["cwds"][rand_index]
         executed_cmd = block["cmd_prefix"] + [cmd]
         if cpuset is not None:
             executed_cmd.insert(0, "sudo cset proc --move --force --pid $$ {} > /dev/null"\
@@ -318,6 +348,7 @@ class ExecRunDriver(AbstractRunDriver):
         proc = subprocess.Popen(["/usr/bin/zsh", "-c", executed_cmd], stdout=subprocess.DEVNULL,
                                 stderr=subprocess.PIPE,
                                 universal_newlines=True,
+                                cwd="cwd",
                                 env=env)
         out, err = proc.communicate()
         t = time.time() - t
@@ -327,6 +358,9 @@ class ExecRunDriver(AbstractRunDriver):
             raise BenchmarkingError(msg)
         return self.ExecResult(time=t, stderr=str(err))
 
+    def teardown(self):
+        super().teardown()
+        shutil.rmtree(self.tmp_dir)
 
 class BenchmarkingError(RuntimeError):
     """

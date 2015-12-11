@@ -10,7 +10,8 @@ setup(
         'humanfriendly',
         'fn',
         'pyaml',
-        'typing', 'seaborn', 'pytimeparse'
+        'typing', 'seaborn', 'pytimeparse',
+        'path.py'
     ],
     entry_points='''
         [console_scripts]

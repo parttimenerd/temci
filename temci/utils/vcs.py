@@ -10,7 +10,7 @@ class VCSDriver:
     dir = "."
     branch = None
 
-    def __init__(self, dir="."):
+    def __init__(self, dir=".", branch: str = None):
         """
         Initializes the VCS driver for a given base directory.
         It also sets the current branch if it's defined in the Settings
@@ -20,15 +20,10 @@ class VCSDriver:
         self._exec_err_code_cache = {}
         self.settings = Settings()
         self.dir = os.path.abspath(dir)
-        self.branch = self.get_branch()
-        if self.settings.get("env/branch") is "auto" and self.branch is not None:
-            self.settings.set("env/branch", self.branch)
+        self.branch = branch or self.get_branch()
 
-        if self.branch is not None and self.settings.get("env/branch") is not self.branch:
-            self.set_branch(Settings().get("env/branch"))
-
-    @staticmethod
-    def get_suited_vcs(mode="auto", dir="."):
+    @classmethod
+    def get_suited_vcs(cls, mode="auto", dir=".", branch: str = None) -> 'VCSDriver':
         """
         Chose the best suited vcs driver for the passed base directory and the passed mode.
         If mode is "auto" the best suited vcs driver is chosen. If mode is "git" or "file",
@@ -40,24 +35,24 @@ class VCSDriver:
         :raises VCSError if the selected driver isn't applicable
         """
         if mode is "file" and FileDriver.is_suited_for_dir(dir):
-            return FileDriver(dir)
+            return FileDriver(dir, branch)
         elif mode is "git" and GitDriver.is_suited_for_dir(dir):
-            return GitDriver(dir)
+            return GitDriver(dir, branch)
         elif mode is "auto" and FileDriver.is_suited_for_dir(dir):
             avcls = [cls for cls in [GitDriver, FileDriver] if cls.is_suited_for_dir(dir)]
-            return avcls[0](dir)
+            return avcls[0](dir, branch)
         else:
             raise NoSuchVCSError("No such vcs driver for mode {0} and directory {1}".format(mode, dir))
 
-    @staticmethod
-    def is_suited_for_dir(dir="."):
+    @classmethod
+    def is_suited_for_dir(cls, dir=".") -> bool:
         """
         Checks whether or not this vcs driver can work with the passed base directory.
         :param dir: passed base directory path
         """
         raise NotImplementedError()
 
-    def set_branch(self, new_branch):
+    def set_branch(self, new_branch: str):
         """
         Sets the current branch and throws an error if the branch doesn't exist.
         :param new_branch: new branch to set
@@ -144,7 +139,8 @@ class VCSDriver:
                 try:
                     if exc.errno == errno.ENOTDIR:
                         shutil.copy(src_dir_path, dest)
-                    else: raise
+                    else:
+                        raise
                 except OSError as exc2:
                     raise VCSError(str(exc2))
 
@@ -216,8 +212,8 @@ class FileDriver(VCSDriver):
     This class is also a simple example implementation of a VCSDriver.
     """
 
-    @staticmethod
-    def is_suited_for_dir(dir="."):
+    @classmethod
+    def is_suited_for_dir(cls, dir="."):
         return os.path.exists(dir) and os.path.isdir(dir)
 
     def set_branch(self, new_branch):
@@ -259,9 +255,24 @@ class GitDriver(VCSDriver):
     The driver for git repositories.
     """
 
-    @staticmethod
-    def is_suited_for_dir(dir="."):
-        return os.path.exists(os.path.join(dir, ".git"))
+    def __init__(self, dir=".", branch: str = None):
+        super().__init__(dir, branch)
+        self.base_path = self._get_git_base_dir(dir)
+
+    @classmethod
+    def is_suited_for_dir(cls, dir="."):
+        return cls._get_git_base_dir(dir) is not None
+
+    @classmethod
+    def _get_git_base_dir(cls, dir=".") -> str:
+        path = os.path.abspath(dir).split("/")
+        if path[-1] == "":
+            path = path[0:-1]
+        for i in reversed(range(1, len(path) - 1)):
+            sub_path = path[0:i]
+            if os.path.isdir(os.path.join(os.path.join(*sub_path),  ".git")):
+                return os.path.join(*path[i:])
+        return None
 
     def get_branch(self):
         if self.branch is not None:
@@ -319,7 +330,6 @@ class GitDriver(VCSDriver):
         out = out.split("\n")[0].strip()
         return out.split(" ")[1]
 
-
     def validate_revision(self, id_or_num):
         if id_or_num is -1:
             return self.has_uncommitted()
@@ -372,11 +382,12 @@ class GitDriver(VCSDriver):
             "branch": branch
         }
 
-    def copy_revision(self, id_or_num, sub_dir, dest_dirs):
-        if type(dest_dirs) is str:
+    def copy_revision(self, id_or_num, sub_dir: str, dest_dirs):
+        if isinstance(dest_dirs, str):
             dest_dirs = [dest_dirs]
         if id_or_num == -1:
             self._copy_dir(sub_dir, dest_dirs)
+        sub_dir = os.path.join(self.base_path, sub_dir)
         tar_file = os.path.abspath(os.path.join(self.settings["tmp_dir"], "tmp.tar"))
         cmd = "git archive --format tar --output {} {}".format(tar_file, self._commit_number_to_id(id_or_num))
         self._exec_command(cmd)

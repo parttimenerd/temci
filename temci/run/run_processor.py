@@ -31,7 +31,7 @@ class RunProcessor:
             "attributes": Dict(all_keys=False, key_type=Str()),
             "run_config": Dict(all_keys=False)
         })))
-        self.run_blocks = [RunProgramBlock.from_dict(run) for run in runs]
+        self.run_blocks = [RunProgramBlock.from_dict(id, run) for (id, run) in enumerate(runs)]
         self.append = Settings().default(append, "run/append")
         self.show_report = Settings().default(show_report, "run/show_report")
         if Settings()["run/cpuset/parallel"] == 0:
@@ -127,15 +127,17 @@ class RunProcessor:
             self.store_and_teardown()
             logging.error("Forced teardown of RunProcessor")
             raise
+        self.store()
 
     def teardown(self):
         self.pool.teardown()
 
     def store_and_teardown(self):
         self.teardown()
-        file_name = Settings()["run/out"]
-        #print(yaml.dump(self.stats_helper.to_dict()["runs"]))
-        with open(file_name, "w") as f:
+        self.store()
+
+    def store(self):
+        with open(Settings()["run/out"], "w") as f:
             f.write(yaml.dump(self.stats_helper.to_dict()["runs"]))
 
     def print_report(self) -> str:

@@ -23,14 +23,14 @@ class Settings(metaclass=Singleton):
     type_scheme = Dict({
         "settings_file": Str() // Description("Additional settings file") // Default("")
                     // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
-        "tmp_dir": DirName() // Default("/tmp/temci") // Description("Used temporary directory"),
+        "tmp_dir": Str() // Default("/tmp/temci") // Description("Used temporary directory"),
         "log_level": ExactEither("info", "warn", "error", "quiet") // Default("info")
                      // Description("Logging level"),
         "stats": Dict({
-            "properties": ListOrTuple(Str()) // Default(["ov-time", "cache-misses", "cycles",
-                                                "task-clock", "instructions", "branch-misses", "cache-references"])
+            "properties": (ListOrTuple(Str()) | E("all")) // Default("all")
                         // CompletionHint(zsh="(" + " ".join(["ov-time", "cache-misses", "cycles", "task-clock",
-                                                              "instructions", "branch-misses", "cache-references"])
+                                                              "instructions", "branch-misses", "cache-references",
+                                                              "all"])
                                               + ")")
                         // Description("Properties to use for reporting and null hypothesis tests"),
             "uncertainty_range": Tuple(Float(_ >= 0), Float(_ >= 0)) // Default((0.05, 0.15))
@@ -69,6 +69,25 @@ class Settings(metaclass=Singleton):
             "show_report": Bool() // Default(True)
                 // Description("Print console report if log_level=info"),
             "append": Bool() // Default(False) // Description("Append to the output file instead of overwriting")
+        }),
+        "build": Dict({
+            "rand": Dict({
+                "heap": NaturalNumber() // Default(0)
+                        // Description("0: don't randomize, > 0 randomize with paddings in range(0, x)"),
+                "stack": NaturalNumber() // Default(0)
+                        // Description("0: don't randomize, > 0 randomize with paddings in range(0, x)"),
+                "bss": Bool() // Default(False)
+                        // Description("Randomize the bss sub segments?"),
+                "data": Bool() // Default(False)
+                        // Description("Randomize the data sub segments?"),
+                "rodata": Bool() // Default(False)
+                        // Description("Randomize the rodata sub segments?"),
+                "file_structure": Bool() // Default(False)
+                                  // Description("Randomize the file structure.")
+            }) // Description("Assembly randomization"),
+            "in": Str() // Default("build.yaml") // Description("Input file with the program blocks to build")
+                // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
+            "out": Str() // Default("run.exec.yaml") // Description("Resulting run config file")
         })
     }, all_keys=False)
     config_file_name = "temci.yaml"

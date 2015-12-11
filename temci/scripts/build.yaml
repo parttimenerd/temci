@@ -1,0 +1,9 @@
+ - attributes:
+     description: 'hadori'
+   run_config:
+      run_cmd: 'hadori .'
+   build_config:
+      build_cmd: 'make'
+      randomization:
+        heap: 100
+      number: 2
