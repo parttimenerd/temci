@@ -14,7 +14,8 @@ class BuildProcessor:
             "number": (PositiveInt() | NonExistent()) // Default(1),
             "randomization": (Dict(all_keys=False) | NonExistent()) // Default({}),
             "working_dir": (DirName() | NonExistent()) // Default("."),
-            "revision": (Str() | Int() | NonExistent()) // Default(-1)
+            "revision": (Str() | Int() | NonExistent()) // Default(-1),
+            "base_dir": (DirName() | NonExistent()) // Default(".")
         })
     })
 
@@ -32,6 +33,7 @@ class BuildProcessor:
             typecheck(self.build_blocks[i], self.block_scheme, "build block {}".format(i))
         #print(json.dumps(self.build_blocks))
         typecheck(Settings()["build/out"], FileName())
+        typecheck_locals(build_blocks=List())
         self.out = Settings()["build/out"]
 
     def build(self):
@@ -39,7 +41,8 @@ class BuildProcessor:
         for block in self.build_blocks:
             block_builder = Builder(block["build_config"]["working_dir"],
                                     block["build_config"]["build_cmd"], block["build_config"]["revision"],
-                                    block["build_config"]["number"], block["build_config"]["randomization"])
+                                    block["build_config"]["number"], block["build_config"]["randomization"],
+                                    block["build_config"]["base_dir"])
             working_dirs = block_builder.build()
             assert len(working_dirs) == block["build_config"]["number"]
             block["run_config"]["cwds"] = working_dirs

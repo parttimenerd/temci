@@ -1,10 +1,10 @@
-from ..utils.typecheck import *
-from .run_worker_pool import RunWorkerPool, ParallelRunWorkerPool
-from .run_driver import RunProgramBlock, BenchmarkingResultBlock, RunDriverRegistry, ExecRunDriver
+from temci.utils.typecheck import *
+from temci.run.run_worker_pool import RunWorkerPool, ParallelRunWorkerPool
+from temci.run.run_driver import RunProgramBlock, BenchmarkingResultBlock, RunDriverRegistry, ExecRunDriver
 import temci.run.run_driver_plugin
-from ..tester.rundata import RunDataStatsHelper, RunData
-from ..utils.settings import Settings
-from ..tester.testers import TesterRegistry
+from temci.tester.rundata import RunDataStatsHelper, RunData
+from temci.utils.settings import Settings
+from temci.tester.testers import TesterRegistry
 from temci.tester.report_processor import ReportProcessor, ReporterRegistry
 from temci.tester.report import ConsoleReporter
 import time, logging, humanfriendly, yaml, sys, math, pytimeparse

@@ -66,7 +66,7 @@ __all__ = [
 ]
 
 import fn, pytimeparse
-import itertools, os, yaml, click
+import itertools, os, yaml, click, inspect
 
 
 class ConstraintError(ValueError):
@@ -138,6 +138,17 @@ class Info(object):
 
 
 class NoInfo(Info):
+
+    def __init__(self, value_name: str = None, _app_str: str = None, value=None):
+        if False:
+            super().__init__(value_name, _app_str, value)
+        self.has_value = True
+
+    def get_value(self):
+        return None
+
+    def set_value(self, value):
+        pass
 
     def add_to_name(self, app_str):
         return self
@@ -1239,7 +1250,7 @@ def typecheck(value, type, value_name: str = None):
         raise TypeError(str(verbose_isinstance(value, type, value_name)))
 
 
-def typecheck_locals(locals: dict, **variables: dict):
+def typecheck_locals(locals: dict = None, **variables: dict):
     """
     Like typecheck but checks several variables for their associated expected type.
     The advantage against typecheck is that it sets the value descriptions properly.
@@ -1252,6 +1263,8 @@ def typecheck_locals(locals: dict, **variables: dict):
     :param variables: variable names with their associated expected types
     :raises TypeError
     """
+    if locals is None:
+        locals = inspect.currentframe().f_back.f_locals
     typecheck(locals, Dict(all_keys=False, key_type=Str()))
     for var in variables:
         typecheck(locals[var], variables[var], value_name=var)

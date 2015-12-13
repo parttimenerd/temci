@@ -12,11 +12,12 @@ from ..utils.settings import Settings
 
 class Builder:
 
-    def __init__(self, build_dir: str, build_cmd: str, revision, number: int, rand_conf: dict):
+    def __init__(self, build_dir: str, build_cmd: str, revision, number: int, rand_conf: dict, base_dir: str):
         typecheck(build_dir, DirName())
         typecheck(build_cmd, str)
         typecheck(revision, Int() | Str())
         typecheck(number, PositiveInt())
+        typecheck(base_dir, DirName())
         _rand_conf = rand_conf
         rand_conf = Settings()["build/rand"]
         rand_conf.update(rand_conf)
@@ -34,7 +35,7 @@ class Builder:
             "file_structure": (Bool() | NonExistent())
                               // Description("Randomize the file structure.")
         }, all_keys=False))
-        self.build_dir = build_dir
+        self.build_dir = os.path.join(base_dir, build_dir)
         self.build_cmd = build_cmd
         self.revision = revision
         self.number = number
@@ -45,6 +46,7 @@ class Builder:
         """
         Build the program blocks.
         """
+        logging.info("Create base temporary directory and copy build directory")
         time_tag = datetime.datetime.now().strftime("%s%f")
         def tmp_dirname(i: int = "base"):
             tmp_dir = os.path.join(Settings()["tmp_dir"], "build", time_tag, str(i))
@@ -65,10 +67,11 @@ class Builder:
                 "LANG": "en_US.UTF-8",
                 "LANGUAGE": "en_US"
             }
-            proc = subprocess.Popen(["/usr/bin/zsh", "-c", "export PATH={}/:$PATH; ".format(as_path) + self.build_cmd], stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                universal_newlines=True,
-                                cwd=tmp_build_dir, env=env)
+            proc = subprocess.Popen(["/usr/bin/zsh", "-c", "export PATH={}/:$PATH; ".format(as_path) + self.build_cmd],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    universal_newlines=True,
+                                    cwd=tmp_build_dir, env=env)
             out, err = proc.communicate()
             logging.info(str(out))
             setup.exec("hadori", "./hadori {} {}".format(tmp_dir, tmp_build_dir))

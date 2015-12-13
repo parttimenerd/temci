@@ -204,7 +204,7 @@ class CmdOption:
         :rtype List[CmdOption]
         """
         assert issubclass(registry, AbstractRegistry)
-        typecheck_locals(locals(), name_prefix=Str()|E(None))
+        typecheck_locals(name_prefix=Str()|E(None))
         name_prefix = name_prefix if name_prefix is not None else ""
         ret_list = CmdOptionList()
         for plugin in registry._register:
@@ -241,7 +241,7 @@ class CmdOption:
         """
         exclude = exclude or []
         name_prefix = name_prefix or ""
-        typecheck_locals(locals(), settings_domain=str, exclude=List(Str()), name_prefix=Str())
+        typecheck_locals(settings_domain=str, exclude=List(Str()), name_prefix=Str())
         domain = Settings().type_scheme
         if settings_domain != "":
             domain = Settings().get_type_scheme(settings_domain)
@@ -272,7 +272,7 @@ class CmdOptionList:
         :param options: CmdÖptionList or CmdOption
         :return self
         """
-        typecheck_locals(locals(), options=T(CmdOptionList)|T(CmdOption))
+        typecheck_locals(options=T(CmdOptionList)|T(CmdOption))
         if isinstance(options, CmdOption):
             self.options.append(options)
         else:

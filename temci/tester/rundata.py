@@ -4,9 +4,9 @@ and the RunDataStatsHelper that provides helper methods for working with
 these objects.
 """
 
-from .testers import Tester, TesterRegistry
-from ..utils.typecheck import *
-from ..utils.settings import Settings
+from temci.tester.testers import Tester, TesterRegistry
+from temci.utils.typecheck import *
+from temci.utils.settings import Settings
 import scipy
 
 
@@ -25,10 +25,10 @@ class RunData(object):
         typecheck(properties, List(T(str)) | E("all"))
         typecheck(attributes, Exact(None) | Dict(key_type=Str(), all_keys=False))
         self.properties = properties
-        if 'ov-time' not in properties and properties != "all":
+        if 'ov-time' not in properties and properties != "all" and "all" not in properties:
             raise ValueError("Properties don't include the overall time ('ov-time')")
         self.data = {}
-        if properties == "all":
+        if properties == "all" or "all" in properties:
             self.data = None
         else:
             for prop in self.properties:
@@ -44,7 +44,7 @@ class RunData(object):
         :raises ValueError if not all properties have values associated or if they are not of equal length
         """
         typecheck(data_block, Dict(key_type=Str(), value_type= List(Int() | Float()), all_keys=False))
-        if self.properties == "all":
+        if self.properties == "all" or "all" in self.properties:
             self.properties = data_block.keys()
             self.data = []
         if any(prop not in data_block for prop in self.properties):

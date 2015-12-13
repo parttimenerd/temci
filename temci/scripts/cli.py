@@ -712,20 +712,21 @@ def setup():
     from temci.setup.setup import make_scripts
     make_scripts()
 
-#sys.argv[1:] = ["exec", "-wd", "ls", "-wd", "ls ..", "-wd", "ls /tmp", "--min_runs", "5", "--max_runs", "5",
-#                "--out", "ls_100.yaml", "--stop_start"]
-#sys.argv[1:] = ["report", "run_output.yaml"]
-#sys.argv[1:] = ["init", "settings"]
-#sys.argv[1:] = ["completion", "zsh"]
-#sys.argv[1:] = ["assembler", "'dsafasdf sdaf'"]
-# default = Settings().type_scheme.get_default_yaml()
-# print(str(default))
-# print(yaml.load(default) == Settings().type_scheme.get_default())
+if __name__ == "__main__":
+    #sys.argv[1:] = ["exec", "-wd", "ls", "-wd", "ls ..", "-wd", "ls /tmp", "--min_runs", "5", "--max_runs", "5",
+    #                "--out", "ls_100.yaml", "--stop_start"]
+    #sys.argv[1:] = ["report", "run_output.yaml"]
+    #sys.argv[1:] = ["init", "settings"]
+    #sys.argv[1:] = ["completion", "zsh"]
+    #sys.argv[1:] = ["assembler", "'dsafasdf sdaf'"]
+    # default = Settings().type_scheme.get_default_yaml()
+    # print(str(default))
+    # print(yaml.load(default) == Settings().type_scheme.get_default())
 
-if len(sys.argv) == 1:
-    sys.argv[1:] = ['build', os.path.join(os.path.abspath("."), 'build.yaml')]
-    os.chdir(os.path.abspath("../../../test/hadori"))
+    if len(sys.argv) == 1:
+        sys.argv[1:] = ['build', os.path.join(os.path.abspath("."), 'build.yaml')]
+        os.chdir(os.path.abspath("../../../test/hadori"))
 
-#print(repr(sys.argv))
+    #print(repr(sys.argv))
 
-cli()
+    cli()

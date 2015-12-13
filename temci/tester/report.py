@@ -4,15 +4,15 @@ import math
 import warnings
 
 from temci.tester.testers import TesterRegistry
-from .rundata import RunDataStatsHelper, RunData
-from ..utils.typecheck import *
-from ..utils.registry import AbstractRegistry, register
+from temci.tester.rundata import RunDataStatsHelper, RunData
+from temci.utils.typecheck import *
+from temci.utils.registry import AbstractRegistry, register
 import click, yaml, numpy, os, matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from ..utils.settings import Settings
+from temci.utils.settings import Settings
 
 class ReporterRegistry(AbstractRegistry):
 

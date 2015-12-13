@@ -4,7 +4,7 @@ This modules contains the base run driver, needed helper classes and registries.
 import os
 
 import datetime
-
+import re
 import shutil
 
 from temci.utils.settings import Settings
@@ -73,6 +73,9 @@ class RunProgramBlock:
         typecheck(value, self.type_scheme[key], value_name=value_name)
         self.data[key] = value
 
+    def __contains__(self, item) -> bool:
+        return item in self.data
+
     def __repr__(self):
         return "RunDataBlock({}, {})".format(self.data, self.attributes)
 
@@ -94,9 +97,10 @@ class RunProgramBlock:
                 "run_config": {"prop1": ..., ...}
              }
 
-        :param data:
-        :param run_driver:
-        :return:
+        :param id: id of the block (only used to track them later)
+        :param data: used data
+        :param run_driver: used RunDriver subclass
+        :return: new RunProgramBlock
         """
         typecheck(data, Dict({
             "attributes": Dict(all_keys=False, key_type=Str()),
@@ -230,13 +234,16 @@ class ExecRunDriver(AbstractRunDriver):
         "cmd_prefix": List(Str()) // Description("Command to append before the commands to benchmark"),
         "revision": (Int(_ >= -1) | Str()) // Description("Used revision (or revision number)."
                                                         "-1 is the current revision."),
-        "cwd": (List(Str())|Str()) // Description("Execution directories for each command")
+        "cwd": (List(Str())|Str()) // Description("Execution directories for each command"),
+        "runner": ExactEither() // Description("Used runner")
     })
     block_default = {
         "env": {},
         "cmd_prefix": [],
         "revision": -1,
-        "cwds": "."
+        "cwds": ".",
+        "base_dir": ".",
+        "runner": "perf_stat"
     }
     _register = {}
 
@@ -279,9 +286,7 @@ class ExecRunDriver(AbstractRunDriver):
         gc.collect()
         gc.disable()
         try:
-            res = {
-                "perf_stat": self._perf_stat
-            }[runner](block, runs, cpuset, set_id)
+            res = self._benchmark(block, runs, cpuset, set_id)
         except BaseException:
             self.teardown()
             logging.error("Forced teardown of RunProcessor")
@@ -296,32 +301,19 @@ class ExecRunDriver(AbstractRunDriver):
         #print(res.data)
         return res
 
-    ExecResult = namedtuple("ExecResult", ['time', 'stderr'])
-    """ A simple named tuple named ExecResult with to properties: time and stderr """
+    ExecResult = namedtuple("ExecResult", ['time', 'stderr', 'stdout'])
+    """ A simple named tuple named ExecResult with to properties: time, stderr and stdout """
 
-    def _perf_stat(self, block: RunProgramBlock, runs: int,
-                   cpuset: CPUSet = None, set_id: int = 0) -> BenchmarkingResultBlock:
-        do_repeat = self.misc_settings["perf_stat_repeat"] > 1
-        def modify_cmd(cmd):
-            return "perf stat {repeat} -x ';' -e {props} -- {cmd}".format(
-                props=",".join(self.misc_settings["perf_stat_props"]),
-                cmd=cmd,
-                repeat="--repeat {}".format(self.misc_settings["perf_stat_repeat"]) if do_repeat else ""
-            )
-        
-        def parse_perf_stat(exec_res: self.ExecResult):
-            m = {"ov-time": exec_res.time}
-            for line in exec_res.stderr.strip().split("\n"):
-                if ';' in line:
-                    var, empty, descr = line.split(";")[0:3]
-                    m[descr] = float(var)
-            return m
-        
-        cmds = [modify_cmd(cmd) for cmd in block["run_cmds"]]
-        res = BenchmarkingResultBlock(list(self.misc_settings["properties"]) + ["ov-time"])
+    def _benchmark(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
+        block = block.copy()
+        runner = self.get_runner(block)
+        runner.setup_block(block, runs, cpuset, set_id)
+        results = []
         for i in range(runs):
-            exec_res = self._exec_command(cmds, block, cpuset, set_id)
-            res.add_run_data(parse_perf_stat(exec_res))
+            results.append(self._exec_command(block["run_cmds"], block, cpuset, set_id))
+        res = None
+        for exec_res in results:
+            res = runner.parse_result(exec_res, res)
         return res
 
     def _exec_command(self, cmds: list, block: RunProgramBlock,
@@ -345,7 +337,7 @@ class ExecRunDriver(AbstractRunDriver):
         env.update({'LC_NUMERIC': 'en_US.ASCII'})
         t = time.time()
         executed_cmd = "; ".join(executed_cmd)
-        proc = subprocess.Popen(["/usr/bin/zsh", "-c", executed_cmd], stdout=subprocess.DEVNULL,
+        proc = subprocess.Popen(["/usr/bin/zsh", "-c", executed_cmd], stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 universal_newlines=True,
                                 cwd="cwd",
@@ -356,11 +348,150 @@ class ExecRunDriver(AbstractRunDriver):
             msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
             logging.error(msg)
             raise BenchmarkingError(msg)
-        return self.ExecResult(time=t, stderr=str(err))
+        return self.ExecResult(time=t, stderr=str(err), stdout=str(out))
 
     def teardown(self):
         super().teardown()
         shutil.rmtree(self.tmp_dir)
+
+    runners = {}
+
+    @classmethod
+    def register_runner(cls):
+
+        def dec(klass):
+            assert issubclass(klass, ExecRunner)
+            cls.runners[klass.name] = klass
+            cls.block_type_scheme["runner"] |= E(klass.name)
+            cls.block_type_scheme[klass.name] = klass.misc_options
+            return klass
+
+        return dec
+
+    @classmethod
+    def get_runner(cls, block: RunProgramBlock) -> 'ExecRunner':
+        return cls.runners[block["runner"]](block)
+
+
+class ExecRunner:
+    """
+    Base class for runners for the ExecRunDriver.
+    """
+
+    name = None # type: str
+    misc_options = Dict({})
+
+    def __init__(self, block: RunProgramBlock):
+        self.misc = self.misc_options.get_default()
+        if self.name in block:
+            self.misc.update(block[self.name])
+            typecheck(self.misc, self.misc_options)
+
+    def setup_block(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
+        pass
+
+    def parse_result(self, exec_res: ExecRunDriver.ExecResult, res: BenchmarkingResultBlock = None) -> dict:
+        raise NotImplementedError()
+
+
+@ExecRunDriver.register_runner()
+class PerfStatExecRunner(ExecRunner):
+    """
+    Runner that uses perf stat for measurements.
+    """
+
+    name = "perf_stat"
+    misc_options = Dict({
+        "repeat": NaturalNumber() // Default(1),
+        "properties": List(Str()) // Default(["cache-misses", "cycles", "task-clock",
+                                              "instructions", "branch-misses", "cache-references"])
+    })
+
+    def setup_block(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
+        do_repeat = self.misc["repeat"] > 1
+
+        def modify_cmd(cmd):
+            return "perf stat {repeat} -x ';' -e {props} -- {cmd}".format(
+                props=",".join(self.misc["properties"]),
+                cmd=cmd,
+                repeat="--repeat {}".format(self.misc["properties"]) if do_repeat else ""
+            )
+
+        block["run_cmds"] = [modify_cmd(cmd) for cmd in block["run_cmds"]]
+
+
+    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+                     res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
+        res = res or BenchmarkingResultBlock(list(set(list(self.misc["properties"]) + ["ov-time"])))
+        m = {"ov-time": exec_res.time}
+        for line in exec_res.stderr.strip().split("\n"):
+            if ';' in line:
+                var, empty, descr = line.split(";")[0:3]
+                m[descr] = float(var)
+        res.add_run_data(m)
+        return res
+
+
+@ExecRunDriver.register_runner()
+class SpecExecRunner(ExecRunner):
+    """
+    Runner for SPEC like single benchmarking suites.
+    """
+
+    name = "spec"
+    misc_options = Dict({
+        "file": Str() // Default("") // Description("SPEC result file"),
+        "base_path": Str() // Default(""),
+        "path_regexp": Str() // Default("TODO")
+                         // Description("Regexp matching the base property path for each measured property"),
+        "code": Str() // Default("get()")
+                      // Description("Code that is executed for each matched path. "
+                           "The code should evaluate to the actual measured value for the path."
+                           "it can use the function get(sub_path: str = '').")
+    })
+
+    def __init__(self, block: RunProgramBlock):
+        super().__init__(block)
+        if not self.misc["base_path"].endswith(".") and len(self.misc["base_path"]) > 0:
+            self.misc["base_path"] += "."
+        if not self.misc["path_regexp"].startswith("^"):
+            self.misc["path_regexp"] = "^" + self.misc["path_regexp"]
+        self.path_regexp = re.compile(self.misc["path_regexp"])
+
+    def setup_block(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
+        block["run_cmds"] = ["{}; cat {}".format(cmd, self.misc["file"]) for cmd in block["run_cmds"]]
+
+    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+                     res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
+        props = {}
+        for line in exec_res.stdout.split("\n"):
+            if ":" not in line:
+                continue
+            arr = line.split(":")
+            if len(arr) != 2 or not arr[0].strip().startswith(self.misc["base_path"]):
+                continue
+            val = 0
+            try:
+                val = float(arr[1].strip())
+            except ValueError:
+                continue
+            whole_path = arr[0].strip()[len(self.misc["base_path"]):]
+            matches = self.path_regexp.match(whole_path)
+            if matches:
+                path = matches.group(0)
+                if path not in props:
+                    props[path] = {}
+                sub_path = whole_path[len(path):]
+                props[path][sub_path] = val
+        data = {}
+        for prop in props:
+            def get(sub_path: str = ""):
+                return props[prop][sub_path]
+            data[prop] = eval(self.misc["code"])
+
+        res = res or BenchmarkingResultBlock(list(props.keys()))
+        res.add_run_data(data)
+        return res
 
 class BenchmarkingError(RuntimeError):
     """
