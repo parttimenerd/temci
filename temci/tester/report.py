@@ -28,7 +28,7 @@ class ReporterRegistry(AbstractRegistry):
     use_key = "reporter"
     use_list = False
     default = "html"
-    _register = {}
+    registry = {}
 
 class AbstractReporter:
 
@@ -296,7 +296,7 @@ class HTMLReporter(AbstractReporter):
                     <tr><th>Tester</th><th>probability</th><th>Tester description</th></tr>
             """.format(filename=self._jointplot(first, second, prop, size=self.big_size), prop=prop,
                        filename2=self._barplot(first, second, prop, size=self.big_size), benchs=length)
-            for tester_name in sorted(TesterRegistry._register.keys()):
+            for tester_name in sorted(TesterRegistry.registry.keys()):
                 tester = TesterRegistry.get_for_name(tester_name, Settings()["stats/uncertainty_range"])
                 p_val = tester.test(first[prop], second[prop])
                 row_class = self._p_val_to_row_class(p_val)
@@ -357,7 +357,7 @@ class HTMLReporter(AbstractReporter):
                 <td><table class="table">
                     <tr><th>tester</th><th>p val</th></tr>
             """
-            for tester_name in sorted(TesterRegistry._register.keys()):
+            for tester_name in sorted(TesterRegistry.registry.keys()):
                 tester = TesterRegistry.get_for_name(tester_name, Settings()["stats/uncertainty_range"])
                 p_val = tester.test(first_prop, second_prop)
                 row_class = self._p_val_to_row_class(p_val)

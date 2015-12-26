@@ -1,8 +1,9 @@
+import logging
 import warnings
 
 import click, sys
 from temci.utils.typecheck import *
-from temci.utils.settings import Settings
+from temci.utils.settings import Settings, SettingsError
 import temci.utils.util as util
 from temci.utils.registry import AbstractRegistry
 import typing as t
@@ -157,7 +158,17 @@ class CmdOption:
         if type_scheme is not None and not isinstance(type_scheme, click.ParamType):
             self.callback = lambda x: None
         if settings_key is not None and not isinstance(self.type_scheme, click.ParamType):
-            self.callback = lambda param, val: Settings().__setitem__(settings_key, val)
+            def callback(param, val):
+                try:
+                    Settings()[settings_key] = val
+                except SettingsError as err:
+                    logging.error("Error while processing the passed value ({val}) of option {opt}: {msg}".format(
+                        val=repr(val),
+                        opt=option_name,
+                        msg=str(err)
+                    ))
+                    exit(1)
+            self.callback = callback
         else:
             self.callback = None
         self.description = self.type_scheme.description
@@ -177,7 +188,14 @@ class CmdOption:
             self.short = None
             def callback(param, val):
                 if val is not None:
-                    Settings()[settings_key] = val
+                    try:
+                        Settings()[settings_key] = val
+                    except SettingsError as err:
+                        logging.error("Error while processing the passed value ({val}) of option {opt}: {msg}".format(
+                            val=val,
+                            opt=option_name,
+                            msg=str(err)
+                        ))
                 return val
             self.callback = callback
         self.has_completion_hints = self.completion_hints is not None
@@ -189,6 +207,12 @@ class CmdOption:
         """
         typecheck(other, CmdOption)
         return self.option_name < other.option_name
+
+    def __str__(self) -> str:
+        return self.option_name
+
+    def __repr__(self) -> str:
+        return "CmdOption({})".format(self.option_name)
 
     @classmethod
     def from_registry(cls, registry: type, name_prefix: str = None) -> 'CmdOptionList':
@@ -207,7 +231,7 @@ class CmdOption:
         typecheck_locals(name_prefix=Str()|E(None))
         name_prefix = name_prefix if name_prefix is not None else ""
         ret_list = CmdOptionList()
-        for plugin in registry._register:
+        for plugin in registry.registry:
             active_key = "{}_active".format("/".join([registry.settings_key_path, plugin]))
             ret_list.append(CmdOption(
                 option_name=name_prefix + plugin,
@@ -306,6 +330,13 @@ class CmdOptionList:
 
     def __iter__(self):
         return self.options.__iter__()
+
+    def __str__(self) -> str:
+        return str(self.options)
+
+    def __repr__(self) -> str:
+        return repr(self.options)
+
 
 def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = None):
     """

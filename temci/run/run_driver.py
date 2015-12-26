@@ -28,7 +28,7 @@ class RunDriverRegistry(AbstractRegistry):
     use_key = "driver"
     use_list = False
     default = "exec"
-    _register = {}
+    registry = {}
 
 
 class RunProgramBlock:
@@ -158,7 +158,7 @@ class AbstractRunDriver(AbstractRegistry):
     default = []
     block_type_scheme = Dict()
     block_default = {}
-    _register = {}
+    registry = {}
 
     def __init__(self, misc_settings: dict = None):
         """
@@ -257,7 +257,7 @@ class ExecRunDriver(AbstractRunDriver):
         "base_dir": ".",
         "runner": "perf_stat"
     }
-    _register = {}
+    registry = {}
 
     def __init__(self, misc_settings: dict = None):
         super().__init__(misc_settings)

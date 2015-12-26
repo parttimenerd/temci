@@ -14,7 +14,7 @@ class TestRegistry(unittest.TestCase):
             use_key = "test"
             use_list = True
             default = ["plugin"]
-            _register = {}
+            registry = {}
 
         with self.assertRaises(ValueError):
             MockRegistry.get_for_name("asd")
@@ -41,7 +41,7 @@ class TestRegistry(unittest.TestCase):
             use_key = "test"
             use_list = False
             default = "plugin"
-            _register = {}
+            registry = {}
 
         with self.assertRaises(ValueError):
             MockRegistryNoList.get_for_name("asd")

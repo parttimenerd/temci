@@ -12,6 +12,7 @@ from temci.run.run_processor import RunProcessor
 from temci.build.assembly import AssemblyProcessor
 from temci.build.build_processor import BuildProcessor
 import temci.run.run_driver as run_driver
+import temci.run.run_driver_plugin
 from temci.tester.report import ReporterRegistry
 from temci.utils.settings import Settings
 from temci.tester.report_processor import ReportProcessor
@@ -39,9 +40,11 @@ command_docs = {
     "report": "Generate a report from benchmarking result",
     "init": "Create a temci settings file in the current directory with the current settings",
     "completion": "Creates completion files for several shells.",
-    "exec": "Use the run driver the benchmark some programs",
+    "short": "Utility commands to ease working directly on the command line",
     "clean": "Clean up the temporary files"
 }
+for driver in run_driver.RunDriverRegistry.registry:
+    command_docs[driver] = run_driver.RunDriverRegistry.registry[driver].__description__
 
 common_options = CmdOptionList(
     CmdOption.from_non_plugin_settings("")
@@ -58,24 +61,26 @@ run_options = {
 }
 
 # init the run_options dictionary
-for driver in run_driver.RunDriverRegistry._register:
+for driver in run_driver.RunDriverRegistry.registry:
     options = CmdOptionList(
-        CmdOption.from_registry(run_driver.RunDriverRegistry._register[driver]),
+        CmdOption.from_registry(run_driver.RunDriverRegistry.registry[driver]),
         CmdOption.from_non_plugin_settings("run/{}_misc".format(driver)),
         run_options["common"]
     )
+
     if driver not in run_options["run_driver_specific"]:
         run_options["run_driver_specific"][driver] = options
     else:
         run_options["run_driver_specific"][driver].append(options)
+
 
 report_options = CmdOptionList(
     CmdOption.from_non_plugin_settings("report"),
     CmdOption.from_non_plugin_settings("stats")
 )
 # init the report_options dictionary
-for reporter in ReporterRegistry._register:
-    options = CmdOption.from_non_plugin_settings("report/{}_misc".format(reporter), name_prefix=reporter)
+for reporter in ReporterRegistry.registry:
+    options = CmdOption.from_non_plugin_settings("report/{}_misc".format(reporter), name_prefix=reporter + "_")
     report_options.append(options)
 
 build_options = CmdOptionList(
@@ -97,7 +102,10 @@ misc_commands = {
             "zsh": CmdOptionList()
         }
     },
-    "exec": CmdOptionList(CmdOption("with_description",
+    "short": {
+        "common": CmdOptionList(),
+        "sub_commands": {
+            "exec": CmdOptionList(CmdOption("with_description",
                                     type_scheme=ListOrTuple(Tuple(Str(), Str()))
                                                 // Description("DESCRIPTION COMMAND: Benchmark the command and set its"
                                                                " description attribute."),
@@ -108,7 +116,9 @@ misc_commands = {
                                     completion_hints={"zsh": "_command"}),
                           run_options["run_driver_specific"]["exec"],
                           run_options["common"]
-                          ),
+                          )
+        }
+    },
     "clean": CmdOptionList()
 }
 misc_commands_description = {
@@ -119,44 +129,36 @@ misc_commands_description = {
     },
     "init": {
         "settings": "Create a new settings file temci.yaml in the current directory"
+    },
+    "short": {
+        "exec": "Exec code snippets directly with the exec run driver"
     }
 }
 
-
-@cli.command(short_help="Benchmark some program blocks")
-@click.argument("run_file")
-@cmd_option(common_options)
-@cmd_option(run_options["common"])
-def run(run_file: str, **kwargs):
-    @click.group()
+# Register a command for each run driver
+for driver in run_driver.RunDriverRegistry.registry:
+    @cli.command(name=driver, short_help=command_docs[driver])
+    @click.argument("run_file")
     @cmd_option(common_options)
-    def _base_func(**kwargs):
-        pass
-
-    @_base_func.group(name="run", epilog="Benchmark some program blocks")
     @cmd_option(run_options["common"])
-    def base_func(**kwargs):
-        pass
+    @cmd_option(run_options["run_driver_specific"][driver])
+    def func(run_file, **kwargs):
+        Settings()["run/driver"] = driver
+        Settings()["run/in"] = run_file
+        try:
+            RunProcessor().benchmark()
+        except KeyboardInterrupt:
+            logging.error("KeyboardInterrupt. Cleaned up everything.")
 
-    for driver in run_driver.RunDriverRegistry._register:
-        cmd_name = run_file if run_file.endswith(".{}.yaml".format(driver)) else driver
+@cli.group(short_help=command_docs["short"])
+@cmd_option(common_options)
+@cmd_option(misc_commands["short"]["common"])
+def short(**kwargs):
+    pass
 
-        @base_func.command(run_file, short_help=run_driver.RunDriverRegistry._register[driver].__description__)
-        @cmd_option(run_options["run_driver_specific"][driver])
-        def func(**kwargs):
-            Settings()["run/driver"] = driver
-            Settings()["run/in"] = run_file
-            try:
-                RunProcessor().benchmark()
-            except KeyboardInterrupt:
-                logging.error("KeyboardInterrupt. Cleaned up everything.")
-
-        break
-    _base_func()
-
-
-@cli.command(short_help=command_docs["exec"])
-@cmd_option(misc_commands["exec"])
+@short.command(short_help=misc_commands_description["short"]["exec"])
+@cmd_option(common_options)
+@cmd_option(misc_commands["short"]["sub_commands"]["exec"])
 @cmd_option(run_options["run_driver_specific"]["exec"])
 def exec(with_description: list = None, without_description: list = None, **kwargs):
     runs = []
@@ -197,12 +199,14 @@ def report(report_file: str, **kwargs):
 
 @cli.group(short_help="Some init helpers")
 @cmd_option(misc_commands["init"]["common"])
+@cmd_option(common_options)
 def init():
     pass
 
 
 @init.command(short_help=misc_commands_description["init"]["settings"])
 @cmd_option(misc_commands["init"]["sub_commands"]["settings"])
+@cmd_option(common_options)
 def settings(**kwargs):
     Settings().store_into_file("temci.yaml")
 
@@ -222,16 +226,18 @@ def build(build_file: str, **kwargs):
 
 @cli.command(short_help=command_docs["clean"])
 @cmd_option(common_options)
-def clean():
+def clean(**kwargs):
     shutil.rmtree(Settings()["tmp_dir"])
 
 
 @cli.group(short_help=command_docs["completion"])
-def completion():
+@cmd_option(common_options)
+def completion(**kwargs):
     pass
 
 
 @completion.command(short_help="Creates a file /tmp/temci_zsh_completion for zsh completion support. ")
+@cmd_option(common_options)
 def zsh(**kwargs):
     subcommands = "\n\t".join(['"{}:{}"'.format(cmd, command_docs[cmd])
                                for cmd in sorted(command_docs.keys())])
@@ -339,7 +345,7 @@ _temci(){{
             ;;
         esac
         ;;
-        """.format(drivers="|".join(sorted(run_driver.RunDriverRegistry._register.keys())))
+        """.format(drivers="|".join(sorted(run_driver.RunDriverRegistry.registry.keys())))
     ret_str +="""
     (options)
         local -a args
@@ -355,7 +361,7 @@ _temci(){{
             #echo "sdf" $words[@] > tmp_file
             case $words[2] in
         """
-    for driver in run_driver.RunDriverRegistry._register.keys():
+    for driver in run_driver.RunDriverRegistry.registry.keys():
         ret_str += """
                 *.{driver}.yaml)
                     args=(
@@ -460,7 +466,6 @@ _temci(){{
     }
 
 
-    compdef _temci temci
     """
     with open("/tmp/temci_zsh_completion.sh", "w") as f:
         f.write(ret_str)
@@ -469,6 +474,7 @@ _temci(){{
 
 
 @completion.command(short_help="Creates a file /tmp/temci_bash_completion for bash completion support. ")
+@cmd_option(common_options)
 def bash(**kwargs):
     subcommands = "\n\t".join(sorted(command_docs.keys()))
 
@@ -483,52 +489,26 @@ def bash(**kwargs):
                 strs.append("--no-" + option.option_name)
         return "\n\t".join(strs)
 
-    def process_run() -> str:
-        """ Creates a case statement part for the run command and it's sub commands """
-        run_driver_reg = run_driver.RunDriverRegistry._register
-        ret_str = """
-            case ${COMP_WORDS[COMP_CWORD-2]} in
-            run)
-                case $prev in
-        """
-        for driver in run_driver_reg:
-            ret_str += """
-                    *.{driver}.yaml)
-                        args=(
-                            $common_opts
-                            $run_common_opts
-                            {driver_ops}
-                        )
-                        COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
-                    ;;
-            """.format(driver=driver, driver_ops=process_options(run_options["run_driver_specific"][driver]))
-        ret_str += """
-                esac
-                ;;
-            *)
-            ;;
-          esac
-        """
-        return ret_str
-
     def process_misc_commands():
         ret_str = ""
         for misc_cmd in misc_commands:
             if "sub_commands" not in misc_commands[misc_cmd]:
                 continue
             ret_str += """
-                case ${{COMP_WORDS[COMP_CWORD-2]}} in
+                case ${{COMP_WORDS[1]}} in
                 {misc_cmd})
-                    case $prev in
+                    case ${{COMP_WORDS[2]}} in
             """.format(misc_cmd=misc_cmd)
             for sub_cmd in misc_commands[misc_cmd]["sub_commands"].keys():
                 ret_str += """
                         {sub_cmd})
                             args=(
-                                $common_opts
+                                ${{common_opts[@]}}
                                 {common_opts}
                                 {cmd_ops}
                             )
+                            printf '   _%s\n' "${{args[@]}}" >> /tmp/out
+                            printf '   __%s\n' "${{args[*]}}" >> /tmp/out
                             COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
                         ;;
                 """.format(sub_cmd=sub_cmd,
@@ -536,8 +516,8 @@ def bash(**kwargs):
                            common_opts=process_options(misc_commands[misc_cmd]["common"]))
             ret_str += """
                         *)
-                            args=( )
-                            COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
+                            local args=( )
+                            COMPREPLY=( $(compgen -W "" -- $cur) ) && return 0
                     esac
                     ;;
                 *)
@@ -562,10 +542,31 @@ def bash(**kwargs):
             """.format(misc_cmd=misc_cmd, sub_cmds=args)
         return ret_str
 
+    run_cmd_file_code = ""
+    for driver in run_driver.RunDriverRegistry.registry:
+        run_cmd_file_code += """
+            {driver})
+                case ${{COMP_WORDS[2]}} in
+                *.yaml)
+                    args=(
+                        $common_opts
+                        $run_common_opts
+                        {driver_opts}
+                    )
+                    COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
+                ;;
+                esac
+                ;;
+        """.format(driver=driver, driver_opts=process_options(run_options["run_driver_specific"][driver]))
+
     file_structure = """
     _temci(){{
         local cur=${{COMP_WORDS[COMP_CWORD]}}
         local prev=${{COMP_WORDS[COMP_CWORD-1]}}
+
+
+        printf '%s\n' "${{COMP_WORDS[@]}}" > /tmp/out
+
         local common_opts=(
             {common_opts}
         )
@@ -582,13 +583,11 @@ def bash(**kwargs):
             {build_common_opts}
         )
 
-        {run_code}
-
         {misc_commands_code}
 
-        case ${{COMP_WORDS[COMP_CWORD-2]}} in
+        case ${{COMP_WORDS[1]}} in
             report)
-                case $prev in
+                case ${{COMP_WORDS[2]}} in
                 *.yaml)
                     args=(
                         $common_opts
@@ -599,7 +598,7 @@ def bash(**kwargs):
                 esac
                 ;;
             build)
-                case $prev in
+                case ${{COMP_WORDS[2]}} in
                 *.yaml)
                     args=(
                         $common_opts
@@ -609,15 +608,16 @@ def bash(**kwargs):
                 ;;
                 esac
                 ;;
+            {run_cmd_file_code}
             *)
             ;;
         esac
 
-        case $prev in
-            run)
+        case ${{COMP_WORDS[1]}} in
+            report|build|{run_drivers})
                 local IFS=$'\n'
                 local LASTCHAR=' '
-                COMPREPLY=($(compgen -o plusdirs -f -X '!*.@({run_drivers}).yaml' -- "${{COMP_WORDS[COMP_CWORD]}}"))
+                COMPREPLY=($(compgen -o plusdirs -o nospace -f -X '!*.yaml' -- "${{COMP_WORDS[COMP_CWORD]}}"))
 
                 if [ ${{#COMPREPLY[@]}} = 1 ]; then
                     [ -d "$COMPREPLY" ] && LASTCHAR=/
@@ -625,23 +625,6 @@ def bash(**kwargs):
                 else
                     for ((i=0; i < ${{#COMPREPLY[@]}}; i++)); do
                         [ -d "${{COMPREPLY[$i]}}" ] && COMPREPLY[$i]=${{COMPREPLY[$i]}}/
-                    done
-                fi
-                return 0
-                ;;
-            report)
-            build)
-                local IFS=$'\n'
-                local LASTCHAR=' '
-                COMPREPLY=($(compgen -o plusdirs -o nospace -f -X '!*.yaml' \
-                    -- "${{COMP_WORDS[COMP_CWORD]}}"))
-
-                if [ ${{#COMPREPLY[@]}} = 1 ]; then
-                    [ -d "$COMPREPLY" ] && LASTCHAR=/
-                    COMPREPLY=$(printf %q%s "$COMPREPLY" "$LASTCHAR")
-                else
-                    for ((i=0; i < ${{#COMPREPLY[@]}}; i++)); do
-                        [ -d "${{COMPREPLY[$i]}}" ] && COMPREPLY[$i]=${{COMPREPLY[$i]}}
                     done
                 fi
                 return 0
@@ -658,15 +641,15 @@ def bash(**kwargs):
                run_common_opts=process_options(run_options["common"]),
                report_common_opts=process_options(report_options),
                commands=" ".join(sorted(command_docs.keys())),
-               run_code=process_run(),
                run_drivers="|".join(run_options["run_driver_specific"].keys()),
                misc_commands_case_code=process_misc_commands_case(),
                misc_commands_code=process_misc_commands(),
-               build_common_opts=process_options(build_options)
+               build_common_opts=process_options(build_options),
+               run_cmd_file_code=run_cmd_file_code
                )
     with open("/tmp/temci_bash_completion.sh", "w") as f:
         f.write(file_structure)
-        print("\n".join("{>3}: {}".format(i, s) for (i, s) in enumerate(file_structure.split("\n"))))
+        print("\n".join("{:>3}: {}".format(i, s) for (i, s) in enumerate(file_structure.split("\n"))))
         f.flush()
 
 
@@ -721,6 +704,12 @@ def assembler(call: str):
         logging.error(ret)
         exit(1)
 
+def cli_with_error_catching():
+    try:
+        cli()
+    except TypeError as err:
+        logging.error("TypeError: " + str(err))
+        exit(1)
 
 @cli.command(short_help="Compile all needed binaries in the temci scripts folder")
 def setup():
@@ -738,7 +727,9 @@ if __name__ == "__main__":
     # print(str(default))
     # print(yaml.load(default) == Settings().type_scheme.get_default())
 
-    sys.argv[1:] = ["run", "spec_like.exec.yaml", "--min_runs", "20", "--max_runs", "20"]
+    #sys.argv[1:] = ["run", "spec_like.exec.yaml", "--min_runs", "20", "--max_runs", "20"]
+
+    sys.argv[1:] = ["completion", "bash"]
 
     #if len(sys.argv) == 1:
     #    sys.argv[1:] = ['build', os.path.join(os.path.abspath("."), 'build.yaml')]

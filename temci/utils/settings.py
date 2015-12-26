@@ -221,7 +221,7 @@ class Settings(metaclass=Singleton):
         tmp_pref[path[-1]] = value
         if path[-1] not in tmp_type.data:
             tmp_type[path[-1]] = Any() // Default(value)
-        if path == "settings_file" and value is not "":
+        if path == ["settings_file"] and value is not "":
             self.load_file(value)
 
     def set(self, key, value):

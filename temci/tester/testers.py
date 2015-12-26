@@ -19,7 +19,7 @@ class TesterRegistry(AbstractRegistry):
     use_key = "tester"
     use_list = False
     default = "anderson"
-    _register = {}
+    registry = {}
 
 
 class Tester(object, metaclass=util.Singleton):

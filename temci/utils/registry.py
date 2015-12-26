@@ -18,7 +18,7 @@ class AbstractRegistry:
     use_list = False
     default = []
 
-    _register = {}
+    registry = {}
 
     @classmethod
     def get_for_name(cls, name: str, *args, **kwargs):
@@ -29,10 +29,10 @@ class AbstractRegistry:
         :return: object of the registered class
         :raises ValueError if there isn't such a class
         """
-        if name not in cls._register:
+        if name not in cls.registry:
             raise ValueError("No such registered class {}".format(name))
         misc_settings = Settings()["/".join([cls.settings_key_path, name + "_misc"])]
-        return cls._register[name](misc_settings, *args, **kwargs)
+        return cls.registry[name](misc_settings, *args, **kwargs)
 
     @classmethod
     def get_used(cls):
@@ -47,7 +47,7 @@ class AbstractRegistry:
             plugin_allow_vals = {}
             active_list = Settings()[key].split(",") if not isinstance(Settings()[key], list) else Settings()[key]
             ret_list = []
-            for name in sorted(cls._register.keys()):
+            for name in sorted(cls.registry.keys()):
                 active_path = "{}_active".format("/".join([cls.settings_key_path, name]))
                 active = Settings()[active_path]
                 if active is None and name in active_list:
@@ -110,7 +110,7 @@ class AbstractRegistry:
             t = Settings().get_type_scheme(use_key_path)
             t // Description("Possible plugins are: {}"\
                 .format(repr(sorted(t.exp_values))[1:-1]))
-        cls._register[name] = klass
+        cls.registry[name] = klass
 
     @classmethod
     def __getitem__(cls, name: str):
@@ -121,7 +121,7 @@ class AbstractRegistry:
 
     @classmethod
     def get_class(cls, name: str):
-        return cls._register[name]
+        return cls.registry[name]
 
 
 def register(registry: type, name: str, misc_type: Type):
