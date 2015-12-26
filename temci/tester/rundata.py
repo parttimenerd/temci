@@ -22,7 +22,7 @@ class RunData(object):
         a dictionary of optional attributes that describe its program block.
         :raises ValueError if something is wrong with data or the properties don't include 'ov-time'
         """
-        typecheck(properties, List(T(str)) | E("all"))
+        typecheck(properties, ListOrTuple(T(str)))
         typecheck(attributes, Exact(None) | Dict(key_type=Str(), all_keys=False))
         self.properties = properties
         if 'ov-time' not in properties and properties != "all" and "all" not in properties:
@@ -33,7 +33,7 @@ class RunData(object):
         else:
             for prop in self.properties:
                 self.data[prop] = []
-        if data is not None:
+        if data is not None and len(data) > 0:
             self.add_data_block(data)
         self.attributes = {} if attributes is None else attributes
 
@@ -44,9 +44,9 @@ class RunData(object):
         :raises ValueError if not all properties have values associated or if they are not of equal length
         """
         typecheck(data_block, Dict(key_type=Str(), value_type= List(Int() | Float()), all_keys=False))
-        if self.properties == "all" or "all" in self.properties:
-            self.properties = data_block.keys()
-            self.data = []
+        if "all" in self.properties:
+            self.properties = list(data_block.keys())
+            self.data = {}
         if any(prop not in data_block for prop in self.properties):
             raise ValueError("Not all properties have associated values in the passed dictionary.")
         values = list(data_block.values())
@@ -58,7 +58,16 @@ class RunData(object):
             self.data[prop].extend(data_block[prop])
 
     def __len__(self) -> int:
-        return len(list(self.data.values()))
+        """
+        Returns the number of measured properties.
+        """
+        return len(self.data)
+
+    def benchmarkings(self) -> int:
+        """
+        Returns the number of benchmarkings for the associated program block.
+        """
+        return len(self.data[self.properties[0]]) if len(self) > 0 else 0
 
     def __getitem__(self, property: str):
         """
@@ -98,13 +107,28 @@ class RunDataStatsHelper(object):
         :param tester:
         :param runs: list of run data objects
         """
+        typecheck(properties, List(Str()))
+        self._properties = ["all"]
         self.stats = stats
-        if isinstance(properties, List(Str())):
-            properties = [(prop, prop) for prop in properties]
-        self.properties = properties
+        self.properties = list(properties)
         self.tester = tester
         typecheck(runs, List(T(RunData)))
         self.runs = runs
+        self.uncertainty_range = list(stats["uncertainty_range"])
+        if "all" in self.properties:
+            self.properties = runs[0].properties
+
+    @property
+    def properties(self):
+        if "all" in self._properties and self.runs[0].data is not None and len(self.runs[0].data) > 0:
+            self._properties = list(self.runs[0].data.keys())
+            for run in self.runs[1:]:
+                run.properties = self._properties
+        return self._properties
+
+    @properties.setter
+    def properties(self, value):
+        self._properties = value
 
     @classmethod
     def init_from_dicts(cls, stats: dict, runs: list = []):
@@ -140,25 +164,20 @@ class RunDataStatsHelper(object):
                 }, all_keys=False)),
                 value_name="runs parameter")
         properties = list(stats["properties"])
-        props_w_descr = []
-        props_wo_descr = []
         if len(properties) is 0:
             raise ValueError("Properties must contain at least 'ov-time'")
-        if isinstance(properties, List(Tuple(Str(), Str()))):
-            props_w_descr = properties
-            props_wo_descr = [name for (name, _) in properties]
-        elif isinstance(properties, List(Str())):
-            props_wo_descr = properties
-            props_w_descr = [(name, name) for name in properties]
+        if "all" in properties and "data" in runs[0]:
+            properties = list(runs[0]["data"].keys())
         tester = TesterRegistry().get_for_name(stats["tester"], stats["uncertainty_range"])
         run_datas = []
         for run in runs:
             if "data" not in run:
                 run["data"] = {}
-                for prop in props_wo_descr:
-                    run["data"][prop] = []
-            run_datas.append(RunData(props_wo_descr, run["data"], run["attributes"]))
-        return RunDataStatsHelper(stats, props_w_descr, tester, run_datas)
+                if "all" not in properties:
+                    for prop in properties:
+                        run["data"][prop] = []
+            run_datas.append(RunData(properties, run["data"], run["attributes"]))
+        return RunDataStatsHelper(stats, properties, tester, run_datas)
 
     def to_dict(self) -> dict:
         """
@@ -178,6 +197,15 @@ class RunDataStatsHelper(object):
     def _is_unequal(self, property: str, data1: RunData, data2: RunData) -> bool:
         return self.tester.is_unequal(data1[property], data2[property])
 
+    def is_uncertain(self, p_val: float) -> bool:
+        return min(*self.uncertainty_range) <= p_val <= max(*self.uncertainty_range)
+
+    def is_equal(self, p_val: float) -> bool:
+        return p_val > max(*self.uncertainty_range)
+
+    def is_unequal(self, p_val: float) -> bool:
+        return p_val < min(*self.uncertainty_range)
+
     def _speed_up(self, property: str, data1: RunData, data2: RunData):
         """
         Calculates the speed up from the second to the first
@@ -191,7 +219,7 @@ class RunDataStatsHelper(object):
         if min(len(data1), len(data2)) == 0:
             return max_runs
         needed_runs = []
-        for (prop, descr) in self.properties:
+        for prop in self.properties:
             estimate = self.tester.estimate_needed_runs(data1[prop], data2[prop],
                                                                 run_bin_size, min_runs, max_runs)
             needed_runs.append(estimate)
@@ -212,7 +240,7 @@ class RunDataStatsHelper(object):
                 if j in to_bench:
                     continue
                 run2 = self.runs[j]
-                if any(self._is_uncertain(prop, run, run2) for (prop, descr) in self.properties):
+                if "all" in self.properties or any(self._is_uncertain(prop, run, run2) for prop in self.properties):
                     to_bench.add(i)
                     to_bench.add(j)
         return list(to_bench)
@@ -259,7 +287,7 @@ class RunDataStatsHelper(object):
         :param attributes: attributes of the new run data object
         :return: id of the run data object (and its corresponding program block)
         """
-        self.runs.append(RunData([name for (name, _) in self.properties], data, attributes))
+        self.runs.append(RunData(self.properties, data, attributes))
         return len(self.runs) - 1
 
     def add_data_block(self, program_id: int, data_block: dict):
@@ -299,10 +327,10 @@ class RunDataStatsHelper(object):
             for j in range(i + 1, len(self.runs)):
                 data = (self.runs[i], self.runs[j])
                 props = {}
-                for (prop, descr) in self.properties:
+                for prop in self.properties:
                     map = {"p_val": self.tester.test(data[0][prop], data[1][prop]),
                            "speed_up": self._speed_up(prop, *data),
-                           "description": descr,
+                           "description": prop,
                            "equal": self._is_equal(prop, *data),
                            "unequal": self._is_unequal(prop, *data),
                            "uncertain": self._is_uncertain(prop, *data)}

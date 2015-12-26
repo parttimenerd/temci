@@ -142,6 +142,7 @@ class ParallelRunWorkerPool:
         except BaseException as err:
             pass
 
+
 class BenchmarkingThread(threading.Thread):
 
     def __init__(self, id: int, pool: ParallelRunWorkerPool, driver: AbstractRunDriver, cpuset: CPUSet):
@@ -177,9 +178,3 @@ class BenchmarkingThread(threading.Thread):
 
     def teardown(self):
         pass
-
-    def stop(self):
-        self._stop.set()
-
-    def stopped(self):
-        return self._stop.isSet()

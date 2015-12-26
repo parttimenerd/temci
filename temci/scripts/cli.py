@@ -1,5 +1,12 @@
 import shutil
 import subprocess
+from temci.utils.typecheck import *
+
+from pympler import tracker, classtracker
+tr = tracker.SummaryTracker()
+ctr = classtracker.ClassTracker()
+ctr.track_class(Type)
+ctr.create_snapshot()
 
 from temci.run.run_processor import RunProcessor
 from temci.build.assembly import AssemblyProcessor
@@ -9,9 +16,9 @@ from temci.tester.report import ReporterRegistry
 from temci.utils.settings import Settings
 from temci.tester.report_processor import ReportProcessor
 import click, sys, yaml, logging, json, os
-from temci.utils.typecheck import *
 from temci.utils.click_helper import type_scheme_option, cmd_option, CmdOption, CmdOptionList
 
+ctr.create_snapshot()
 
 @click.group(epilog="""
 This program is still in an early aplha stage. It may happen that
@@ -54,7 +61,9 @@ run_options = {
 for driver in run_driver.RunDriverRegistry._register:
     options = CmdOptionList(
         CmdOption.from_registry(run_driver.RunDriverRegistry._register[driver]),
-        CmdOption.from_non_plugin_settings("run/{}_misc".format(driver)))
+        CmdOption.from_non_plugin_settings("run/{}_misc".format(driver)),
+        run_options["common"]
+    )
     if driver not in run_options["run_driver_specific"]:
         run_options["run_driver_specific"][driver] = options
     else:
@@ -202,10 +211,16 @@ def settings(**kwargs):
 @click.argument('build_file', type=click.Path(exists=True))
 @cmd_option(common_options)
 def build(build_file: str, **kwargs):
-    Settings()["build/in"] = build_file
-    BuildProcessor().build()
+    try:
+        Settings()["build/in"] = build_file
+        BuildProcessor().build()
+    except KeyboardInterrupt:
+        logging.error("Aborted")
+    except BaseException as err:
+        print(err)
+        logging.error(str(err))
 
-@cli.command(short_help=command_docs["exec"])
+@cli.command(short_help=command_docs["clean"])
 @cmd_option(common_options)
 def clean():
     shutil.rmtree(Settings()["tmp_dir"])
@@ -723,10 +738,18 @@ if __name__ == "__main__":
     # print(str(default))
     # print(yaml.load(default) == Settings().type_scheme.get_default())
 
-    if len(sys.argv) == 1:
-        sys.argv[1:] = ['build', os.path.join(os.path.abspath("."), 'build.yaml')]
-        os.chdir(os.path.abspath("../../../test/hadori"))
+    sys.argv[1:] = ["run", "spec_like.exec.yaml", "--min_runs", "20", "--max_runs", "20"]
+
+    #if len(sys.argv) == 1:
+    #    sys.argv[1:] = ['build', os.path.join(os.path.abspath("."), 'build.yaml')]
+    #    os.chdir(os.path.abspath("../../../test/hadori"))
 
     #print(repr(sys.argv))
 
-    cli()
+    import cProfile
+
+    cProfile.runctx("cli()", globals(), locals(), filename="cli.profile")
+    ctr.create_snapshot()
+    ctr.stats.print_summary()
+    tr.print_diff()
+    #cli()

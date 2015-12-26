@@ -11,7 +11,7 @@ setup(
         'fn',
         'pyaml',
         'typing', 'seaborn', 'pytimeparse',
-        'path.py'
+        'path.py', 'matplotlib2tikz'
     ],
     entry_points='''
         [console_scripts]

@@ -2,8 +2,7 @@ import yaml
 import copy
 import os, shutil, logging
 import click
-from temci.utils.util import recursive_contains, recursive_get, \
-    recursive_find_key, recursive_exec_for_leafs, Singleton
+from temci.utils.util import recursive_exec_for_leafs, Singleton
 from temci.utils.typecheck import *
 import multiprocessing
 from fn import _
@@ -27,7 +26,7 @@ class Settings(metaclass=Singleton):
         "log_level": ExactEither("info", "warn", "error", "quiet") // Default("info")
                      // Description("Logging level"),
         "stats": Dict({
-            "properties": (ListOrTuple(Str()) | E("all")) // Default("all")
+            "properties": ListOrTuple(Str()) // Default(["all"])
                         // CompletionHint(zsh="(" + " ".join(["ov-time", "cache-misses", "cycles", "task-clock",
                                                               "instructions", "branch-misses", "cache-references",
                                                               "all"])
@@ -64,7 +63,9 @@ class Settings(metaclass=Singleton):
                                                       "> 0: benchmark parallel with n instances, "
                                                       "-1: determine n automatically") // Default(0),
                 "sub_core_number": ValidCPUCoreNumber() // Description("Number of cpu cores per parallel running program.")
-                                   // Default(1)
+                                   // Default(1),
+                "disable_ht": Bool() // Description("Disable hyper threading of the cpu if possible.")
+                    // Default(False)
             }),
             "show_report": Bool() // Default(True)
                 // Description("Print console report if log_level=info"),

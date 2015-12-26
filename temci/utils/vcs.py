@@ -1,6 +1,7 @@
 import os, shutil, errno, shlex, subprocess, logging, tarfile
 from .settings import Settings
 from os.path import abspath
+from temci.utils.typecheck import *
 
 class VCSDriver:
     """
@@ -10,15 +11,18 @@ class VCSDriver:
     dir = "."
     branch = None
 
+    id_type = Str()|Int()
+
     def __init__(self, dir=".", branch: str = None):
         """
         Initializes the VCS driver for a given base directory.
         It also sets the current branch if it's defined in the Settings
         :param dir: base directory
+        :param branch: used branch
         """
+        typecheck_locals(dir=Str(), branch=Optional(Str()))
         self._exec_command_cache = {}
         self._exec_err_code_cache = {}
-        self.settings = Settings()
         self.dir = os.path.abspath(dir)
         self.branch = branch or self.get_branch()
 
@@ -31,9 +35,11 @@ class VCSDriver:
         a VCSError is raised.
         :param mode: passed mode
         :param dir: base directory
+        :param branch: used branch
         :return: vcs driver for the base directory
         :raises VCSError if the selected driver isn't applicable
         """
+        typecheck_locals(mode=ExactEither("file", "git", "auto"), dir=Str(), branch=Optional(Str()))
         if mode is "file" and FileDriver.is_suited_for_dir(dir):
             return FileDriver(dir, branch)
         elif mode is "git" and GitDriver.is_suited_for_dir(dir):
@@ -118,13 +124,14 @@ class VCSDriver:
         """
         raise NotImplementedError()
 
-    def _copy_dir(self, src_dir, dest_dirs):
+    def _copy_dir(self, src_dir: str, dest_dirs):
         """
         Helper method to copy a directory to many destination directories.
         It also works if for files.
         :param src_dir: source directory relative to the current base directory
         :param dest_dirs: list of destination directories or just one destination directory string
         """
+        typecheck_locals(src_dir=Str(), dest_dirs=List(Str())|Str())
         src_dir_path = os.path.abspath(os.path.join(self.dir, src_dir))
         dest_dir_paths = []
         if type(dest_dirs) is str:
@@ -144,7 +151,7 @@ class VCSDriver:
                 except OSError as exc2:
                     raise VCSError(str(exc2))
 
-    def _exec_command(self, command, error="Error executing {cmd}: {err}", cacheable=False):
+    def _exec_command(self, command, error: str = "Error executing {cmd}: {err}", cacheable: bool = False):
         """
         Executes the given external command and returns the resulting output.
         :param command: given external command (as string or list)
@@ -153,6 +160,7 @@ class VCSDriver:
         :return output as string
         :raises VCSError if the external command hasn't exit code 0
         """
+        typecheck_locals(command=List(Str())|Str(), error=Str(), cacheable=Bool())
         args = []
         if type(command) is list:
             args = command
@@ -183,8 +191,9 @@ class VCSDriver:
         :param cacheable: can the result of the command be cached to reduce the number of needed calls?
         :return error code of the command (or 0 if no error occurred)
         """
+        typecheck_locals(command=List(Str)|Str(), cacheable=Bool())
         args = []
-        if type(command) is list:
+        if isinstance(command, list):
             args = command
         else:
             args = shlex.split(command)
@@ -214,9 +223,11 @@ class FileDriver(VCSDriver):
 
     @classmethod
     def is_suited_for_dir(cls, dir="."):
+        typecheck_locals(dir=Str())
         return os.path.exists(dir) and os.path.isdir(dir)
 
-    def set_branch(self, new_branch):
+    def set_branch(self, new_branch: str):
+        typecheck_locals(new_branch=Optional(Str()))
         if new_branch is None:
             return
         raise VCSError("No branch support in FileDriver")
@@ -234,6 +245,7 @@ class FileDriver(VCSDriver):
         return id_or_num == -1
 
     def get_info_for_revision(self, id_or_num):
+        typecheck_locals(id_or_num=self.id_type)
         if not self.validate_revision(id_or_num):
             raise NoSuchRevision(id_or_num)
         return {
@@ -246,6 +258,7 @@ class FileDriver(VCSDriver):
         }
 
     def copy_revision(self, id_or_num, sub_dir, dest_dirs):
+        typecheck_locals(id_or_num=self.id_type, dest_dirs=List(Str())|Str())
         if not self.validate_revision(id_or_num):
             raise NoSuchRevision(id_or_num)
         self._copy_dir(sub_dir, dest_dirs)
@@ -261,6 +274,7 @@ class GitDriver(VCSDriver):
 
     @classmethod
     def is_suited_for_dir(cls, dir="."):
+        typecheck_locals(dir=Str())
         return cls._get_git_base_dir(dir) is not None
 
     @classmethod
@@ -280,7 +294,8 @@ class GitDriver(VCSDriver):
         return self._exec_command(["git", "rev-parse", "--abbrev-ref", "HEAD"],
                                   error="Can't get current branch. Somethings wrong with the repository: {err}").strip()
 
-    def set_branch(self, new_branch):
+    def set_branch(self, new_branch: str):
+        typecheck_locals(new_branch=Str())
         if new_branch is self.get_branch():
             return
         out = self._exec_command("git branch --list".format(new_branch), cacheable=True)
@@ -313,7 +328,8 @@ class GitDriver(VCSDriver):
         :return commit id (string)
         :raises VCSError if the commit number isn't valid
         """
-        if type(num) is not int:
+        typecheck_locals(num=self.id_type)
+        if not isinstance(num, int):
             return self._normalize_commit_id(num)
         if num >= self.number_of_revisions() or num < -1:
             raise VCSError("{} isn't a valid commit number (they are counted from 0).".format(num))
@@ -331,6 +347,7 @@ class GitDriver(VCSDriver):
         return out.split(" ")[1]
 
     def validate_revision(self, id_or_num):
+        typecheck_locals(id_or_num=self.id_type)
         if id_or_num is -1:
             return self.has_uncommitted()
         if id_or_num < -1:
@@ -350,6 +367,7 @@ class GitDriver(VCSDriver):
         return out.split(" ")[-1]
 
     def get_info_for_revision(self, id_or_num):
+        typecheck_locals(id_or_num=self.id_type)
         if id_or_num == -1:
             return {
                 "commit_id": "",
@@ -383,12 +401,13 @@ class GitDriver(VCSDriver):
         }
 
     def copy_revision(self, id_or_num, sub_dir: str, dest_dirs):
+        typecheck_locals(id_or_num=self.id_type, dest_dirs=List(Str())|Str())
         if isinstance(dest_dirs, str):
             dest_dirs = [dest_dirs]
         if id_or_num == -1:
             self._copy_dir(sub_dir, dest_dirs)
         sub_dir = os.path.join(self.base_path, sub_dir)
-        tar_file = os.path.abspath(os.path.join(self.settings["tmp_dir"], "tmp.tar"))
+        tar_file = os.path.abspath(os.path.join(Settings()["tmp_dir"], "tmp.tar"))
         cmd = "git archive --format tar --output {} {}".format(tar_file, self._commit_number_to_id(id_or_num))
         self._exec_command(cmd)
         try:

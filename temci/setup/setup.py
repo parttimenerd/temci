@@ -15,8 +15,9 @@ def exec(dir: str, cmd: str):
                         cwd=script_relative(dir))
     out, err = proc.communicate()
     if proc.poll() > 0:
-        logging.error("Build error: ", str(err))
+        logging.error("Build error: " + str(err))
         exit(proc.poll())
 
 def make_scripts():
     exec("hadori", "make")
+    exec("cpu_cache", "./build.sh")

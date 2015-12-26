@@ -2,7 +2,8 @@ import os, sys, yaml, json, subprocess
 from ..utils.typecheck import *
 from ..utils.vcs import VCSDriver
 from ..utils.settings import Settings
-from .builder import Builder
+from .builder import Builder, BuilderKeyboardInterrupt
+
 
 class BuildProcessor:
 
@@ -38,18 +39,30 @@ class BuildProcessor:
 
     def build(self):
         run_blocks = []
-        for block in self.build_blocks:
-            block_builder = Builder(block["build_config"]["working_dir"],
-                                    block["build_config"]["build_cmd"], block["build_config"]["revision"],
-                                    block["build_config"]["number"], block["build_config"]["randomization"],
-                                    block["build_config"]["base_dir"])
-            working_dirs = block_builder.build()
-            assert len(working_dirs) == block["build_config"]["number"]
-            block["run_config"]["cwds"] = working_dirs
-            run_blocks.append({
-                "attributes": block["attributes"],
-                "run_config": block["run_config"]
-            })
+        try:
+            for block in self.build_blocks:
+                working_dirs = []
+                error = None
+                try:
+                    block_builder = Builder(block["build_config"]["working_dir"],
+                            block["build_config"]["build_cmd"], block["build_config"]["revision"],
+                            block["build_config"]["number"], block["build_config"]["randomization"],
+                            block["build_config"]["base_dir"])
+                    working_dirs = block_builder.build()
+                except BuilderKeyboardInterrupt as err:
+                    working_dirs = err.result
+                    error = err.error
+                block["run_config"]["cwds"] = working_dirs
+                run_blocks.append({
+                    "attributes": block["attributes"],
+                    "run_config": block["run_config"]
+                })
 
+                if error:
+                    raise error
+        except KeyboardInterrupt as err:
+            with open(self.out, "w") as f:
+                yaml.dump(run_blocks, f)
+            raise err
         with open(self.out, "w") as f:
             yaml.dump(run_blocks, f)

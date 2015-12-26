@@ -3,8 +3,7 @@ Enables the randomization of assembler files and can be used as a wrapper for as
 
 Currently only tested on 64bit system.
 """
-
-
+import logging
 import random
 import re
 import sys, os, subprocess, shlex
@@ -198,6 +197,7 @@ class FunctionSection(Section):
         while i < len(self.lines) and not self.lines[i].is_function_label():
             i += 1
         if i == len(self.lines):
+            logging.warning("Didn't pad function.")
             return
         # search for the first "pushq %rbp" instruction
 
@@ -213,6 +213,7 @@ class FunctionSection(Section):
         while i < len(self.lines) and not is_push_instr():
             i += 1
         if i == len(self.lines):
+            logging.warning("Didn't pad function.")
             return False
         # insert a subq $xxx, %rsp instruction, that shouldn't have any bad side effect
         self.lines.insert(i + 1, Line("\tsubq ${}, %rsp\n".format(amount), i))
@@ -240,6 +241,7 @@ class FunctionSection(Section):
                 k -= 1
             if k == i:
                 #print("error", self.lines[k])
+                logging.warning("Didn't pad function properly")
                 return
             self.lines.insert(k, Line("\taddq ${}, %rsp\n".format(amount), k))
             i = k + 2

@@ -1,8 +1,16 @@
+import concurrent
 import datetime
 import logging
 import os, sys, yaml, json, subprocess
+import queue
 import random
 import shutil
+import threading
+from collections import namedtuple
+
+import multiprocessing
+from time import sleep
+
 import temci.setup.setup as setup
 from path import Path
 
@@ -42,10 +50,11 @@ class Builder:
         self.rand_conf = rand_conf
         self.vcs_driver = VCSDriver.get_suited_vcs(dir=self.build_dir)
 
-    def build(self) -> list:
+    def build(self, thread_count: int = None) -> list:
         """
         Build the program blocks.
         """
+        thread_count = thread_count or multiprocessing.cpu_count()
         logging.info("Create base temporary directory and copy build directory")
         time_tag = datetime.datetime.now().strftime("%s%f")
         def tmp_dirname(i: int = "base"):
@@ -54,30 +63,75 @@ class Builder:
         tmp_dir = tmp_dirname()
         os.makedirs(tmp_dir)
         self.vcs_driver.copy_revision(self.revision, self.build_dir, tmp_dir)
-
         ret_list = []
+        submit_queue = queue.Queue()
+        threads = []
         for i in range(0, self.number):
             tmp_build_dir = tmp_dirname(i)
+            submit_queue.put(BuilderQueueItem(i, tmp_build_dir, tmp_dir, self.rand_conf, self.build_cmd))
             ret_list.append(tmp_build_dir)
-            shutil.copytree(tmp_dir, tmp_build_dir)
+        try:
+            for i in range(min(thread_count, self.number)):
+                thread = BuilderThread(i, submit_queue)
+                threads.append(thread)
+                thread.start()
+            for thread in threads:
+                thread.join()
+        except BaseException as err:
+            for thread in threads:
+                thread.stop = True
+            shutil.rmtree(tmp_dir)
+            logging.info("Error while building")
+            raise BuilderKeyboardInterrupt(err, ret_list)
+        logging.info("Finished building")
+        shutil.rmtree(tmp_dir)
+        return ret_list
+
+
+class BuilderKeyboardInterrupt(KeyboardInterrupt):
+
+    def __init__(self, error, result):
+        self.error = error
+        self.result = result
+
+
+BuilderQueueItem = namedtuple("BuilderQueueItem", ["id", "tmp_build_dir", "tmp_dir", "rand_conf", "build_cmd"])
+
+
+class BuilderThread(threading.Thread):
+
+    def __init__(self, id: int, submit_queue: queue.Queue):
+        threading.Thread.__init__(self)
+        self.stop = False
+        self.id = id
+        self.submit_queue = submit_queue
+
+    def run(self):
+        while not self.stop:
+            item = None
+            try:
+                item = self.submit_queue.get(timeout=1)
+            except queue.Empty:
+                return
+            tmp_build_dir = item.tmp_build_dir
+            shutil.copytree(item.tmp_dir, tmp_build_dir)
             as_path = Path(__file__).parent.parent + "/scripts"
             env = {
-                "RANDOMIZATION": json.dumps(self.rand_conf),
+                "RANDOMIZATION": json.dumps(item.rand_conf),
                 "PATH": as_path + "/:" + os.environ["PATH"],
                 "LANG": "en_US.UTF-8",
                 "LANGUAGE": "en_US"
             }
-            proc = subprocess.Popen(["/usr/bin/zsh", "-c", "export PATH={}/:$PATH; ".format(as_path) + self.build_cmd],
+            logging.info("Thread {}: Start building number {}".format(self.id, item.id))
+            proc = subprocess.Popen(["/usr/bin/zsh", "-c", "export PATH={}/:$PATH; sync;".format(as_path)
+                                     + item.build_cmd],
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
                                     universal_newlines=True,
                                     cwd=tmp_build_dir, env=env)
             out, err = proc.communicate()
-            logging.info(str(out))
-            setup.exec("hadori", "./hadori {} {}".format(tmp_dir, tmp_build_dir))
+            logging.info("Thread {}: {}".format(self.id, str(out)))
+            setup.exec("hadori", "./hadori {} {}".format(item.tmp_dir, tmp_build_dir))
             if proc.poll() > 0 or len(str(err).strip()) > 0:
-                logging.error("Build error: ", str(err))
                 shutil.rmtree(tmp_build_dir)
-                exit(proc.poll())
-        shutil.rmtree(tmp_dir)
-        return ret_list
+                raise EnvironmentError("Thread {}: Build error: {}".format(self.id, str(err)))

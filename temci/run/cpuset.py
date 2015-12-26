@@ -1,4 +1,5 @@
 import logging
+import re
 import subprocess, os, time
 from temci.utils.settings import Settings, SettingsError
 from temci.utils.util import ensure_root
@@ -29,6 +30,9 @@ class CPUSet:
         #self.bench_set = "bench.set"
         logging.info("Initialize CPUSet")
         ensure_root()
+        self.ht_cores = []
+        if Settings()["run/cpuset/disable_ht"]:
+            self._disable_hyperthreading()
         self.own_set = ''
         self.base_core_number = Settings().default(base_core_number, "run/cpuset/base_core_number")
         self.parallel = Settings().default(parallel, "run/cpuset/parallel")
@@ -85,6 +89,7 @@ class CPUSet:
         """
         for set in self.own_sets:
             try:
+                self._enable_hyperthreading()
                 self._delete_set(set)
             except EnvironmentError as ex:
                 pass
@@ -268,3 +273,72 @@ class CPUSet:
                 " More specific error (cmd = 'sudo cset {}'): ".format(argument) + str(err) + str(out)
             )
         return str(out)
+
+    def _disable_hyperthreading(self):
+        """
+         Adapted from http://unix.stackexchange.com/a/223322
+        """
+        total_logical_cpus = 0
+        total_physical_cpus = 0
+        total_cores = 0
+        cpu = None
+
+        logical_cpus = {}
+        physical_cpus = {}
+        cores = {}
+
+        hyperthreading = False
+
+        for line in open('/proc/cpuinfo').readlines():
+            if re.match('processor', line):
+                cpu = int(line.split()[2])
+
+                if cpu not in  logical_cpus:
+                    logical_cpus[cpu] = []
+                    total_logical_cpus += 1
+
+            if re.match('physical id', line):
+                phys_id = int(line.split()[3])
+
+                if phys_id not in physical_cpus:
+                    physical_cpus[phys_id] = []
+                    total_physical_cpus += 1
+
+            if re.match('core id', line):
+                core = int(line.split()[3])
+
+                if core not in cores:
+                    cores[core] = []
+                    total_cores += 1
+
+                cores[core].append(cpu)
+
+        if (total_cores * total_physical_cpus) * 2 == total_logical_cpus:
+            hyperthreading = True
+
+        self.ht_cores = []
+
+        if hyperthreading:
+
+            for c in cores:
+                for p, val in enumerate(cores[c]):
+                    if p > 0:
+                        self.ht_cores.append(val)
+        self._set_status_of_ht_cores(self.ht_cores, 0)
+
+    def _enable_hyperthreading(self):
+        self._set_status_of_ht_cores(self.ht_cores, 1)
+
+    def _set_status_of_ht_cores(self, ht_cores: list, online_status: int):
+        if len(ht_cores) == 0:
+            return
+        arg = "\n".join("echo {} > /sys/devices/system/cpu/cpu{}/online"
+                        .format(online_status, core_id) for core_id in ht_cores)
+        proc = subprocess.Popen(["/bin/bash", "-c", "sudo bash -c '{}'".format(arg)],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                universal_newlines=True)
+        out, err = proc.communicate()
+        #print("cset: {out}, {err}".format(out=str(out), err=str(err)))
+        if proc.poll() > 0:
+            raise EnvironmentError("Error while disabling the hyper threaded cores: " + str(err))

@@ -6,4 +6,6 @@
       build_cmd: 'make'
       randomization:
         heap: 100
-      number: 2
+        stack: 100
+        data: true
+      number: 10

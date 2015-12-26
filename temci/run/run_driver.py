@@ -6,6 +6,7 @@ import os
 import datetime
 import re
 import shutil
+import pytimeparse, numpy, math
 
 from temci.utils.settings import Settings
 from temci.utils.vcs import VCSDriver
@@ -85,7 +86,10 @@ class RunProgramBlock:
         Deep copies the data and uses the same type scheme and attributes.
         :return:
         """
-        return RunProgramBlock(deepcopy(self.data), self.attributes, self.run_driver_class)
+        return RunProgramBlock(self.id, deepcopy(self.data), self.attributes, self.run_driver_class)
+
+    def __len__(self):
+        return min(map(len, self.data.values())) if len(self.data) > 0 else 0
 
     @classmethod
     def from_dict(cls, id: int, data, run_driver: type = None):
@@ -188,6 +192,13 @@ class AbstractRunDriver(AbstractRegistry):
         for plugin in self.used_plugins:
             plugin.setup_block(block)
 
+    def _setup_block_run(self, block: RunProgramBlock):
+        """
+        Call the setup_block_run() method on all used plugins for this driver.
+        """
+        for plugin in self.used_plugins:
+            plugin.setup_block_run(block)
+
     def _teardown_block(self, block: RunProgramBlock):
         """
         Call the teardown_block() method on all used plugins for this driver.
@@ -227,7 +238,7 @@ class ExecRunDriver(AbstractRunDriver):
     settings_key_path = "run/exec_plugins"
     use_key = "exec_active"
     use_list = True
-    default = ["nice", "preheat"]
+    default = ["nice"]
     block_type_scheme = Dict({
         "run_cmd": (List(Str()) | Str()) // Description("Commands to benchmark"),
         "env": Dict(all_keys=False, key_type=Str()) // Description("Environment vairables"),
@@ -236,12 +247,13 @@ class ExecRunDriver(AbstractRunDriver):
                                                         "-1 is the current revision."),
         "cwd": (List(Str())|Str()) // Description("Execution directories for each command"),
         "runner": ExactEither() // Description("Used runner")
-    })
+    }, all_keys=False)
     block_default = {
+        "run_cmd": "",
         "env": {},
         "cmd_prefix": [],
         "revision": -1,
-        "cwds": ".",
+        "cwd": ".",
         "base_dir": ".",
         "runner": "perf_stat"
     }
@@ -249,31 +261,30 @@ class ExecRunDriver(AbstractRunDriver):
 
     def __init__(self, misc_settings: dict = None):
         super().__init__(misc_settings)
-        if isinstance(self.misc_settings["run_cmd"], Str()):
-            self.misc_settings["run_cmds"] = [self.misc_settings["run_cmd"]]
-        else:
-            self.misc_settings["run_cmds"] = self.misc_settings["run_cmd"]
-        if isinstance(self.misc_settings["cwd"], List(Str())):
-            if len(self.misc_settings["cwd"]) != len(self.misc_settings["run_cmd"]):
-                raise ValueError("Number of passed working directories is unequal with number of passed run commands")
-            self.misc_settings["cwds"] = self.misc_settings["cwd"]
-        else:
-            self.misc_settings["cwds"] = [self.misc_settings["cwd"]] * len(self.misc_settings["run_cmds"])
-        self.uses_vcs = self.misc_settings["revision"] != -1
-        self.vcs_driver = None
-        self.tmp_dir = ""
-        if self.uses_vcs:
-            self.vcs_driver = VCSDriver.get_suited_vcs(".")
-            self.tmp_dir = os.path.join(Settings()["tmp_dir"], datetime.datetime.now().strftime("%s%f"))
-            os.mkdir(self.tmp_dir)
         self.dirs = {}
 
     def _setup_block(self, block: RunProgramBlock):
-        if self.uses_vcs:
-            if block.id not in self.dirs:
-                self.dirs[block.id] = os.path.join(self.tmp_dir, str(block.id))
-                os.mkdir(self.dirs[block.id])
-                self.vcs_driver.copy_revision(block["revision"], ".", self.dirs[block.id])
+        if isinstance(block["run_cmd"], List(Str())):
+            block["run_cmds"] = block["run_cmd"]
+        else:
+            block["run_cmds"] = [block["run_cmd"]]
+
+        if isinstance(block["cwd"], List(Str())):
+            if len(block["cwd"]) != len(block["run_cmd"]):
+                raise ValueError("Number of passed working directories is unequal with number of passed run commands")
+            block["cwds"] = block["cwd"]
+        else:
+            block["cwds"] = [block["cwd"]] * len(block["run_cmds"])
+        self.uses_vcs = block["revision"] != -1
+        self.vcs_driver = None
+        self.tmp_dir = ""
+        if self.uses_vcs and block.id not in self.dirs:
+            self.vcs_driver = VCSDriver.get_suited_vcs(".")
+            self.tmp_dir = os.path.join(Settings()["tmp_dir"], datetime.datetime.now().strftime("%s%f"))
+            os.mkdir(self.tmp_dir)
+            self.dirs[block.id] = os.path.join(self.tmp_dir, str(block.id))
+            os.mkdir(self.dirs[block.id])
+            self.vcs_driver.copy_revision(block["revision"], ".", self.dirs[block.id])
             block["working_dir"] = self.dirs[block.id]
         super()._setup_block(block)
 
@@ -310,8 +321,9 @@ class ExecRunDriver(AbstractRunDriver):
         runner.setup_block(block, runs, cpuset, set_id)
         results = []
         for i in range(runs):
+            self._setup_block_run(block)
             results.append(self._exec_command(block["run_cmds"], block, cpuset, set_id))
-        res = None
+        res = None # type: BenchmarkingResultBlock
         for exec_res in results:
             res = runner.parse_result(exec_res, res)
         return res
@@ -340,7 +352,7 @@ class ExecRunDriver(AbstractRunDriver):
         proc = subprocess.Popen(["/usr/bin/zsh", "-c", executed_cmd], stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 universal_newlines=True,
-                                cwd="cwd",
+                                cwd=cwd,
                                 env=env)
         out, err = proc.communicate()
         t = time.time() - t
@@ -352,7 +364,8 @@ class ExecRunDriver(AbstractRunDriver):
 
     def teardown(self):
         super().teardown()
-        shutil.rmtree(self.tmp_dir)
+        if hasattr(self, "tmp_dir") and os.path.exists(self.tmp_dir):
+            shutil.rmtree(self.tmp_dir)
 
     runners = {}
 
@@ -364,6 +377,7 @@ class ExecRunDriver(AbstractRunDriver):
             cls.runners[klass.name] = klass
             cls.block_type_scheme["runner"] |= E(klass.name)
             cls.block_type_scheme[klass.name] = klass.misc_options
+            cls.block_default[klass.name] = klass.misc_options.get_default()
             return klass
 
         return dec
@@ -447,7 +461,8 @@ class SpecExecRunner(ExecRunner):
         "code": Str() // Default("get()")
                       // Description("Code that is executed for each matched path. "
                            "The code should evaluate to the actual measured value for the path."
-                           "it can use the function get(sub_path: str = '').")
+                           "it can use the function get(sub_path: str = '') and the modules "
+                           "pytimeparse, numpy, math, random, datetime and time.")
     })
 
     def __init__(self, block: RunProgramBlock):
@@ -488,10 +503,15 @@ class SpecExecRunner(ExecRunner):
             def get(sub_path: str = ""):
                 return props[prop][sub_path]
             data[prop] = eval(self.misc["code"])
+        if len(data) == 0:
+            logging.error("No properties in the result file matched begin with {!r} "
+                          "and match the passed regular expression {!r}"
+                          .format(self.misc["base_path"], self.path_regexp))
 
         res = res or BenchmarkingResultBlock(list(props.keys()))
         res.add_run_data(data)
         return res
+
 
 class BenchmarkingError(RuntimeError):
     """

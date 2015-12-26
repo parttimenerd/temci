@@ -55,6 +55,7 @@ class RunProcessor:
         self.start_time = round(time.time())
         self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"])
         self.block_run_count = 0
+        self.min_runs += self.run_block_size
 
     def _finished(self):
         return (len(self.stats_helper.get_program_ids_to_bench()) == 0 \
@@ -88,9 +89,11 @@ class RunProcessor:
                         self.stats_helper.estimate_time_for_next_round(self.run_block_size,
                                                                        all=self.block_run_count < self.min_runs)
                     estimate = self.stats_helper.estimate_time(self.run_block_size, self.min_runs, self.max_runs)
-                    estimate *= last_round_span / last_round_actual_estimate
-                    estimate = (estimate / self.pool.parallel_number) - (time.time() - self.start_time)
-
+                    if last_round_actual_estimate != 0:
+                        estimate *= last_round_span / last_round_actual_estimate
+                        estimate = (estimate / self.pool.parallel_number) - (time.time() - self.start_time)
+                    else:
+                        estimate = 0
                     estimate_str = humanfriendly.format_timespan(math.floor(estimate))
                     logging.info("[{nr:>3}] Estimated time to completion: {time:>20}"
                              .format(nr=self.block_run_count - self.pre_runs,
