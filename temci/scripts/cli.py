@@ -1,5 +1,7 @@
 import shutil
 import subprocess
+
+from temci.scripts.init import prompt_run_config, prompt_build_config
 from temci.utils.typecheck import *
 
 from pympler import tracker, classtracker
@@ -38,7 +40,7 @@ command_docs = {
     "build": "Build program blocks",
     "run": "Benchmark some program blocks",
     "report": "Generate a report from benchmarking result",
-    "init": "Create a temci settings file in the current directory with the current settings",
+    "init": "Helper commands to initialize files (like settings)",
     "completion": "Creates completion files for several shells.",
     "short": "Utility commands to ease working directly on the command line",
     "clean": "Clean up the temporary files"
@@ -91,7 +93,9 @@ misc_commands = {
     "init": {
         "common": CmdOptionList(),
         "sub_commands": {
-            "settings": CmdOptionList()
+            "settings": CmdOptionList(),
+            "build_config": CmdOptionList(),
+            "run_config": CmdOptionList()
         }
     },
     "completion": {
@@ -128,7 +132,9 @@ misc_commands_description = {
         "bash": "Creates a file /tmp/temci_bash_completion for bash completion support."
     },
     "init": {
-        "settings": "Create a new settings file temci.yaml in the current directory"
+        "settings": "Create a new settings file temci.yaml in the current directory",
+        "build_config": "Interactive cli to create (or append to) a build config file",
+        "run_config": "Interactive cli to create (or append to) a run config file"
     },
     "short": {
         "exec": "Exec code snippets directly with the exec run driver"
@@ -197,10 +203,10 @@ def report(report_file: str, **kwargs):
     ReportProcessor().report()
 
 
-@cli.group(short_help="Some init helpers")
+@cli.group(short_help=command_docs["init"])
 @cmd_option(misc_commands["init"]["common"])
 @cmd_option(common_options)
-def init():
+def init(**kwargs):
     pass
 
 
@@ -209,6 +215,20 @@ def init():
 @cmd_option(common_options)
 def settings(**kwargs):
     Settings().store_into_file("temci.yaml")
+
+
+@init.command(short_help=misc_commands_description["init"]["build_config"])
+@cmd_option(misc_commands["init"]["sub_commands"]["build_config"])
+@cmd_option(common_options)
+def build_config(**kwargs):
+    prompt_build_config()
+
+
+@init.command(short_help=misc_commands_description["init"]["run_config"])
+@cmd_option(misc_commands["init"]["sub_commands"]["run_config"])
+@cmd_option(common_options)
+def settings(**kwargs):
+    prompt_run_config()
 
 
 @cli.command(short_help=command_docs["build"])
@@ -272,6 +292,7 @@ def zsh(**kwargs):
 
 #compdef temci
 _temci(){{
+    printf '%s\n' "${{words[@]}}" > /tmp/out
     local ret=11 state
 
     local -a common_opts
@@ -333,14 +354,7 @@ _temci(){{
                    sub_cmds="\n\t".join("\"{}:{}\"".format(x, misc_commands_description[misc_cmd][x])
                                         for x in misc_commands_description[misc_cmd]))
     ret_str += """
-            (run)
-                echo "run" $state > tmp_file
-                _arguments "2: :_files -g '*\.({drivers})\.yaml'"\
-            ;;
-            (report)
-                _arguments "2: :_files -g '*\.yaml' "\
-            ;;
-            (build)
+            (build|report|{drivers})
                 _arguments "2: :_files -g '*\.yaml' "\
             ;;
         esac
@@ -357,24 +371,26 @@ _temci(){{
 
         case $words[1] in
 
-        (run)
-            #echo "sdf" $words[@] > tmp_file
-            case $words[2] in
         """
+
     for driver in run_driver.RunDriverRegistry.registry.keys():
         ret_str += """
-                *.{driver}.yaml)
+        {driver})
+            case $words[2] in
+                *.yaml)
                     args=(
-                        "1:: :echo 3"
-                        $common_opts
-                        {opts}
+                    $common_opts
+                    {opts}
                     )
-                    _arguments $args && ret=0
-                    ;;
-        """.format(driver=driver, opts=process_options(run_options["run_driver_specific"][driver]))
-    ret_str +="""
+                    _arguments "1:: :echo 3" $args && ret=0
+                ;;
+                *)
+                    _arguments "1:: :echo 3" && ret=0
             esac
         ;;
+        """.format(driver=driver, opts=process_options(run_options["run_driver_specific"][driver]))
+
+    ret_str += """
         (report)
             #echo "(report)" $words[2]
             case $words[2] in
@@ -433,8 +449,8 @@ _temci(){{
     ret_str += """
     esac
 
-        echo $words[@] > tmp_file
-        echo $sub_cmd >> tmp_file
+
+
         case $sub_cmd in
     """
 
@@ -465,7 +481,7 @@ _temci(){{
     esac
     }
 
-
+    compdef _temci temci=temci
     """
     with open("/tmp/temci_zsh_completion.sh", "w") as f:
         f.write(ret_str)
@@ -561,11 +577,9 @@ def bash(**kwargs):
 
     file_structure = """
     _temci(){{
+        #printf '%s\n' "${{COMP_WORDS[@]}}" > /tmp/out
         local cur=${{COMP_WORDS[COMP_CWORD]}}
         local prev=${{COMP_WORDS[COMP_CWORD-1]}}
-
-
-        printf '%s\n' "${{COMP_WORDS[@]}}" > /tmp/out
 
         local common_opts=(
             {common_opts}
@@ -614,7 +628,7 @@ def bash(**kwargs):
         esac
 
         case ${{COMP_WORDS[1]}} in
-            report|build|{run_drivers})
+            (report|build|{run_drivers})
                 local IFS=$'\n'
                 local LASTCHAR=' '
                 COMPREPLY=($(compgen -o plusdirs -o nospace -f -X '!*.yaml' -- "${{COMP_WORDS[COMP_CWORD]}}"))
@@ -662,7 +676,7 @@ def assembler(call: str):
     as_tool = os.environ["USED_AS"] if "USED_AS" in os.environ else "/usr/bin/as"
 
     def exec(cmd):
-        proc = subprocess.Popen(["/bin/bash", "-c", cmd], stdout=subprocess.PIPE,
+        proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 universal_newlines=True)
         out, err = proc.communicate()

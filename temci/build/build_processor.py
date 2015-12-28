@@ -16,6 +16,7 @@ class BuildProcessor:
             "randomization": (Dict(all_keys=False) | NonExistent()) // Default({}),
             "working_dir": (DirName() | NonExistent()) // Default("."),
             "revision": (Str() | Int() | NonExistent()) // Default(-1),
+            "branch": (Str() | NonExistent()) // Default(""),
             "base_dir": (DirName() | NonExistent()) // Default(".")
         })
     })
@@ -47,7 +48,7 @@ class BuildProcessor:
                     block_builder = Builder(block["build_config"]["working_dir"],
                             block["build_config"]["build_cmd"], block["build_config"]["revision"],
                             block["build_config"]["number"], block["build_config"]["randomization"],
-                            block["build_config"]["base_dir"])
+                            block["build_config"]["base_dir"], block["build_config"]["branch"])
                     working_dirs = block_builder.build()
                 except BuilderKeyboardInterrupt as err:
                     working_dirs = err.result

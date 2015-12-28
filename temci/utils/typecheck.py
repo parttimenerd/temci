@@ -862,7 +862,17 @@ class Dict(Type):
             typecheck(defaults, self)
 
         strs = []
-        keys = sorted(self.data.keys())
+        groups = {
+            "simple": [],
+            "misc": []
+        }
+        for key in self.data:
+            if isinstance(self.data[key], Dict):
+                groups["misc"].append(key)
+            else:
+                groups["simple"].append(key)
+        keys = sorted(groups["simple"]) + sorted(groups["misc"])
+
         for i in range(0, len(keys)):
             #if i != 0:
             strs.append("")
@@ -1007,7 +1017,8 @@ class Str(Type):
 
 class FileName(Str):
     """
-    A valid file name. If the file doesn't exist, at least the parent directory must exist.
+    A valid file name. If the file doesn't exist, at least the parent directory must exist
+    and the file must be creatable.
     """
 
     def __init__(self, constraint = None, allow_std=False):
@@ -1022,7 +1033,7 @@ class FileName(Str):
         self.allow_std = allow_std
 
     def _instancecheck_impl(self, value, info: Info):
-        if not isinstance(value, str):
+        if not isinstance(value, str) or value == "":
             return info.errormsg(self)
         if self.allow_std and value == "-" and (self.constraint is None or self.constraint(value)):
             return info.wrap(True)
@@ -1051,7 +1062,7 @@ class ValidYamlFileName(Str):
     A valid file name that refers to a valid YAML file.
     """
 
-    def __init__(self):
+    def __init__(self, allow_non_existent: bool = False):
         super().__init__()
         self.completion_hints = {
             "zsh": "_files",
@@ -1059,11 +1070,16 @@ class ValidYamlFileName(Str):
                 "files": True
             }
         }
+        self.allow_non_existent = allow_non_existent
 
     def _instancecheck_impl(self, value, info: Info):
         if not isinstance(value, str):
             return info.errormsg(self)
-        if not os.path.exists(value) or not os.path.isfile(value):
+        if not os.path.exists(value):
+            if not self.allow_non_existent or not isinstance(value, FileName()):
+                return info.errormsg(self)
+            return info.wrap(True)
+        if not os.path.isfile(value):
             return info.errormsg(self)
         try:
             with open(value, "r") as f:
@@ -1153,6 +1169,31 @@ class BoolOrNone(Type, click.ParamType):
         return "BoolOrNone()"
 
 
+class Bool(Type, click.ParamType):
+    """
+    Like Bool but with a third value none that declares that the value no boolean value.
+    It has None as its default value (by default).
+    """
+
+    name = "bool"
+
+    def __init__(self):
+        super().__init__()
+        self.completion_hints = {
+            "zsh": "(true, false)",
+            "fish": {
+                "hint": ["true", "false"]
+            }
+        }
+
+    def _instancecheck_impl(self, value, info: Info):
+        res = ExactEither(True, False).__instancecheck__(value, info)
+        return info.errormsg_cond(self, bool(res), str(res))
+
+    def __str__(self):
+        return "Bool()"
+
+
 class ValidTimeSpan(Type, click.ParamType):
     """
     A string that is parseable as timespan by pytimeparse.
@@ -1209,16 +1250,6 @@ def FileNameOrStdOut():
     A valid file name or "-" for standard out.
     """
     return FileName(allow_std=True)
-
-def Bool():
-    t = T(bool)
-    t.completion_hints = {
-        "zsh": "(true false)",
-        "fish":{
-            "hint": ["true", "false"]
-        }
-    }
-    return t
 
 
 def verbose_isinstance(value, type, value_name: str = None):

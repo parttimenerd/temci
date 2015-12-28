@@ -9,7 +9,7 @@ def exec(dir: str, cmd: str):
     :param dir: passed directory
     :param cmd: passed command
     """
-    proc = subprocess.Popen(["/bin/bash", "-c", cmd], stdout=subprocess.PIPE,
+    proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         universal_newlines=True,
                         cwd=script_relative(dir))

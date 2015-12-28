@@ -11,7 +11,8 @@ setup(
         'fn',
         'pyaml',
         'typing', 'seaborn', 'pytimeparse',
-        'path.py', 'matplotlib2tikz'
+        'path.py', 'matplotlib2tikz',
+        'prompt_toolkit', 'ptpython'
     ],
     entry_points='''
         [console_scripts]

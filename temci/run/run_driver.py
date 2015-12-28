@@ -9,6 +9,7 @@ import shutil
 import pytimeparse, numpy, math
 
 from temci.utils.settings import Settings
+from temci.utils.typecheck import NoInfo
 from temci.utils.vcs import VCSDriver
 from ..utils.typecheck import *
 from ..utils.registry import AbstractRegistry, register
@@ -18,6 +19,7 @@ import logging, time, random, subprocess
 from collections import namedtuple
 import shlex, gc
 from fn import _
+import typing as t
 
 class RunDriverRegistry(AbstractRegistry):
     """
@@ -241,7 +243,7 @@ class ExecRunDriver(AbstractRunDriver):
     default = ["nice"]
     block_type_scheme = Dict({
         "run_cmd": (List(Str()) | Str()) // Description("Commands to benchmark"),
-        "env": Dict(all_keys=False, key_type=Str()) // Description("Environment vairables"),
+        "env": Dict(all_keys=False, key_type=Str()) // Description("Environment variables"),
         "cmd_prefix": List(Str()) // Description("Command to append before the commands to benchmark"),
         "revision": (Int(_ >= -1) | Str()) // Description("Used revision (or revision number)."
                                                         "-1 is the current revision."),
@@ -349,7 +351,7 @@ class ExecRunDriver(AbstractRunDriver):
         env.update({'LC_NUMERIC': 'en_US.ASCII'})
         t = time.time()
         executed_cmd = "; ".join(executed_cmd)
-        proc = subprocess.Popen(["/usr/bin/zsh", "-c", executed_cmd], stdout=subprocess.PIPE,
+        proc = subprocess.Popen(["/bin/sh", "-c", executed_cmd], stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 universal_newlines=True,
                                 cwd=cwd,
@@ -378,6 +380,14 @@ class ExecRunDriver(AbstractRunDriver):
             cls.block_type_scheme["runner"] |= E(klass.name)
             cls.block_type_scheme[klass.name] = klass.misc_options
             cls.block_default[klass.name] = klass.misc_options.get_default()
+            if klass.__doc__ is not None:
+                header = ""# "Description of {} (class {}):\n".format(name, klass.__qualname__)
+                lines = str(klass.__doc__.strip()).split("\n")
+                lines = map(lambda x: "  " + x.strip(), lines)
+                description = Description(header + "\n".join(lines))
+                klass.__description__ = description.description
+            else:
+                klass.__description__ = ""
             return klass
 
         return dec
@@ -408,6 +418,57 @@ class ExecRunner:
         raise NotImplementedError()
 
 
+def get_av_perf_stat_properties() -> t.List[str]:
+    proc = subprocess.Popen(["/bin/sh", "-c", "perf list"], stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, universal_newlines=True)
+    out, err = proc.communicate()
+    if proc.poll() > 0:
+        raise EnvironmentError("Error calling 'perf list': {}".format(err))
+    lines = out.split("\n")[3:]
+    props = []
+    for line in lines:
+        line = line.strip()
+        if line == "" or "=" in line or "<" in line or "NNN" in line:
+            continue
+        prop = line.split(" ", 1)[0].strip()
+        if prop != "":
+            props.append(prop)
+    return props
+
+
+class ValidPerfStatPropertyList(Type):
+    """
+    Checks for the value to be a valid perf stat measurement property list.
+    """
+
+    def __init__(self):
+        super().__init__()
+        av = get_av_perf_stat_properties()
+        self.completion_hints = {
+            "zsh": "({})".format(" ".join(av)),
+            "fish": {
+                "hint": list(av)
+            }
+        }
+
+    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+        if not isinstance(value, List(Str())):
+            return info.errormsg(self)
+        cmd = "perf stat -x ';' -e {props} -- /bin/echo".format(props=",".join(value))
+        proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.DEVNULL,
+                                stderr=subprocess.PIPE, universal_newlines=True)
+        out, err = proc.communicate()
+        if proc.poll() > 0:
+            return info.errormsg("Not a valid properties list: " + str(err).split("\n")[0].strip())
+        return info.wrap(True)
+
+    def __str__(self) -> str:
+        return "ValidPerfStatPropertyList()"
+
+    def _eq_impl(self, other):
+        return True
+
+
 @ExecRunDriver.register_runner()
 class PerfStatExecRunner(ExecRunner):
     """
@@ -417,7 +478,7 @@ class PerfStatExecRunner(ExecRunner):
     name = "perf_stat"
     misc_options = Dict({
         "repeat": NaturalNumber() // Default(1),
-        "properties": List(Str()) // Default(["cache-misses", "cycles", "task-clock",
+        "properties": ValidPerfStatPropertyList() // Default(["cache-misses", "cycles", "task-clock",
                                               "instructions", "branch-misses", "cache-references"])
     })
 
@@ -450,13 +511,15 @@ class PerfStatExecRunner(ExecRunner):
 class SpecExecRunner(ExecRunner):
     """
     Runner for SPEC like single benchmarking suites.
+    It works with resulting property files, in which the properties are collon
+    separated from their values.
     """
 
     name = "spec"
     misc_options = Dict({
         "file": Str() // Default("") // Description("SPEC result file"),
         "base_path": Str() // Default(""),
-        "path_regexp": Str() // Default("TODO")
+        "path_regexp": Str() // Default(".*")
                          // Description("Regexp matching the base property path for each measured property"),
         "code": Str() // Default("get()")
                       // Description("Code that is executed for each matched path. "

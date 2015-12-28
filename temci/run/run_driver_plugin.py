@@ -59,7 +59,7 @@ class AbstractRunDriverPlugin:
         pass
 
     def _exec_command(self, cmd: str) -> str:
-        proc = subprocess.Popen(["/bin/bash", "-c", cmd], stdout=subprocess.PIPE,
+        proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 universal_newlines=True)
         out, err = proc.communicate()
@@ -296,7 +296,7 @@ class DisableSwap(AbstractRunDriverPlugin):
 class DisableCPUCaches(AbstractRunDriverPlugin):
     """
     Disable the L1 and L2 caches on x86 and x86-64 architectures.
-    Uses a small custom kernel module (be sure to compile it via `temci setup`).
+    Uses a small custom kernel module (be sure to compile it via 'temci setup').
 
     :warning slows program down significantly and has probably other weird consequences
     :warning this is untested

@@ -2,6 +2,7 @@ import os, shutil, errno, shlex, subprocess, logging, tarfile
 from .settings import Settings
 from os.path import abspath
 from temci.utils.typecheck import *
+import typing as t
 
 class VCSDriver:
     """
@@ -66,15 +67,21 @@ class VCSDriver:
         """
         raise NotImplementedError()
 
-    def get_branch(self):
+    def get_branch(self) -> t.Optional[str]:
         """
         Gets the current branch.
         :return: current branch name
         :raises VCSError if something goes terribly wrong
         """
-        raise NotImplementedError()
+        raise None
 
-    def has_uncommitted(self):
+    def get_valid_branches(self) -> t.Optional[t.List[str]]:
+        """
+        Gets the valid branches for the associated repository or None if the vcs doesn't support branches.
+        """
+        return None
+
+    def has_uncommitted(self) -> bool:
         """
         Check for uncommitted changes in the repository.
         :return:
@@ -83,7 +90,7 @@ class VCSDriver:
 
     def number_of_revisions(self):
         """
-        Number of commited revisions in the current branch (if branches are supported).
+        Number of committed revisions in the current branch (if branches are supported).
         :return number of revisions
         """
         raise NotImplementedError()
@@ -98,7 +105,7 @@ class VCSDriver:
 
     def get_info_for_revision(self, id_or_num):
         """
-        Get an info dict for the given commit (-1 represent the uncommitted changes).
+        Get an info dict for the given commit (-1 and 'HEAD' represent the uncommitted changes).
         Structure of the info dict::
 
             "commit_id"; …,
@@ -114,10 +121,33 @@ class VCSDriver:
         """
         raise NotImplementedError()
 
+    def get_info_for_all_revisions(self) -> t.List[t.Dict[str, t.Any]]:
+        """
+        Get an info dict for all revisions.
+        A single info dict has the following structure::
+
+            "commit_id"; …,
+            "commit_message": …,
+            "commit_number": …,
+            "is_uncommitted": True/False,
+            "is_from_other_branch": True/False,
+            "branch": … # branch name or empty string if this commit belongs to no branch
+
+        :return: list of info dicts
+        """
+        info_dicts = []
+        if self.has_uncommitted():
+            info_dicts.append(self.get_info_for_revision(-1))
+        for i in range(self.number_of_revisions()):
+            info_dicts.append(self.get_info_for_revision(i))
+
+        return info_dicts
+
+
     def copy_revision(self, id_or_num, sub_dir, dest_dirs):
         """
         Copy the sub directory of the current vcs base directory into all of the destination directories.
-        :param id_or_num: id or number of the revision (-1 represent the uncommitted changes)
+        :param id_or_num: id or number of the revision (-1 and 'HEAD' represent the uncommitted changes)
         :param sub_dir: sub directory of the current vcs base directory relative to it
         :param dest_dirs: list of destination directories in which the content of the sub dir is placed or dest dir string
         :raises VCSError if something goes wrong while copying the directories
@@ -154,23 +184,20 @@ class VCSDriver:
     def _exec_command(self, command, error: str = "Error executing {cmd}: {err}", cacheable: bool = False):
         """
         Executes the given external command and returns the resulting output.
-        :param command: given external command (as string or list)
+        :param command: given external command, list or string (uses /bin/sh)
         :param error: error message with can have a placeholder `cmd` for the command and `èrr` for stderr
         :param cacheable: can the result of the command be cached to reduce the number of needed calls?
         :return output as string
         :raises VCSError if the external command hasn't exit code 0
         """
-        typecheck_locals(command=List(Str())|Str(), error=Str(), cacheable=Bool())
-        args = []
-        if type(command) is list:
-            args = command
-        else:
-            args = shlex.split(command)
+        typecheck_locals(command=List()|Str(), error=Str(), cacheable=Bool())
+        args = command
+        if isinstance(command, Str()):
+            args = ["/bin/sh", "-c", command]
 
         args_str = "#~#".join(args)
         if cacheable and args_str in self._exec_command_cache:
             return self._exec_command_cache[args_str]
-
         proc = subprocess.Popen(args, cwd=abspath(self.dir), stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             universal_newlines=True)
@@ -191,18 +218,19 @@ class VCSDriver:
         :param cacheable: can the result of the command be cached to reduce the number of needed calls?
         :return error code of the command (or 0 if no error occurred)
         """
-        typecheck_locals(command=List(Str)|Str(), cacheable=Bool())
+        typecheck_locals(command=List(Str())|Str(), cacheable=Bool())
         args = []
         if isinstance(command, list):
             args = command
         else:
-            args = shlex.split(command)
+            args = ["/bin/sh", "-c", command]
 
         args_str = "#~#".join(args)
         if cacheable and args_str in self._exec_err_code_cache:
             return self._exec_err_code_cache[args_str]
 
-        proc = subprocess.Popen(args, cwd=abspath(self.dir), universal_newlines=True)
+        proc = subprocess.Popen(args, cwd=abspath(self.dir), universal_newlines=True,
+                                stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
         out, err = proc.communicate()
 
         err_code = proc.poll()
@@ -216,7 +244,7 @@ class FileDriver(VCSDriver):
     """
     The default driver, that works with plain old files and directories without any vcs.
     Therefore its also usable with every directory.
-    It has only one revision: Number -1, the current directory content.
+    It has only one revision: Number -1 or 'HEAD', the current directory content.
 
     This class is also a simple example implementation of a VCSDriver.
     """
@@ -242,7 +270,7 @@ class FileDriver(VCSDriver):
         return 0
 
     def validate_revision(self, id_or_num):
-        return id_or_num == -1
+        return id_or_num == -1 or id_or_num == 'HEAD'
 
     def get_info_for_revision(self, id_or_num):
         typecheck_locals(id_or_num=self.id_type)
@@ -284,14 +312,14 @@ class GitDriver(VCSDriver):
             path = path[0:-1]
         for i in reversed(range(1, len(path) - 1)):
             sub_path = path[0:i]
-            if os.path.isdir(os.path.join(os.path.join(*sub_path),  ".git")):
+            if os.path.isdir(os.path.join("/", os.path.join(*sub_path),  ".git")):
                 return os.path.join(*path[i:])
         return None
 
     def get_branch(self):
         if self.branch is not None:
             return self.branch
-        return self._exec_command(["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        return self._exec_command("git rev-parse --abbrev-ref HEAD",
                                   error="Can't get current branch. Somethings wrong with the repository: {err}").strip()
 
     def set_branch(self, new_branch: str):
@@ -302,6 +330,15 @@ class GitDriver(VCSDriver):
         if new_branch not in out:
             raise VCSError("No such branch {}".format(new_branch))
         self.branch = new_branch
+
+    def get_valid_branches(self) -> t.Optional[t.List[str]]:
+        res = self._exec_command("git branch --list", cacheable=True).split(" ")
+        branches = []
+        for line in res:
+            line = line.split("\n")[0].strip()
+            if line != "":
+                branches.append(line)
+        return branches
 
     def has_uncommitted(self):
         return self._exec_err_code("git diff --cached --quiet", cacheable=True) == 1
@@ -342,24 +379,23 @@ class GitDriver(VCSDriver):
         :return normalized commit id
         :raises VCSError if something goes wrong
         """
-        out = self._exec_command("git show {}".format(id), cacheable=True)
-        out = out.split("\n")[0].strip()
+        out = self._exec_command("git show {} | head -n 1".format(id), cacheable=True).strip()
         return out.split(" ")[1]
 
     def validate_revision(self, id_or_num):
         typecheck_locals(id_or_num=self.id_type)
-        if id_or_num is -1:
+        if id_or_num is -1 or id_or_num == "HEAD":
             return self.has_uncommitted()
-        if id_or_num < -1:
+        if isinstance(id_or_num, int) and id_or_num < -1:
             return False
         try:
             cid = self._commit_number_to_id(id_or_num)
-            return self._exec_err_code("git show {}".format(cid), cacheable=True) == 0
+            return self._exec_err_code("git show {} | head -n 1".format(cid), cacheable=True) == 0
         except VCSError:
             return False
 
     def _get_branch_for_revision(self, id_or_num):
-        if id_or_num == -1:
+        if id_or_num == -1 or id_or_num == "HEAD":
             return self.get_branch()
         id = self._commit_number_to_id(id_or_num)
         out = self._exec_command("git branch --contains {}".format(id), cacheable=True)
@@ -368,19 +404,18 @@ class GitDriver(VCSDriver):
 
     def get_info_for_revision(self, id_or_num):
         typecheck_locals(id_or_num=self.id_type)
-        if id_or_num == -1:
+        if id_or_num == -1 or id_or_num == "HEAD":
             return {
-                "commit_id": "",
-                "commit_message": "[Uncommited]",
+                "commit_id": "HEAD",
+                "commit_message": "Uncommitted changes",
                 "commit_number": -1,
                 "is_uncommitted": True,
                 "is_from_other_branch": False,
                 "branch": self._get_branch_for_revision(id_or_num)
             }
         cid = self._commit_number_to_id(id_or_num)
-        lines = self._exec_command("git show {} --oneline".format(cid), cacheable=True).split("\n")
-        lines = [line.strip() for line in lines]
-        cid, msg = lines[0].split(" ", 1)
+        line = self._exec_command("git show {} --oneline | head -n 1".format(cid), cacheable=True).strip()
+        cid, msg = line.split(" ", 1)
         branch = self._get_branch_for_revision(id_or_num)
         cid = self._normalize_commit_id(cid)
         other_branch = True
@@ -393,7 +428,7 @@ class GitDriver(VCSDriver):
                 break
         return {
             "commit_id": cid,
-            "commit_message": msg,
+            "commit_message": msg.strip(),
             "commit_number": commit_number,
             "is_uncommitted": False,
             "is_from_other_branch": other_branch,
@@ -404,7 +439,7 @@ class GitDriver(VCSDriver):
         typecheck_locals(id_or_num=self.id_type, dest_dirs=List(Str())|Str())
         if isinstance(dest_dirs, str):
             dest_dirs = [dest_dirs]
-        if id_or_num == -1:
+        if id_or_num == -1 or id_or_num == "HEAD":
             self._copy_dir(sub_dir, dest_dirs)
         sub_dir = os.path.join(self.base_path, sub_dir)
         tar_file = os.path.abspath(os.path.join(Settings()["tmp_dir"], "tmp.tar"))

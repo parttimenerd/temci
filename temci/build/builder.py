@@ -20,16 +20,7 @@ from ..utils.settings import Settings
 
 class Builder:
 
-    def __init__(self, build_dir: str, build_cmd: str, revision, number: int, rand_conf: dict, base_dir: str):
-        typecheck(build_dir, DirName())
-        typecheck(build_cmd, str)
-        typecheck(revision, Int() | Str())
-        typecheck(number, PositiveInt())
-        typecheck(base_dir, DirName())
-        _rand_conf = rand_conf
-        rand_conf = Settings()["build/rand"]
-        rand_conf.update(rand_conf)
-        typecheck(rand_conf, Dict({
+    rand_conf_type = Dict({
             "heap": (NaturalNumber() | NonExistent())
                     // Description("0: don't randomize, > 0 randomize with paddings in range(0, x)"),
             "stack": (NaturalNumber() | NonExistent())
@@ -42,13 +33,25 @@ class Builder:
                     // Description("Randomize the rodata sub segments?"),
             "file_structure": (Bool() | NonExistent())
                               // Description("Randomize the file structure.")
-        }, all_keys=False))
+        }, all_keys=False)
+
+    def __init__(self, build_dir: str, build_cmd: str, revision, number: int, rand_conf: dict,
+                 base_dir: str, branch: str):
+        typecheck(build_dir, DirName())
+        typecheck(build_cmd, str)
+        typecheck(revision, Int() | Str())
+        typecheck(number, PositiveInt())
+        typecheck(base_dir, DirName())
+        _rand_conf = rand_conf
+        rand_conf = Settings()["build/rand"]
+        rand_conf.update(rand_conf)
+        typecheck(rand_conf, self.rand_conf_type)
         self.build_dir = os.path.join(base_dir, build_dir)
         self.build_cmd = build_cmd
         self.revision = revision
         self.number = number
         self.rand_conf = rand_conf
-        self.vcs_driver = VCSDriver.get_suited_vcs(dir=self.build_dir)
+        self.vcs_driver = VCSDriver.get_suited_vcs(dir=self.build_dir, branch=None if branch is "" else branch)
 
     def build(self, thread_count: int = None) -> list:
         """
@@ -123,7 +126,7 @@ class BuilderThread(threading.Thread):
                 "LANGUAGE": "en_US"
             }
             logging.info("Thread {}: Start building number {}".format(self.id, item.id))
-            proc = subprocess.Popen(["/usr/bin/zsh", "-c", "export PATH={}/:$PATH; sync;".format(as_path)
+            proc = subprocess.Popen(["/bin/sh", "-c", "export PATH={}/:$PATH; sync;".format(as_path)
                                      + item.build_cmd],
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,

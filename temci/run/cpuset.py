@@ -248,7 +248,7 @@ class CPUSet:
 
     def _set_cpu_affinity(self, pid: int, cpus):
         cmd = "sudo taskset --all-tasks --cpu-list -p {} {}; sudo nice".format(cpus, pid)
-        proc = subprocess.Popen(["/bin/bash", "-c", cmd],
+        proc = subprocess.Popen(["/bin/sh", "-c", cmd],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 universal_newlines=True)
@@ -261,7 +261,7 @@ class CPUSet:
         return str(out)
 
     def _cset(self, argument: str):
-        proc = subprocess.Popen(["/bin/bash", "-c", "sudo cset {}".format(argument)],
+        proc = subprocess.Popen(["/bin/sh", "-c", "sudo cset {}".format(argument)],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 universal_newlines=True)
@@ -334,7 +334,7 @@ class CPUSet:
             return
         arg = "\n".join("echo {} > /sys/devices/system/cpu/cpu{}/online"
                         .format(online_status, core_id) for core_id in ht_cores)
-        proc = subprocess.Popen(["/bin/bash", "-c", "sudo bash -c '{}'".format(arg)],
+        proc = subprocess.Popen(["/bin/sh", "-c", "sudo bash -c '{}'".format(arg)],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 universal_newlines=True)

@@ -78,7 +78,7 @@ class AbstractRegistry:
             klass.__description__ = description.description
             misc_type //= description
         else:
-            klass.__description__ = None
+            klass.__description__ = ""
         Settings().modify_setting("{}_misc".format("/".join([cls.settings_key_path, name])),
                                   misc_type)
         use_key_path = "/".join([cls.settings_key_path, cls.use_key])

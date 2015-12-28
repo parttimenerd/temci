@@ -1,4 +1,6 @@
+import os
 import subprocess
+
 
 def recursive_exec_for_leafs(data: dict, func, _path_prep=[]):
     """
@@ -21,6 +23,22 @@ def ensure_root():
     proc.communicate()
     if proc.poll() > 0:
         raise EnvironmentError("This program needs to be run with super user privileges")
+
+
+def get_cache_line_size(cache_level: int = None) -> int:
+    """
+    Returns the cache line size of the cache on the given level.
+    :param cache_level: if None the highest level cache is used
+    :return: cache line size
+    """
+    if cache_level is None:
+        cache_level = 1
+        for path in os.listdir("/sys/devices/system/cpu/cpu0/cache/"):
+            if path.startswith("index"):
+                cache_level = max(cache_level, int(path.split("index")[1]))
+    level_dir = "/sys/devices/system/cpu/cpu0/cache/index" + str(cache_level)
+    with open(level_dir + "/coherency_line_size") as f:
+        return int(f.readline().strip())
 
 
 class Singleton(type):
