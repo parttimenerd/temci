@@ -114,6 +114,9 @@ class Tester(object, metaclass=util.Singleton):
             res = min(interpolate(*f) for f in funcs)
         return res
 
+    def __eq__(self, other):
+        return isinstance(other, type(self))
+
 
 @register(TesterRegistry, name="t", misc_type=Dict())
 class TTester(Tester):

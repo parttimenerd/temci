@@ -227,7 +227,7 @@ def build_config(**kwargs):
 @init.command(short_help=misc_commands_description["init"]["run_config"])
 @cmd_option(misc_commands["init"]["sub_commands"]["run_config"])
 @cmd_option(common_options)
-def settings(**kwargs):
+def run_config(**kwargs):
     prompt_run_config()
 
 
@@ -733,7 +733,7 @@ def setup():
 if __name__ == "__main__":
     #sys.argv[1:] = ["exec", "-wd", "ls", "-wd", "ls ..", "-wd", "ls /tmp", "--min_runs", "5", "--max_runs", "5",
     #                "--out", "ls_100.yaml", "--stop_start"]
-    #sys.argv[1:] = ["report", "run_output.yaml"]
+    sys.argv[1:] = ["report", "run_output.yaml", "--reporter", "html2"]
     #sys.argv[1:] = ["init", "settings"]
     #sys.argv[1:] = ["completion", "zsh"]
     #sys.argv[1:] = ["assembler", "'dsafasdf sdaf'"]
@@ -743,7 +743,7 @@ if __name__ == "__main__":
 
     #sys.argv[1:] = ["run", "spec_like.exec.yaml", "--min_runs", "20", "--max_runs", "20"]
 
-    sys.argv[1:] = ["completion", "bash"]
+    #sys.argv[1:] = ["completion", "bash"]
 
     #if len(sys.argv) == 1:
     #    sys.argv[1:] = ['build', os.path.join(os.path.abspath("."), 'build.yaml')]
@@ -755,6 +755,6 @@ if __name__ == "__main__":
 
     cProfile.runctx("cli()", globals(), locals(), filename="cli.profile")
     ctr.create_snapshot()
-    ctr.stats.print_summary()
-    tr.print_diff()
+    #ctr.stats.print_summary()
+    #tr.print_diff()
     #cli()

@@ -1,14 +1,18 @@
 """
 Statistical helper classes for tested pairs and single blocks.
 """
+
 import copy
 import functools
 import logging
+import traceback
 from enum import Enum
 
 import itertools
 
+import math
 import path
+import sys
 
 from temci.tester.rundata import RunData
 from temci.tester.testers import Tester, TesterRegistry
@@ -24,12 +28,19 @@ import matplotlib
 from matplotlib2tikz import save as tikz_save
 import seaborn as sns
 
+from temci.utils.util import join_strs
+
 
 class StatMessageType(Enum):
 
     ERROR = 10
     WARNING = 5
 
+class StatMessageValueFormat(Enum):
+
+    INT = "{}"
+    FLOAT = "{:5.5f}"
+    PERCENT = "{:5.3%}"
 
 class StatMessage:
     """
@@ -40,8 +51,9 @@ class StatMessage:
     hint = ""
     type = None # type: StatMessageType
     border_value = 0
+    value_format = StatMessageValueFormat.FLOAT # type: t.Union[StatMessageValueFormat, str]
 
-    def __init__(self, parent, properties: t.Union[t.List[str], str], values):
+    def __init__(self, parent: 'BaseStatObject', properties: t.Union[t.List[str], str], values):
         self.parent = parent
         if not isinstance(properties, list):
             properties = [properties]
@@ -54,32 +66,39 @@ class StatMessage:
 
     def __add__(self, other: 'StatMessage') -> 'StatMessage':
         typecheck(other, T(type(self)))
-        typecheck(other.parent, E(self.parent))
-        return StatMessage(self.parent, self.properties + other.properties, self.values + other.values)
+        assert self.parent.eq_except_property(other.parent)
+        return type(self)(self.parent, self.properties + other.properties, self.values + other.values)
 
-    @classmethod
-    def combine(cls, *messages: t.List['StatMessage', None]) -> t.List['StatMessage']:
+    @staticmethod
+    def combine(*messages: t.List[t.Optional['StatMessage']]) -> t.List['StatMessage']:
         """
         Combines all message of the same type and with the same parent in the passed list.
         Ignores None entries.
         :param messages: passed list of messages
         :return: new reduced list
         """
-        bins = {}
-        for msg in messages:
-            if msg is None:
-                continue
-            if msg.parent not in bins:
-                bins[msg.parent][type(msg)] = msg
-            elif type(msg) not in bins[msg.parent]:
-                bins[msg.parent][type(msg)] = msg
-            else:
-                bins[msg.parent][type(msg)] += msg
-        return [x for l in bins.values() for x in l]
+        msgs = set([msg for msg in messages if msg is not None]) # t.Set['StatMessage']
+        something_changed = True
+        while something_changed:
+            something_changed = False
+            merged_pair = None # type: t.Tuple['StatMessage', 'StatMessage']
+            for (msg, msg2) in itertools.product(msgs, msgs):
+                if msg is not msg2:
+                    if msg.parent.eq_except_property(msg2.parent) and type(msg) == type(msg2):
+                        merged_pair = (msg, msg2)
+                        something_changed = True
+                        break
+            if something_changed:
+                msg, msg2 = merged_pair
+                msgs.remove(msg)
+                msgs.remove(msg2)
+                msgs.add(msg + msg2)
+        return list(msgs)
 
     @classmethod
     def _val_to_str(cls, value) -> str:
-        return "({!r))".format(value)
+        format = cls.value_format if isinstance(cls.value_format, str) else cls.value_format.value
+        return format.format(value)
 
     @classmethod
     def check_value(cls, value) -> bool:
@@ -89,13 +108,16 @@ class StatMessage:
         pass
 
     @classmethod
-    def create_if_valid(cls, value, parent, properties = None, **kwargs) -> t.Union['StatMessage', None]:
+    def create_if_valid(cls, parent, value, properties = None, **kwargs) -> t.Union['StatMessage', None]:
+        assert isinstance(value, Int()|Float())
         if cls.check_value(value):
             return None
+        ret = None
         if properties is not None:
-            return cls(parent, properties, value, **kwargs)
-        kwargs["values"] = value
-        return cls(parent, **kwargs)
+            ret = cls(parent, properties, value, **kwargs)
+        else:
+            ret = cls(parent, properties, value, **kwargs)
+        return ret
 
     def generate_msg_text(self, show_parent: bool) -> str:
         """
@@ -103,12 +125,12 @@ class StatMessage:
         :param show_parent: Is the parent shown in after the properties? E.g. "blub of bla parent: …"
         :return: message text
         """
-        val_strs = map(self._val_to_str, self.properties)
-        prop_strs = ["{} {}".format(prop, val) for (prop, val) in zip(self.properties, val_strs)]
-        props = " and ".join([", ".join(prop_strs[0:-1]), prop_strs[-1]])
+        val_strs = list(map(self._val_to_str, self.values))
+        prop_strs = ["{} ({})".format(prop, val) for (prop, val) in zip(self.properties, val_strs)]
+        props = join_strs(prop_strs)
         if show_parent:
             props += " of {}".format(self.parent)
-        return self.message.format(b_val=self.border_value, **locals())
+        return self.message.format(b_val=self._val_to_str(self.border_value), props=props)
 
 
 class StatWarning(StatMessage):
@@ -116,55 +138,46 @@ class StatWarning(StatMessage):
     type = StatMessageType.WARNING
 
 
-class StatError(StatMessage):
+class StatError(StatWarning, StatMessage):
 
     type = StatMessageType.ERROR
 
 
 class StdDeviationToHighWarning(StatWarning):
 
-    message = "The standard deviation of {{props}} is to high it should be <= {b_val:%}."
+    message = "The standard deviation per mean of {props} is to high it should be <= {b_val}."
+    hint = "With the exec run driver you can probably use the stop_start plugin, preheat and sleep plugins. " \
+           "Also consider to increase the number of measured runs."
     border_value = 0.01
+    value_format = StatMessageValueFormat.PERCENT
 
     @classmethod
     def check_value(cls, value) -> bool:
         return value <= cls.border_value
 
 
-class StdDeviationToHighError(StdDeviationToHighWarning, StatError):
+class StdDeviationToHighError(StdDeviationToHighWarning):
 
-    border_value = 0.5
+    type = StatMessageType.ERROR
+    border_value = 0.05
 
 
 class NotEnoughObservationsWarning(StatWarning):
 
-    message = "The number of observations of {{props}} is less than {b_val:%}."
+    message = "The number of observations of {props} is less than {b_val}."
+    hint = "Increase the number of measured runs."
     border_value = 30
+    value_format = StatMessageValueFormat.INT
 
     @classmethod
     def check_value(cls, value) -> bool:
         return value >= cls.border_value
 
 
-class NotEnoughObservationsError(StdDeviationToHighWarning, StatError):
+class NotEnoughObservationsError(NotEnoughObservationsWarning):
 
+    type = StatMessageType.ERROR
     border_value = 15
-
-
-def cached(func, _incr = [0]):
-    """
-    Caches the results of the passed function.
-    :param func: function without any parameters other than self, that returns numeric value.
-    :return: wrapped function
-    """
-    _incr[0] += 1
-    prop_name = "___{}".format(_incr[0])
-
-    def ret_func(self):
-        if not hasattr(self, prop_name):
-            setattr(self, prop_name, func(self))
-        return getattr(self, prop_name)
-    return functools.update_wrapper(ret_func, func)
 
 
 class BaseStatObject:
@@ -174,22 +187,36 @@ class BaseStatObject:
 
     _filename_counter = 0
 
-    @cached
+    def __init__(self):
+        self._stat_messages = []
+
     def get_stat_messages(self) -> t.List[StatMessage]:
+        if not self._stat_messages:
+            self._stat_messages = StatMessage.combine(*self._get_stat_messages())
+        return self._stat_messages
+
+    def _get_stat_messages(self) -> t.List[StatMessage]:
         raise NotImplementedError()
 
-    @cached
     def warnings(self) -> t.List[StatMessage]:
         return [x for x in self.get_stat_messages() if x.type is StatMessageType.WARNING]
 
-    @cached
     def errors(self) -> t.List[StatMessage]:
         return [x for x in self.get_stat_messages() if x.type is StatMessageType.ERROR]
+
+    def has_errors(self) -> bool:
+        return any([x.type == StatMessageType.ERROR for x in self.get_stat_messages()])
+
+    def has_warnings(self) -> bool:
+        return any([x.type == StatMessageType.WARNING for x in self.get_stat_messages()])
 
     def get_data_frame(self, **kwargs) -> pd.DataFrame:
         """
         Get the data frame that is associated with this stat object.
         """
+        raise NotImplementedError()
+
+    def eq_except_property(self, other) -> bool:
         raise NotImplementedError()
 
     def _height_for_width(self, width: float) -> float:
@@ -320,12 +347,13 @@ class BaseStatObject:
         matplotlib.rcParams = rc
         return filename
 
-    def _freedman_diaconis_bins(*arrays: t.List[np.array]) -> int:
+    def _freedman_diaconis_bins(*arrays: t.List) -> int:
         """
         Calculate number of hist bins using Freedman-Diaconis rule.
         If more than one array is passed, the maximum number of bins calculated for each
         array is used.
-        Adapted from seaborns source code
+
+        Adapted from seaborns source code.
         """
         # From http://stats.stackexchange.com/questions/798/
         def freedman_diaconis(array: np.array):
@@ -337,7 +365,7 @@ class BaseStatObject:
                 return int(np.ceil((max(array) - min(array)) / h))
         return max(map(freedman_diaconis, arrays))
 
-    @cached
+    
     def is_single_valued(self) -> bool:
         """
         Does the data consist only of one unique value?
@@ -395,20 +423,23 @@ class Single(BaseStatObject):
     """
 
     def __init__(self, data: t.Union[RunData, 'Single']):
-        self.data = data if isinstance(data, RunData) else data.data
+        super().__init__()
+        if isinstance(data, RunData):
+            self.rundata = data
+        else:
+            self.rundata = data.rundata
         self.properties = {} # type: t.Dict[str, SingleProperty]
         """ SingleProperty objects for each property """
         for prop in data.properties:
-            self.properties[prop] = SingleProperty(data[prop], prop)
+            self.properties[prop] = SingleProperty(self, self.rundata, prop)
 
-    @cached
-    def get_stat_messages(self) -> t.List[StatMessage]:
+    def _get_stat_messages(self) -> t.List[StatMessage]:
         """
         Combines the messages for all inherited SingleProperty objects (for each property),
-        :return: simplified list of all messages
+        :return: list of all messages
         """
         msgs = [x for prop in self.properties for x in self.properties[prop].get_stat_messages()]
-        return StatMessage.combine(*msgs)
+        return msgs
 
     def get_data_frame(self) -> pd.DataFrame:
         series_dict = {}
@@ -417,50 +448,60 @@ class Single(BaseStatObject):
         frame = pd.DataFrame(series_dict, columns=sorted(self.properties.keys()))
         return frame
 
+    def description(self) -> str:
+        return self.rundata.description()
+
+    def eq_except_property(self, other) -> bool:
+        return isinstance(other, type(self)) and self.rundata == other.rundata
+
+    def __eq__(self, other) -> bool:
+        return self.eq_except_property(other)
+
 
 class SingleProperty(BaseStatObject):
     """
     A statistical wrapper around a single run data block for a specific measured property.
     """
 
-    def __init__(self, data: t.Union[RunData, 'SingleProperty'], property: str):
-        self.data = data[property] if isinstance(data, RunData) else data.data[property]
+    def __init__(self, parent: Single, data: t.Union[RunData, 'SingleProperty'], property: str):
+        super().__init__()
+        self.parent = parent
+        if isinstance(data, RunData):
+            self.rundata = data
+            self.data = data[property]
+        else:
+            self.rundata = data.rundata
+            self.data = data.data
         self.array = np.array(self.data)
         self.property = property
 
-    @cached
-    def get_stat_messages(self) -> t.List[StatMessage]:
-        return StatMessage.combine(
+    def _get_stat_messages(self) -> t.List[StatMessage]:
+        msgs = [
             StdDeviationToHighWarning.create_if_valid(self, self.std_dev_per_mean(), self.property),
             StdDeviationToHighError.create_if_valid(self, self.std_dev_per_mean(), self.property),
             NotEnoughObservationsWarning.create_if_valid(self, self.observations(), self.property),
             NotEnoughObservationsError.create_if_valid(self, self.observations(), self.property)
-        )
+        ]
+        return msgs
 
-    @cached
     def mean(self) -> float:
         return np.mean(self.array)
 
-    @cached
     def median(self) -> float:
         return np.median(self.array)
 
-    @cached
     def min(self) -> float:
         return np.min(self.array)
 
-    @cached
     def max(self) -> float:
         return np.max(self.array)
 
-    @cached
     def std_dev(self) -> float:
         """
         Returns the standard deviation.
         """
         return np.std(self.array)
 
-    @cached
     def std_devs(self) -> t.Tuple[float, float]:
         """
         Calculates the standard deviation of elements <= mean and of the elements > mean.
@@ -475,30 +516,30 @@ class SingleProperty(BaseStatObject):
         upper = [x for x in self.array if x > mean]
         return std_dev(lower), std_dev(upper)
 
-    @cached
     def std_dev_per_mean(self) -> float:
         return self.std_dev() / self.mean()
-
-    @cached
+    
     def variance(self) -> float:
         return np.var(self.array)
-
-    @cached
+    
     def observations(self) -> int:
         return len(self.data)
-
-    @cached
+    
     def __len__(self) -> int:
         return len(self.data)
 
-    @cached
+    def eq_except_property(self, other) -> bool:
+        return isinstance(other, SingleProperty) and self.rundata == other.rundata
+
+    def __eq__(self, other):
+        return self.eq_except_property(other) and self.property == other.property
+    
     def sem(self) -> float:
         """
         Returns the standard error of the mean (standard deviation / sqrt(observations)).
         """
         return st.sem(self.array)
-
-    @cached
+    
     def std_error_mean(self) -> float:
         return st.sem(self.array)
 
@@ -526,18 +567,15 @@ class SingleProperty(BaseStatObject):
         lower = np.sqrt(var / st.t._ppf(1-alpha/2.0, self.observations() - 1))
         return lower, upper
 
-    @cached
     def is_single_valued(self) -> bool:
         """
         Does the data consist only of one unique value?
         """
         return len(set(self.data)) == 1
 
-    @cached
     def __str__(self) -> str:
-        return self.data.description()
+        return self.rundata.description()
 
-    @cached
     def get_data_frame(self) -> pd.DataFrame:
         series_dict = {self.property: pd.Series(self.data, name=self.property)}
         frame = pd.DataFrame(series_dict, columns=[self.property])
@@ -550,6 +588,7 @@ class TestedPair(BaseStatObject):
     """
 
     def __init__(self, first: t.Union[RunData, Single], second: t.Union[RunData, Single], tester: Tester = None):
+        super().__init__()
         self.first = Single(first)
         self.second = Single(second)
         self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),
@@ -558,37 +597,109 @@ class TestedPair(BaseStatObject):
         self.properties = {} # type: t.Dict[str, TestedPairProperty]
         """ TestedPairProperty objects for each shared property of the inherited Single objects """
         for prop in set(self.first.properties.keys()).intersection(self.second.properties.keys()):
-            self.properties[prop] = TestedPairProperty(first, second, prop, tester)
-
-    @cached
-    def get_stat_messages(self) -> t.List[StatMessage]:
+            self.properties[prop] = TestedPairProperty(self, self.first, self.second, prop, tester)
+    
+    def _get_stat_messages(self) -> t.List[StatMessage]:
         """
         Combines the messages for all inherited TestedPairProperty objects (for each property),
         :return: simplified list of all messages
         """
         msgs = [x for prop in self.properties for x in self.properties[prop].get_stat_messages()]
-        return StatMessage.combine(*msgs)
+        return msgs
 
     def rel_difference(self) -> float:
         """
         Calculates the geometric mean of the relative mean differences (first - second) / first.
         :see http://www.cse.unsw.edu.au/~cs9242/15/papers/Fleming_Wallace_86.pdf
         """
-        return np.power(sum(x.mean_diff_per_mean() for x in self.properties.values()), 1 / len(self.properties))
+        mean = sum(x.mean_diff_per_mean() for x in self.properties.values())
+        if mean == 0:
+            return 1
+        sig = np.sign(mean)
+        return sig * math.pow(abs(mean), 1 / len(self.properties))
+
+    def swap(self) -> 'TestedPair':
+        """
+        Creates a new pair with the elements swapped.
+        :return: new pair object
+        """
+        return TestedPair(self.second, self.first, self.tester)
+
+    def __getitem__(self, property: str) -> 'TestedPairProperty':
+        return self.properties[property]
+
+    def eq_except_property(self, other) -> bool:
+        return isinstance(other, type(self)) and self.first == other.first and self.second == other.second \
+               and self.tester == other.tester
+
+    def __eq__(self, other) -> bool:
+        return self.eq_except_property(other)
+
+class TestedPairsAndSingles(BaseStatObject):
+    """
+    A wrapper around a list of tested pairs and singles.
+    """
+
+    def __init__(self, singles: t.List[t.Union[RunData, Single]], pairs: t.List[TestedPair] = None):
+        super().__init__()
+        self.singles = list(map(Single, singles)) # type: t.List[Single]
+        self.pairs = pairs or [] # type: t.List[TestedPair]
+        if pairs is None and len(self.singles) > 1:
+            for i in range(0, len(self.singles) - 1):
+                for j in range(i + 1, len(self.singles)):
+                    self.pairs.append(self.get_pair(i, j))
+
+    def number_of_singles(self) -> int:
+        return len(self.singles)
+
+    def get_pair(self, first_id: int, second_id: int) -> TestedPair:
+        l = self.number_of_singles()
+        assert 0 <= first_id < l and 0 <= second_id < l
+        return TestedPair(self.singles[first_id], self.singles[second_id])
+
+    def properties(self) -> t.List[str]:
+        """
+        Returns the properties that are shared among all single run data objects.
+        """
+        if self.singles == []:
+            return
+        props = set(self.singles[0].properties.keys())
+        for single in self.singles[1:]:
+            props.intersection_update(single.properties.keys())
+        return sorted(props)
+
+    def get_stat_messages(self) -> t.List[StatMessage]:
+        """
+        Combines the messages for all inherited TestedPair and Single objects,
+        :return: simplified list of all messages
+        """
+        msgs = []
+        for pair in self.pairs:
+            msgs.extend(pair.get_stat_messages())
+        return msgs
+
+    def __getitem__(self, id: int) -> Single:
+        assert 0 <= id < self.number_of_singles()
+        return self.singles[id]
 
 
 class EffectToSmallWarning(StatWarning):
 
-    message = "The mean difference per standard deviation of {{props}} is less than {b_val:%}."
+    message = "The mean difference per standard deviation of {props} is less than {b_val}."
+    hint = "Try to reduce the standard deviation if you think that the measured difference is significant: " \
+           "With the exec run driver you can probably use the stop_start plugin, preheat and sleep plugins. " \
+           "Also consider increasing the number of measured runs."
     border_value = 2
+    value_format = StatMessageValueFormat.FLOAT
 
     @classmethod
     def check_value(cls, value) -> bool:
         return value >= cls.border_value
 
 
-class EffectToSmallError(StdDeviationToHighWarning, StatError):
+class EffectToSmallError(EffectToSmallWarning):
 
+    type = StatMessageType.ERROR
     border_value = 1
 
 
@@ -597,17 +708,17 @@ class TestedPairProperty(BaseStatObject):
     Statistic helper for a compared pair of run data blocks for a specific measured property.
     """
 
-    def __init__(self, first: t.Union[RunData, SingleProperty],
-                 second: t.Union[RunData, SingleProperty], property: str, tester: Tester = None):
-        self.first = SingleProperty(first, property)
-        self.second = SingleProperty(second, property)
+    def __init__(self, parent: TestedPair, first: Single, second: Single, property: str, tester: Tester = None):
+        super().__init__()
+        self.parent = parent
+        self.first = SingleProperty(first, first.rundata, property)
+        self.second = SingleProperty(first, second.rundata, property)
         self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),
                                                             Settings()["stats/tester"],
                                                             Settings()["stats/uncertainty_range"])
         self.property = property
-
-    @cached
-    def get_stat_messages(self) -> t.List[StatMessage]:
+    
+    def _get_stat_messages(self) -> t.List[StatMessage]:
         """
         Combines the messages for all inherited TestedPairProperty objects (for each property),
         :return: simplified list of all messages
@@ -617,9 +728,8 @@ class TestedPairProperty(BaseStatObject):
             EffectToSmallWarning.create_if_valid(self, self.mean_diff_per_dev(), self.property),
             EffectToSmallError.create_if_valid(self, self.mean_diff_per_dev(), self.property)
         ]
-        return StatMessage.combine(*msgs)
-
-    @cached
+        return msgs
+    
     def mean_diff(self) -> float:
         return self.first.mean() - self.second.mean()
 
@@ -635,30 +745,26 @@ class TestedPairProperty(BaseStatObject):
         t =  st.t.ppf(1-alpha/2.0) * np.sqrt(self.first.variance() / self.first.observations() -
                                              self.second.variance() / self.second.observations())
         return d - t, d + t
-
-    @cached
+    
     def mean_diff_per_mean(self) -> float:
         """
         :return: (mean(A) - mean(B)) / mean(A)
         """
         return self.mean_diff() / self.first.mean()
-
-    @cached
+    
     def mean_diff_per_dev(self) -> float:
         """
         Calculates the mean difference per standard deviation (maximum of first and second).
         """
         return self.mean_diff() / self.max_std_dev()
-
-    @cached
+    
     def equal_prob(self) -> float:
         """
         Probability of the nullhypothesis being not not correct (three way logic!!!).
         :return: p value between 0 and 1
         """
         return self.tester.test(self.first.data, self.second.data)
-
-    @cached
+    
     def is_equal(self) -> t.Union[None, bool]:
         """
         Checks the nullhypthosesis.
@@ -668,11 +774,9 @@ class TestedPairProperty(BaseStatObject):
             return None
         return self.tester.is_equal(self.first.data, self.second.data)
 
-    @cached
     def mean_std_dev(self) -> float:
         return (self.first.mean() + self.second.mean()) / 2
 
-    @cached
     def max_std_dev(self) -> float:
         return max(self.first.mean(), self.second.mean())
 
@@ -690,6 +794,12 @@ class TestedPairProperty(BaseStatObject):
         frame = pd.DataFrame(series_dict, columns=columns)
         return frame
 
-    @cached
     def is_single_valued(self) -> bool:
         return self.first.is_single_valued() and self.second.is_single_valued()
+
+    def eq_except_property(self, other) -> bool:
+        return isinstance(other, type(self)) and self.first.eq_except_property(self.second) \
+               and self.tester == other.tester
+
+    def __eq__(self, other):
+        return self.eq_except_property(other) and self.property == other.property

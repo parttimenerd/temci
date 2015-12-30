@@ -12,6 +12,23 @@
     margin-top: 30px;
 }
 
+.table a {
+    display: block;
+    text-decoration: none;
+}
+
+.div_info {
+    background-color: #D9EDF7;
+}
+
+.div_warning {
+    background-color: #FCF8E3;
+}
+
+.div_danger {
+    background-color: #F2DEDE;
+}
+
 /*
  * jquery.tocify.css 1.9.0
  * Author: @gregfranko

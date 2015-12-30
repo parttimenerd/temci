@@ -1,5 +1,6 @@
 import os
 import subprocess
+import typing as t
 
 
 def recursive_exec_for_leafs(data: dict, func, _path_prep=[]):
@@ -25,20 +26,33 @@ def ensure_root():
         raise EnvironmentError("This program needs to be run with super user privileges")
 
 
-def get_cache_line_size(cache_level: int = None) -> int:
+def get_cache_line_size(cache_level: int = None) -> t.Optional[int]:
     """
     Returns the cache line size of the cache on the given level.
+    Level 0 and 1 are actually on the same level.
     :param cache_level: if None the highest level cache is used
-    :return: cache line size
+    :return: cache line size or none if the cache on the given level doesn't exist
     """
     if cache_level is None:
-        cache_level = 1
+        cache_level = -1
         for path in os.listdir("/sys/devices/system/cpu/cpu0/cache/"):
             if path.startswith("index"):
                 cache_level = max(cache_level, int(path.split("index")[1]))
+        if cache_level == -1:
+            return None
     level_dir = "/sys/devices/system/cpu/cpu0/cache/index" + str(cache_level)
     with open(level_dir + "/coherency_line_size") as f:
         return int(f.readline().strip())
+
+
+def join_strs(strs: t.List[str], last_word: str = "and") -> str:
+    """
+    Joins the passed strings together with ", " except for the last to strings that separated by the passed word.
+    """
+    if len(strs) == 1:
+        return strs[0]
+    elif len(strs) > 1:
+        return " {} ".format(last_word).join([", ".join(strs[0:-1]), strs[-1]])
 
 
 class Singleton(type):

@@ -27,6 +27,11 @@ from temci.utils.vcs import VCSDriver
 
 
 def is_builtin_type(type, val: str) -> bool:
+    """
+    Checks whether the passed value is convertable into the given builtin type.
+    :param type: builtin type (like int)
+    :param val: tested value
+    """
     try:
         type(val)
         return True
@@ -285,7 +290,7 @@ def prompt_attributes_dict(default_description: str = None) -> t.Dict[str, str]:
     try:
         while prompt_yesno("Do you want to set or add another attribute? ", default=False):
             name = prompt("Attribute name: ", validator=NonEmptyValidator(),
-                          completer=WordCompleter(list(attributes.keys()), meta_dict=attributes))
+                          completer=WordCompleter(sorted(list(attributes.keys())), meta_dict=attributes))
             default = attributes[name] if name in attributes else ""
             attributes[name] = prompt("Attribute value: ", default=default, validator=NonEmptyValidator())
     except KeyboardInterrupt:
@@ -337,10 +342,14 @@ def prompt_build_dict(with_header: bool = True, whole_config: bool = True) -> di
 
     if prompt_yesno("Randomize program binaries (works with gcc built programs)? ", default=True):
         rand_dict = dict()
+        meta_dict = {str(get_cache_line_size()): "Current cache line size", "0": "No padding"}
+        size_completer = WordCompleter(sorted(list(meta_dict.keys())), meta_dict=meta_dict)
         rand_dict["heap"] = int(default_prompt("Maximum size of the random padding of each heap allocation? ",
-                                           default=get_cache_line_size(), validator=TypeValidator(NaturalNumber())))
+                                               default=get_cache_line_size(), completer=size_completer,
+                                               validator=TypeValidator(NaturalNumber())))
         rand_dict["stack"] = int(default_prompt("Maximum size of the random padding of each stack frame? ",
-                                           default=get_cache_line_size(), validator=TypeValidator(NaturalNumber())))
+                                                default=get_cache_line_size(), completer=size_completer,
+                                                validator=TypeValidator(NaturalNumber())))
         rand_dict["bss"] = prompt_yesno("Randomize bss segment? ", default=True)
         rand_dict["data"] = prompt_yesno("Randomize data segment? ", default=True)
         rand_dict["rodata"] = prompt_yesno("Randomize rodata segment? ", default=True)
@@ -352,7 +361,7 @@ def prompt_build_dict(with_header: bool = True, whole_config: bool = True) -> di
     os.chdir(old_cwd)
     if whole_config:
         attributes_dict = prompt_attributes_dict(default_description)
-        run_config = prompt_run_dict(working_dir=working_dir_abs, binary_number=build_dict["number"],
+        run_config = prompt_run_dict(working_dir=build_dict["working_dir"], binary_number=build_dict["number"],
                                      whole_config=False, driver="exec")
         return {
             "attributes": attributes_dict,
@@ -361,9 +370,19 @@ def prompt_build_dict(with_header: bool = True, whole_config: bool = True) -> di
         }
     return build_dict
 
+
 def prompt_run_dict(with_header: bool = True, working_dir: str = None,
                     binary_number: int = None, whole_config: bool = True,
                     driver: str = None) -> dict:
+    """
+    Prompt the contents of the run config dictionary.
+    :param with_header: print the explanation header
+    :param working_dir: current working dir preset
+    :param binary_number: number of available binaries
+    :param whole_config: return the whole run config (with attributes part)?
+    :param driver: used run driver
+    :return: run config dict
+    """
     if with_header:
         print("Create the run configuration for the program block")
 
@@ -376,7 +395,7 @@ def prompt_run_dict(with_header: bool = True, working_dir: str = None,
 
     assert driver in run_drivers or driver is None
     if driver is None:
-        valid = list(run_drivers.keys())
+        valid = sorted(list(run_drivers.keys()))
         meta_dict = {}
         for driver in run_drivers:
             meta_dict[driver] = run_drivers[driver]["description"]
@@ -412,7 +431,7 @@ def prompt_exec_driver_dict(choose_revision: bool, working_dir: str = None, bina
         env_dict = {}
         def set_env_var():
             name = prompt("Environment variable name: ", validator=NonEmptyValidator(),
-                          completer=WordCompleter(list(env_dict.keys()), meta_dict=env_dict))
+                          completer=WordCompleter(sorted(list(env_dict.keys())), meta_dict=env_dict))
             default = env_dict[name] if name in env_dict else ""
             env_dict[name] = prompt("New value: ", default=default)
         try:
@@ -451,7 +470,7 @@ def prompt_exec_driver_dict(choose_revision: bool, working_dir: str = None, bina
         }
     }
 
-    valid = list(runners.keys())
+    valid = sorted(list(runners.keys()))
     meta_dict = {}
     for driver in runners:
         meta_dict[driver] = runners[driver]["description"]
@@ -466,6 +485,11 @@ def prompt_exec_driver_dict(choose_revision: bool, working_dir: str = None, bina
 
 
 def prompt_perf_stat_exec_dict(run_dict: dict) -> dict:
+    """
+    Prompt for the config of the perf stat exec runner.
+    :param run_dict: run config dict (without the runner part)
+    :return: runner config
+    """
     runner_dict = {}
     default_repeat = PerfStatExecRunner.misc_options["repeat"].get_default()
     runner_dict["repeat"] = int(default_prompt("How many times should perf stat itself repeat the measurement? ",
@@ -492,6 +516,11 @@ def prompt_perf_stat_exec_dict(run_dict: dict) -> dict:
 
 
 def prompt_spec_exec_dict(run_dict: dict) -> dict:
+    """
+    Prompt for the config of the spec exec runner.
+    :param run_dict: run config dict (without the runner part)
+    :return: runner config
+    """
     runner_dict = {}
 
     runner_dict["file"] = default_prompt("SPEC like result file to use: ",
@@ -520,6 +549,11 @@ def prompt_spec_exec_dict(run_dict: dict) -> dict:
 
 
 def prompt_config(name: str, prompt_dict_func: t.Callable[[], dict]):
+    """
+    Prompt for the whole config file.
+    :param name: description of the config (i.e. "run config")
+    :param prompt_dict_func: function to get a single config dict
+    """
     blocks = []
     file = prompt("YAML file to store the {name} in: ".format(name=name),
                                      validator=TypeValidator(ValidYamlFileName(allow_non_existent=True)),
@@ -532,11 +566,11 @@ def prompt_config(name: str, prompt_dict_func: t.Callable[[], dict]):
             "overwrite": "Overwrite the file"
         }
         res = prompt("The file already exists. What should be done? ",
-                  completer=WordCompleter(list(actions.keys()), meta_dict=actions, ignore_case=True),
-                  validator=WordValidator(list(actions.keys()), error_msg="Not a valid action"))
-        if res == "append":
+                  completer=WordCompleter(sorted(list(actions.keys())), meta_dict=actions, ignore_case=True),
+                  validator=WordValidator(list(actions.keys()) + ["a", "o"], error_msg="Not a valid action"))
+        if res.startswith("a"):
             fd = open(file, "a+")
-        elif res == "overwrite":
+        elif res.startswith("o"):
             fd = open(file, "w+")
     else:
         fd = open(file, "w+")
@@ -544,7 +578,7 @@ def prompt_config(name: str, prompt_dict_func: t.Callable[[], dict]):
     blocks.append(prompt_dict_func())
 
     def store_in_file():
-        print(blocks)
+        #print(blocks)
         yaml.dump(blocks, fd)
         fd.flush()
         fd.close()
