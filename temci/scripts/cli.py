@@ -1,3 +1,5 @@
+import warnings
+warnings.simplefilter("ignore")
 import shutil
 import subprocess
 
@@ -50,7 +52,7 @@ command_docs = {
     "clean": "Clean up the temporary files"
 }
 for driver in run_driver.RunDriverRegistry.registry:
-    command_docs[driver] = run_driver.RunDriverRegistry.registry[driver].__description__
+    command_docs[driver] = run_driver.RunDriverRegistry.registry[driver].__description__.strip().split("\n")[0]
 
 common_options = CmdOptionList(
     CmdOption.from_non_plugin_settings("")

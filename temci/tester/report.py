@@ -29,8 +29,10 @@ from temci.utils.registry import AbstractRegistry, register
 import click, yaml, numpy, os, matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import seaborn as sns
+    import pandas as pd
 from temci.utils.settings import Settings
 from multiprocessing import Queue, Pool
 from temci.utils.util import join_strs
@@ -530,11 +532,11 @@ class HTMLReporter(AbstractReporter):
 @register(ReporterRegistry, "html2", Dict({
     "out": DirName() // Default("report") // Description("Output directory"),
     "html_filename": Str() // Default("report.html") // Description("Name of the HTML file"),
-    "fig_width_small": Float() // Default(10.0) // Description("Width of all small plotted figures"),
-    "fig_width_big": Float() // Default(20.0) // Description("Width of all big plotted figures"),
+    "fig_width_small": Float() // Default(15.0) // Description("Width of all small plotted figures"),
+    "fig_width_big": Float() // Default(25.0) // Description("Width of all big plotted figures"),
     "alpha": Float() // Default(0.05) // Description("Alpha value for confidence intervals"),
-    "gen_tex": Bool() // Default(True) // Description("Generate simple latex versions of the plotted figures?"),
-    "gen_pdf": Bool() // Default(True) // Description("Generate pdf versions of the plotted figures?")
+    "gen_tex": Bool() // Default(False) // Description("Generate simple latex versions of the plotted figures?"),
+    "gen_pdf": Bool() // Default(False) // Description("Generate pdf versions of the plotted figures?")
 }))
 class HTMLReporter2(AbstractReporter):
     """
@@ -587,10 +589,9 @@ class HTMLReporter2(AbstractReporter):
         {self.app_html}
         <script>
             $(function () {{
-                $('[data-toggle="popover"]').popover()
-                $('[data-toggle="popover"]').on('inserted.bs.popover', function () {{
-                    MathJax.Hub.Queue(["Typeset",MathJax.Hub]);
-                }})
+                $('[data-toggle="popover"]').popover({{"content": function(){{
+                    return $("#" + this.getAttribute("data-content-id")).html();
+                }}}})
             }})
         </script>
     </body>
@@ -646,13 +647,13 @@ class HTMLReporter2(AbstractReporter):
         for single in self.stats.singles:
             _single = SingleProperty(single, single.rundata, property) if property is not None else single
             modal_id = self._short_summary_modal(_single)
-            header_cells.append(Cell(content=self._obj_description(single), color_class_obj=single,
+            header_cells.append(Cell(self, content=self._obj_description(single), color_class_obj=single,
                                      modal_id=modal_id))
-        table = Table(self, header_cells, header_cells, Cell("vs."))
+        table = Table(self, header_cells, header_cells, Cell(self, "vs."))
 
         for i in range(self.stats.number_of_singles()):
             for j in range(self.stats.number_of_singles()):
-                popover = Popover("Explanation", content="")
+                popover = Popover(self, "Explanation", content="")
                 cell = None
                 pair = self.stats.get_pair(i, j)
                 rel_diff = None
@@ -679,7 +680,7 @@ class HTMLReporter2(AbstractReporter):
                     """ % (property, property, property, pair.first.mean(), pair.second.mean(), pair.first.mean())
                     rel_diff = pair.mean_diff_per_mean()
 
-                cell = Cell(content=str(rel_diff), popover=popover, color_class_obj=pair, show_click_on_info=True)
+                cell = Cell(self, content=str(rel_diff), popover=popover, color_class_obj=pair, show_click_on_info=True)
                 cell.modal_id = self._short_summary_modal(pair)
                 table[i, j] = cell
         return table
@@ -772,7 +773,7 @@ class HTMLReporter2(AbstractReporter):
         if extended:
             filenames = self._histogram(obj, big=extended, zoom_in=False)
             html += self._filenames_to_img_html(filenames)
-        ci_popover = Popover("Confidence interval", """
+        ci_popover = Popover(self, "Confidence interval", """
                         The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
                         \\[ \\text{{{first}}}[{prop}] - \\text{{{second}}}[{prop}] \\\\ = {diff} \\]
                         lies in the interval $$({ci[0]}, {ci[1]})$$ (assuming the data is normal
@@ -783,7 +784,7 @@ class HTMLReporter2(AbstractReporter):
         tested_per_prop = [
             {
                 "title": "Mean difference",
-                "popover": Popover("Explanation", """
+                "popover": Popover(self, "Explanation", """
                     Difference between the mean of the first and the mean of the second.
                     It's the absolute difference and is often less important that the relative differences.
                 """),
@@ -793,7 +794,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "... per mean",
                 "func": lambda x: x.mean_diff_per_mean(),
                 "format": "{:5.5%}",
-                "popover": Popover("Explanation", """The mean difference relative to the first mean
+                "popover": Popover(self, "Explanation", """The mean difference relative to the first mean
                 \\begin{align}
                     & \\frac{ \\overline{\\text{%s}} - \\overline{\\text{%s}}}{ \\overline{\\text{%s}} } \\\\
                     &= \\frac{ %f }{ %f}
@@ -807,7 +808,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "... per std dev",
                 "func": lambda x: x.mean_diff_per_dev(),
                 "format": "{:5.5%}",
-                "popover": Popover("Explanation", """
+                "popover": Popover(self, "Explanation", """
                     The mean difference relative to the maximum standard deviation:
                     \\begin{{align}}
                         &\\frac{{
@@ -861,7 +862,7 @@ class HTMLReporter2(AbstractReporter):
 
         table = Table.from_content_func(self, cols=[obj],
                                         rows=list(map(lambda d: d["title"], tested_per_prop)),
-                                        content_func=content_func, anchor_cell=Cell(),
+                                        content_func=content_func, anchor_cell=Cell(self),
                                         header_popover_func=header_popover_func)
         html += str(table)
         html += self._short_summary_table_for_single_property(objs=[obj.first, obj.second],
@@ -875,7 +876,7 @@ class HTMLReporter2(AbstractReporter):
         tested_per_prop = [
             {
                 "title": "Mean difference",
-                "popover": Popover("Explanation", """
+                "popover": Popover(self, "Explanation", """
                     Difference between the mean of the first and the mean of the second.
                     It's the absolute difference and is often less important that the relative differences.
                 """),
@@ -885,7 +886,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "... per mean",
                 "func": lambda x: x.mean_diff_per_mean(),
                 "format": "{:5.5%}",
-                "popover": Popover("Explanation", """The mean difference relative to the first mean
+                "popover": Popover(self, "Explanation", """The mean difference relative to the first mean
                 gives a number that helps to talk about the practical significance of the mean difference.
                 A tiny difference might be cool, but irrelevant (as caching effects are probably higher, use the
                 \\verb|temci build| if you're curious about this).
@@ -894,7 +895,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "... per std dev",
                 "func": lambda x: x.mean_diff_per_dev(),
                 "format": "{:5.5%}",
-                "popover": Popover("Explanation", """
+                "popover": Popover(self, "Explanation", """
                 The mean difference relative to the maximum standard deviation is important,
                 because as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
                     Gernot Heiser</a> points out:
@@ -908,7 +909,7 @@ class HTMLReporter2(AbstractReporter):
                 "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[0],
                 "format": "{:5.5f}",
                 "extended": True,
-                "popover": Popover("Confidence interval", """
+                "popover": Popover(self, "Confidence interval", """
                         The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
                         lies in the interval of which the lower and the upper bound are given
                         (assuming the data is normal distributed to a certain degree).
@@ -918,7 +919,7 @@ class HTMLReporter2(AbstractReporter):
                 "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[1],
                 "format": "{:5.5f}",
                 "extended": True,
-                "popover": Popover("Confidence interval", """
+                "popover": Popover(self, "Confidence interval", """
                         The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
                         lies in the interval of which the lower and the upper bound are given.
                                                 """.format(p=1-self.misc["alpha"]))
@@ -960,14 +961,14 @@ class HTMLReporter2(AbstractReporter):
         table = Table.from_content_func(self, rows=sorted(list(obj.properties.keys())),
                                         cols=list(map(lambda d: d["title"], tested_per_prop)),
                                         header_link_func=header_link_func,
-                                        content_func=content_func, anchor_cell=Cell(),
+                                        content_func=content_func, anchor_cell=Cell(self),
                                         header_color_obj_func=header_color_obj,
                                         header_modal_func=header_modal_func,
                                         header_popover_func=header_popover_func)
         html = str(table)
         html += """
             <p {po}>The <b>relative difference</b> between {first} and {second} is <b>{rel_diff}</d>
-        """.format(po=Popover("Explanation", """
+        """.format(po=Popover(self, "Explanation", """
                         Geometric mean of the mean differences relative to the means of the first:
                         \\[\\sqrt[\|properties\|]{
                         \\prod_{p \in \\text{properties}}
@@ -992,11 +993,11 @@ class HTMLReporter2(AbstractReporter):
         obj_descrs = obj_descrs or [self._obj_description(obj) for obj in objs]
 
         #objs[0]..std_dev_per_mean()
-        mean_ci_popover = Popover("Mean confidence interval", """
+        mean_ci_popover = Popover(self, "Mean confidence interval", """
                 The chance is \\[ 1 - \\alpha = {p} \\] that the mean lies in the given interval
                 (assuming the data is normal distributed to a certain degree).
                 """.format(p=1-self.misc["alpha"]))
-        std_dev_ci_popover = Popover("Standard deviation confidence interval", """
+        std_dev_ci_popover = Popover(self, "Standard deviation confidence interval", """
                 The chance is \\[ 1 - \\alpha = {p} \\] that the standard deviation lies in the given interval
                 (assuming the data is normal distributed to a certain degree).
                 """.format(p=1-self.misc["alpha"]))
@@ -1005,12 +1006,12 @@ class HTMLReporter2(AbstractReporter):
                 "title": "mean",
                 "func": lambda x: x.mean(),
                 "format": "{:5.5f}",
-                "popover": Popover("Explanation", """The simple arithmetical mean
+                "popover": Popover(self, "Explanation", """The simple arithmetical mean
                     \\[ \\frac{1}{n}\\sum_{i=1}^{n} a_i. \\]
                 """)
             }, {
                 "title": "std dev",
-                "popover": Popover("Explanation", """
+                "popover": Popover(self, "Explanation", """
                     The sample standard deviation
                     \\[ \\sigma_N = \\sqrt{\\frac{1}{N} \\sum_{i=1}^N (x_i - \\overline{x})^2} \\]
                     In statistics, the standard deviation is a measure that is used to quantify the amount of
@@ -1026,7 +1027,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "... per mean",
                 "func": lambda x: x.std_dev_per_mean(),
                 "format": "{:5.5%}",
-                "popover": Popover("Explanation", """
+                "popover": Popover(self, "Explanation", """
                     The standard deviation relative to the mean is a measure of how big the relative variation
                     of data is. A small value is considered neccessary for a benchmark to be useful.
                     Or to quote <a href='https://www.cse.unsw.edu.au/~gernot/benchmarking-crimes.html'>
@@ -1037,7 +1038,7 @@ class HTMLReporter2(AbstractReporter):
                 """, trigger="hover click")
             }, {
                 "title": "sem",
-                "popover": Popover("Explanation", """Standard error mean:
+                "popover": Popover(self, "Explanation", """Standard error mean:
                     \\[ \\sigma(\\overline{X}) = \\frac{\\sigma}{\\sqrt{n}} \\]
                     <p>Put simply, the standard error of the sample is an estimate of how far the sample mean is
                     likely to be from the population mean, whereas the standard deviation of the sample is the
@@ -1051,7 +1052,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "median",
                 "func": lambda x: x.median(),
                 "format": "{:5.5f}",
-                "popover": Popover("Explanation", """
+                "popover": Popover(self, "Explanation", """
                     The median is the value that seperates that data into two equal sizes subsets
                     (with the &lt; and the &gt; relation respectively).
                     As the mean and the standard deviation are already given here, the median isn't important.
@@ -1061,7 +1062,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "min",
                 "func": lambda x: x.min(),
                 "format": "{:5.5f}",
-                "popover": Popover("Explanation", """The minimum value. It's a bad sign if the maximum
+                "popover": Popover(self, "Explanation", """The minimum value. It's a bad sign if the maximum
                                                   is far lower than the mean and you can't explain it.
                                                   """),
                 "extended": True
@@ -1069,7 +1070,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "max",
                 "func": lambda x: x.min(),
                 "format": "{:5.5f}",
-                "popover": Popover("Explanation", """The maximum value. It's a bad sign if the maximum
+                "popover": Popover(self, "Explanation", """The maximum value. It's a bad sign if the maximum
                                                   is far higher than the mean and you can't explain it.
                                                   """),
                 "extended": True
@@ -1077,7 +1078,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "n",
                 "func": lambda x: x.observations(),
                 "format": "{}",
-                "popover": Popover("Explanation", """The number of valid runs
+                "popover": Popover(self, "Explanation", """The number of valid runs
                 or statistically spoken: the sample size."""),
                 "extended": True
             }, {
@@ -1108,7 +1109,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "normality probability",
                 "func": lambda x: x.normality(),
                 "format": "{:5.5%}",
-                "popover": Popover("Explanation", """
+                "popover": Popover(self, "Explanation", """
                     Quoting the
                     <a href='http://blog.minitab.com/blog/michelle-paret/using-the-mean-its-not-always-a-slam-dunk'>
                     minitab blog</a>:
@@ -1176,7 +1177,7 @@ class HTMLReporter2(AbstractReporter):
         table = Table.from_content_func(self, rows=rows,
                                         cols=cols,
                                         header_link_func=header_link_func,
-                                        content_func=content_func, anchor_cell=Cell(),
+                                        content_func=content_func, anchor_cell=Cell(self),
                                         header_color_obj_func=header_color_obj,
                                         header_content_func=header_content_func,
                                         header_modal_func=header_modal_func,
@@ -1220,7 +1221,7 @@ class HTMLReporter2(AbstractReporter):
         html += """
             </div>
         """.format(**filenames)
-        return Popover("Get this image in your favorite format", content=html,
+        return Popover(self, "Get this image in your favorite format", content=html,
                        trigger="hover click")
 
     _hist_cache = {} # type: t.Dict[str, t.Dict[str, str]]
@@ -1275,7 +1276,7 @@ class HTMLReporter2(AbstractReporter):
                      entry["img"], entry["tex"], entry["pdf"]))
 
     def _popover_for_tester(self, tester: Tester):
-        return Popover(tester.name.capitalize(), """
+        return Popover(self, tester.name.capitalize(), """
                     Probability that the null hypothesis is not incorrect. It's the probability that the measured
                     values (for a given property) come out of the same population for both benchmarked programs.
                     Or short: That the programs have the same characteristics for a given property. <br/>
@@ -1411,7 +1412,8 @@ class HTMLReporter2(AbstractReporter):
 
 class Popover:
 
-    def __init__(self, title: str, content: str, trigger: str = "hover"):
+    def __init__(self, parent: HTMLReporter2, title: str, content: str, trigger: str = "hover"):
+        self.parent = parent
         self.title = title
         self.content = content
         self.trigger = trigger
@@ -1419,9 +1421,16 @@ class Popover:
     def __str__(self) -> str:
         content = """<div class='hyphenate'>""" + self.content + """</div>"""
         focus = 'tabindex="0" role="button"' if self.trigger == "focus" else ""
-        return '{focus} data-content="{content}" data-trigger="{trigger}" data-toggle="popover" data-html="true"' \
-           'data-placement="auto" data-title="{title}" data-container="body"'\
-            .format(content=content, trigger=self.trigger, title=self.title, focus=focus)
+        id = self.parent._random_html_id()
+        self.parent.app_html += """
+        <div style="display: none" id="{id}">
+        {content}
+        </div>
+        """.format(id=id, content=content)
+        return '{focus} data-trigger="{trigger}" data-toggle="popover" data-html="true"' \
+                'data-placement="auto" data-title="{title}" data-container="body" ' \
+                'data-content-id="{id}"'\
+                .format(content=content, trigger=self.trigger, title=self.title, focus=focus, id=id)
 
 
 def color_class(obj: BaseStatObject) -> str:
@@ -1460,7 +1469,7 @@ class Cell:
     Cell of a html table
     """
 
-    def __init__(self, content: str = "", cell_class: str = "", popover: Popover = None,
+    def __init__(self, parent: HTMLReporter2, content: str = "", cell_class: str = "", popover: Popover = None,
                  modal_id: str = None, color_class_obj: BaseStatObject = None,
                  is_header_cell: bool = False, cell_scope: str = None,
                  show_click_on_info: bool = None, link: str = None):
@@ -1476,17 +1485,18 @@ class Cell:
         self.popover = popover
         self.modal_id = modal_id
         self.link = link
+        self.parent = parent
         assert link is None or modal_id is None
         if color_class_obj is not None:
             if self.popover is None:
-                self.popover = Popover("Explanation", color_explanation(color_class_obj))
+                self.popover = Popover(parent, "Explanation", color_explanation(color_class_obj))
             else:
                 self.popover.content += color_explanation(color_class_obj)
             self.cell_class += " " + color_class(color_class_obj)
         if (modal_id is not None and show_click_on_info != False) or (show_click_on_info is True and not link):
             msg = "<p>Click on the cell to get more information.</p>"
             if self.popover is None:
-                self.popover = Popover("Explanation", msg)
+                self.popover = Popover(parent, "Explanation", msg)
             else:
                 self.popover.content += msg
         self.is_header_cell = is_header_cell
@@ -1537,8 +1547,8 @@ class Table:
         for cell in self.header_col:
             cell.cell_scope = "row"
         assert len(header_row) > 0
-        self.orig_anchor_cell = Cell("") if anchor_cell is None else Cell(anchor_cell.content)
-        self.anchor_cell = anchor_cell or Cell("&#9047; ")
+        self.orig_anchor_cell = Cell(self.parent, "") if anchor_cell is None else Cell(self.parent, anchor_cell.content)
+        self.anchor_cell = anchor_cell or Cell(self.parent, "&#9047; ")
         self.anchor_cell.content += "  	&#9047;"
         self.anchor_cell.cell_class += " anchor_cell "
         self.height = len(header_col)
@@ -1550,7 +1560,7 @@ class Table:
                                         and all(len(content_cells[0]) == len(row) for row in content_cells)
             self.content_cells = content_cells
         else:
-            self.content_cells = [[Cell() for i in range(self.width)] for j in range(self.height)]
+            self.content_cells = [[Cell(self.parent) for i in range(self.width)] for j in range(self.height)]
 
     def __str__(self) -> str:
         html = """
@@ -1611,7 +1621,7 @@ class Table:
         html += """
             </div>
         """
-        self.anchor_cell.popover = Popover("Get this table in your favorite format", content=html,
+        self.anchor_cell.popover = Popover(self.parent, "Get this table in your favorite format", content=html,
                                            trigger="hover click")
         return self.anchor_cell
 
@@ -1706,7 +1716,7 @@ class Table:
             if header_link_func and header_link_func(elem, index, header_row):
                 assert not modal_id # modal and link can't be used together in the same cell
                 link = header_link_func(elem, index, header_row)
-            return Cell(content, popover=popover, modal_id=modal_id, color_class_obj=color_obj, is_header_cell=True,
+            return Cell(parent, content, popover=popover, modal_id=modal_id, color_class_obj=color_obj, is_header_cell=True,
                         cell_scope="row" if header_row else None, link=link)
         header_row = []
         for (i, elem) in enumerate(cols):
@@ -1727,7 +1737,7 @@ class Table:
             popover = call(content_popover_func)
             link = call(content_link_func)
             assert None in [link, modal_id]
-            return Cell(content, popover=popover, modal_id=modal_id, color_class_obj=color_obj, link=link)
+            return Cell(parent, content, popover=popover, modal_id=modal_id, color_class_obj=color_obj, link=link)
         content_cells = []
         for (row, row_header) in enumerate(rows):
             a = []

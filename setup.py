@@ -12,6 +12,9 @@ setup(
         'pyaml',
         'typing', 'seaborn', 'pytimeparse',
         'path.py',
+        'pympler',
+        'cairocffi',
+        'matplotlib',
         'prompt_toolkit', 'ptpython'
     ],
     entry_points='''

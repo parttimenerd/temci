@@ -7,6 +7,7 @@ import functools
 import logging
 import os
 import traceback
+import warnings
 from enum import Enum
 
 import itertools
@@ -24,9 +25,12 @@ import scipy as sp
 import scipy.stats as st
 from temci.utils.typecheck import *
 import matplotlib.pyplot as plt
-import pandas as pd
 import matplotlib
-import seaborn as sns
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import seaborn as sns
+    import pandas as pd
 
 from temci.utils.util import join_strs
 from fn import _

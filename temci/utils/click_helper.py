@@ -171,8 +171,8 @@ class CmdOption:
             self.callback = callback
         else:
             self.callback = None
-        self.description = self.type_scheme.description
-        self.has_description = self.description is not None
+        self.description = self.type_scheme.description.strip()
+        self.has_description = self.description not in [None, ""]
         if not self.has_description:
             warnings.warn("Option {} is without documentation.".format(option_name))
         self.has_default = True
@@ -186,6 +186,7 @@ class CmdOption:
         if self.is_flag:
             self.completion_hints = None
             self.short = None
+
             def callback(param, val):
                 if val is not None:
                     try:
