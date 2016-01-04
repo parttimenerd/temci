@@ -5,6 +5,7 @@ Statistical helper classes for tested pairs and single blocks.
 import copy
 import functools
 import logging
+import os
 import traceback
 from enum import Enum
 
@@ -25,10 +26,10 @@ from temci.utils.typecheck import *
 import matplotlib.pyplot as plt
 import pandas as pd
 import matplotlib
-from matplotlib2tikz import save as tikz_save
 import seaborn as sns
 
 from temci.utils.util import join_strs
+from fn import _
 
 
 class StatMessageType(Enum):
@@ -129,7 +130,7 @@ class StatMessage:
         prop_strs = ["{} ({})".format(prop, val) for (prop, val) in zip(self.properties, val_strs)]
         props = join_strs(prop_strs)
         if show_parent:
-            props += " of {}".format(self.parent)
+            props += " of {}".format(self.parent.description())
         return self.message.format(b_val=self._val_to_str(self.border_value), props=props)
 
 
@@ -189,6 +190,8 @@ class BaseStatObject:
 
     def __init__(self):
         self._stat_messages = []
+        self.fig = None
+        self._hist_data = {}
 
     def get_stat_messages(self) -> t.List[StatMessage]:
         if not self._stat_messages:
@@ -247,12 +250,12 @@ class BaseStatObject:
                   'text.latex.preamble': ['\\usepackage{gensymb}'],
                   'axes.labelsize': 8, # fontsize for x and y labels (was 10)
                   'axes.titlesize': 8,
-                  'text.fontsize': 8, # was 10
+                  'font.size': 8, # was 10
                   'legend.fontsize': 8, # was 10
                   'xtick.labelsize': 8,
                   'ytick.labelsize': 8,
                   'text.usetex': True,
-                  'figure.figsize': list(self._fig_size_cm_to_inch(fig_width,fig_height)),
+                  'figure.figsize': self._fig_size_cm_to_inch(fig_width,fig_height),
                   'font.family': 'serif'
         }
 
@@ -280,17 +283,18 @@ class BaseStatObject:
 
     def _get_new_file_name(self, dir: str) -> str:
         self._filename_counter += 1
-        return path.join(path.abspath(dir), str(self._filename_counter))
+        return os.path.join(path.abspath(dir), str(self._filename_counter))
 
     def _fig_size_cm_to_inch(self, fig_width: float, fig_height: float) -> t.Tuple[float, float]:
         return fig_width * 0.39370079, fig_height * 0.39370079
 
-    def store_figure(self, dir: str, fig_width: float, fig_height: float = None,
-                     pdf: bool = True, tex: bool = True, img: bool = True) -> t.Dict[str, str]:
+    def store_figure(self, filename: str, fig_width: float, fig_height: float = None,
+                     pdf: bool = True, tex: bool = True, tex_standalone: bool = True,
+                     img: bool = True) -> t.Dict[str, str]:
         """
         Stores the current figure in different formats and returns a dict, that maps
         each used format (pdf, tex or img) to the resulting files name.
-        :param dir: base directory that the files are placed into
+        :param filename: base filename that is prepended with the appropriate extensions
         :param fig_width: width of the resulting figure (in cm)
         :param fig_height: height of the resulting figure (in cm) or calculated via the golden ratio from fig_width
         :param pdf: store as pdf optimized for publishing
@@ -300,14 +304,18 @@ class BaseStatObject:
         """
         if fig_height is None:
             fig_height = self._height_for_width(fig_width)
-        filename = self._get_new_file_name(dir)
+        #filename = # self._get_new_file_name(dir)
         ret_dict = {}
         if img:
-            ret_dict["img"] = self._store_as_image(filename, fig_width, fig_height)
+            ret_dict["img"] = self._store_as_image(filename + ".svg", fig_width, fig_height)
         if tex:
-            ret_dict["tex"] = self._store_as_latex(filename, fig_width, fig_height)
+            ret_dict["tex"] = self._store_as_tex(filename + ".tex", fig_width, fig_height, standalone=False)
         if pdf:
-            ret_dict["pdf"] = self._store_as_pdf(filename, fig_width, fig_height)
+            ret_dict["pdf"] = self._store_as_pdf(filename + ".pdf", fig_width, fig_height)
+        if tex_standalone:
+            ret_dict["tex_standalone"] = self._store_as_tex(filename + "____standalone.tex", fig_width, fig_height, standalone=True)
+        if self.fig is not None:
+            plt.close('all')
         return ret_dict
 
     def _store_as_pdf(self, filename: str, fig_width: float, fig_height: float) -> str:
@@ -317,37 +325,83 @@ class BaseStatObject:
         """
         if not filename.endswith(".pdf"):
             filename += ".pdf"
-        rc = copy.deepcopy(matplotlib.rcParams)
+        self.reset_plt()
         self._latexify(fig_width, fig_height)
         plt.tight_layout()
         self._format_axes(plt.gca())
         plt.savefig(filename)
-        matplotlib.rcParams = rc
-        return filename
+        self.reset_plt()
+        return os.path.realpath(filename)
 
-    def _store_as_latex(self, filename: str, fig_width: float, fig_height: float) -> str:
+    def _store_as_tex(self, filename: str, fig_width: float, fig_height: float, standalone: bool) -> str:
         """
         Stores the current figure as latex in a tex file. Needs pgfplots in latex.
-        :see https://github.com/nschloe/matplotlib2tikz
+        Works independently of matplotlib.
         """
         if not filename.endswith(".tex"):
             filename += ".tex"
-        tikz_save(filename, figurewidth="{}cm".format(fig_width), figureheight="{}cm".format(fig_height))
-        return filename
+        x_range = (self._hist_data["min_xval"], self._hist_data["max_xval"])
+        x_bin_width = (self._hist_data["min_xval"] - self._hist_data["max_xval"]) / self._hist_data["bin_count"]
+        plot_tex = ""
+        ymax = 0
+        for value in self._hist_data["values"]:
+            hist, bin_edges = np.histogram(value, bins=self._hist_data["bin_count"],
+                                           range=x_range)
+            #bin_edges = map(_ + (x_bin_width / 2), bin_edges)
+            plot_tex += """
+            \\addplot coordinates {{ {} ({}, 0) }};
+            """.format(" ".join(map(lambda d: "({}, {})".format(*d), zip(bin_edges, hist))), bin_edges[-1])
+            ymax = max(ymax, max(hist))
+
+        tex = """
+\\pgfplotsset{{width={width}cm, height={height}cm, compat=1.10}}
+\\begin{{tikzpicture}}
+    \\begin{{axis}}[
+    ymin=0,
+    ymax={ymax},
+    bar shift=0pt,
+    enlarge x limits=0.10,
+    cycle list name=auto,
+    every axis plot/.append style={{ybar interval, opacity={opacity},fill,draw=none,no markers}},
+    ylabel= ,
+    xlabel={xlabel}""".format(width=fig_width, height=fig_height, xlabel=self._hist_data["xlabel"],
+                              ymax=ymax * 1.2, opacity= 1 if len(self._hist_data["values"]) == 1 else 0.75)
+        if self._hist_data["legend"]:
+            legend = "\\\\".join(self._hist_data["legend"]) + "\\\\"
+            tex += """,
+    legend entries={{{}}}""".format(legend)
+        tex += """
+        ]
+        """
+        tex += plot_tex
+        tex += """
+    \end{axis}
+\end{tikzpicture}
+        """
+        if standalone:
+            tex = """
+\\documentclass[margin=10pt]{standalone}
+\\usepackage{pgfplots}
+\\begin{document}
+                  """ + tex + """
+\\end{document}
+"""
+        with open(filename, "w") as f:
+            f.write(tex)
+        return os.path.realpath(filename)
 
     def _store_as_image(self, filename: str, fig_width: float, fig_height: float) -> str:
         """
-        Stores the current figure as an png image.
+        Stores the current figure as an svg image.
         """
-        if not filename.endswith(".png"):
-            filename += ".png"
-        rc = copy.deepcopy(matplotlib.rcParams)
-        matplotlib.rcParams.update['figure.figsize'] = list(self._fig_size_cm_to_inch(fig_width,fig_height))
+        if not filename.endswith(".svg"):
+            filename += ".svg"
+        self.reset_plt()
         plt.savefig(filename)
-        matplotlib.rcParams = rc
-        return filename
+        self.reset_plt()
+        return os.path.realpath(filename)
 
-    def _freedman_diaconis_bins(*arrays: t.List) -> int:
+    def _freedman_diaconis_bins(self, *arrays: t.List) -> int:
         """
         Calculate number of hist bins using Freedman-Diaconis rule.
         If more than one array is passed, the maximum number of bins calculated for each
@@ -370,12 +424,16 @@ class BaseStatObject:
         """
         Does the data consist only of one unique value?
         """
-        raise NotImplementedError()
+        return False
 
-    def histogram(self, x_ticks: list = None, y_ticks: list = None,
+    def histogram(self, fig_width: int, fig_height: float = None,
+                  x_ticks: list = None, y_ticks: list = None,
                   show_legend: bool = None, type: str = None,
                   align: str = 'mid', x_label: str = None,
-                  y_label: str = None, **kwargs):
+                  y_label: str = None, zoom_in: bool = True,
+                  other_objs: t.List['BaseStatObject'] = None,
+                  other_obj_names: t.List[str] = None,
+                  own_name: str = None, **kwargs):
         """
         Plots a histogram as the current figure.
         Don't forget to close it via fig.close()
@@ -386,23 +444,42 @@ class BaseStatObject:
         :param align: controls where each bar centered ('left', 'mid' or 'right')
         :param x_label: if not None, shows the given x label
         :param y_lable: if not None: shows the given y label
+        :param zoom_in: does the x axis start at the minimum x value?
         :param kwargs: optional arguments passed to the get_data_frame method
+        :param other_objs: addional objects to plot on the same histogram (only SingleProperty objects allowed)
+        :param other_obj_names: names of the additional objects
+        :param own_name: used with other_objs option
         """
-        plt.figure()
+        if fig_height is None:
+            fig_height = self._height_for_width(fig_width)
         if self.is_single_valued():
             logging.error("Can't plot histogram for {} as it's only single valued.".format(self))
             return
         df = self.get_data_frame(**kwargs)
+        if other_objs:
+            typecheck(self, SingleProperty)
+            for obj in other_objs:
+                if obj.is_single_valued() or not isinstance(obj, SingleProperty):
+                    logging.error("Can't additionally plot histogram for {} as it's only single valued.".format(self))
+                    return
+            series_dict = {}
+            for (i, name) in enumerate(other_obj_names):
+                series_dict[name] = pd.Series(other_objs[i].data, name=name)
+            series_dict[own_name] = self.data
+            df = pd.DataFrame(series_dict, columns=sorted(list(series_dict.keys())))
         df_t = df.T
-        min_xval = min(map(min, df_t.values))
+        min_xval = min(map(min, df_t.values)) if zoom_in else 0
         max_xval = max(map(max, df_t.values))
-        plt.xlim(min_xval, max_xval)
         if type is None:
-            type = 'bar' if len(df_t) == 1 else 'step'
-        bins = np.linspace(min_xval, max_xval, self._freedman_diaconis_bins(*df_t.values))
-        plt.hist(df_t.values, bins=self._freedman_diaconis_bins(*df_t.values),
-                 range=(min_xval, max_xval), type=type, align=align,
-                 labels=list(df.keys()))
+            type = 'bar' if len(df_t) == 1 else 'stepfilled'
+        bin_count = self._freedman_diaconis_bins(*df_t.values)
+        bins = np.linspace(min_xval, max_xval, bin_count)
+        self.reset_plt()
+        self.fig = plt.figure(figsize=self._fig_size_cm_to_inch(fig_width, fig_height))
+        plt.xlim(min_xval, max_xval)
+        plt.hist(df.values, bins=bin_count,
+                 range=(min_xval, max_xval), histtype=type, align=align,
+                 label=list(df.keys()))
         if x_ticks is not None:
             plt.xticks(x_ticks)
         if y_ticks is not None:
@@ -415,7 +492,25 @@ class BaseStatObject:
             plt.xlabel(x_label)
         if y_label is not None:
             plt.xlabel(y_label)
+        self._hist_data = {
+            "xlabel": x_label or ("" if len(df_t) > 1 else df.keys()[0]),
+            "legend": list(df.keys()) if show_legend or (show_legend is None and len(df_t) > 1) else None,
+            "min_xval": min_xval,
+            "max_xval": max_xval,
+            "values": df_t.values,
+            "bin_count": bin_count
+        }
 
+    def description(self) -> str:
+        return str(self)
+
+    def __str__(self) -> str:
+        return self.description()
+
+    def reset_plt(self):
+        sns.reset_defaults()
+        sns.set_style("darkgrid")
+        sns.set_palette(sns.color_palette("muted"))
 
 class Single(BaseStatObject):
     """
@@ -573,7 +668,7 @@ class SingleProperty(BaseStatObject):
         """
         return len(set(self.data)) == 1
 
-    def __str__(self) -> str:
+    def description(self) -> str:
         return self.rundata.description()
 
     def get_data_frame(self) -> pd.DataFrame:
@@ -581,6 +676,17 @@ class SingleProperty(BaseStatObject):
         frame = pd.DataFrame(series_dict, columns=[self.property])
         return frame
 
+    def skewedness(self) -> float:
+        """
+        Calculates the skewedness of the data.
+        """
+        return sp.stats.skew(self.data, axis=0, bias=True)
+
+    def normality(self) -> float:
+        """
+        Calculates the probability of the data being normal distributed.
+        """
+        return sp.stats.normaltest(self.data)[1]
 
 class TestedPair(BaseStatObject):
     """
@@ -634,6 +740,9 @@ class TestedPair(BaseStatObject):
 
     def __eq__(self, other) -> bool:
         return self.eq_except_property(other)
+
+    def description(self) -> str:
+        return "{} vs. {}".format(self.first, self.second)
 
 class TestedPairsAndSingles(BaseStatObject):
     """
@@ -742,7 +851,7 @@ class TestedPairProperty(BaseStatObject):
         :see http://www.kean.edu/~fosborne/bstat/06b2means.html
         """
         d = self.mean_diff()
-        t =  st.t.ppf(1-alpha/2.0) * np.sqrt(self.first.variance() / self.first.observations() -
+        t =  sp.stats.norm.sf(1-alpha/2.0) * np.sqrt(self.first.variance() / self.first.observations() -
                                              self.second.variance() / self.second.observations())
         return d - t, d + t
     
@@ -803,3 +912,6 @@ class TestedPairProperty(BaseStatObject):
 
     def __eq__(self, other):
         return self.eq_except_property(other) and self.property == other.property
+
+    def description(self) -> str:
+        return "{} vs. {}".format(self.first, self.second)

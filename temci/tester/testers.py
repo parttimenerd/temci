@@ -30,6 +30,7 @@ class Tester(object, metaclass=util.Singleton):
     """
 
     scipy_stat_method = ""
+    name = ""
 
     def __init__(self, misc_settings: dict, uncertainty_range: tuple):
         """
@@ -125,6 +126,7 @@ class TTester(Tester):
     """
 
     scipy_stat_method = "ttest_ind"
+    name = "t"
 
 
 @register(TesterRegistry, name="ks", misc_type=Dict())
@@ -134,14 +136,17 @@ class TTester(Tester):
     """
 
     scipy_stat_method = "ks_2samp"
+    name = "kolmogorov smirnov"
 
 
 @register(TesterRegistry, name="anderson", misc_type=Dict())
 class TTester(Tester):
     """
-    Uses the Kolmogorov-Smirnov statistic on 2 samples.
+    Uses the Anderson statistic on 2 samples.
     """
 
     scipy_stat_method = "anderson_ksamp"
     def _test_impl(self, data1: list, data2: list) -> float:
         return st.anderson_ksamp([data1, data2])[-1]
+
+    name = "anderson"

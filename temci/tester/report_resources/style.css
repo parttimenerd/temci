@@ -29,6 +29,17 @@
     background-color: #F2DEDE;
 }
 
+.anchor_cell {
+    text-align: center;
+}
+
+.hyphenate {
+    /*text-align: justify;*/
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -ms-hyphens: auto;
+    -moz-hyphens: auto;
+}
 /*
  * jquery.tocify.css 1.9.0
  * Author: @gregfranko

@@ -1,6 +1,10 @@
 import shutil
 import subprocess
 
+import time
+
+import humanfriendly
+
 from temci.scripts.init import prompt_run_config, prompt_build_config
 from temci.utils.typecheck import *
 
@@ -752,8 +756,9 @@ if __name__ == "__main__":
     #print(repr(sys.argv))
 
     import cProfile
-
+    t = time.time()
     cProfile.runctx("cli()", globals(), locals(), filename="cli.profile")
+    print("Execution took ", humanfriendly.format_timespan(time.time() - t))
     ctr.create_snapshot()
     #ctr.stats.print_summary()
     #tr.print_diff()

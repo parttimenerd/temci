@@ -8,3 +8,20 @@ $(function() {
     $(".optionName").popover({ trigger: "hover" });
 
 });
+
+
+// Adapted from http://stackoverflow.com/questions/2897619/using-html5-javascript-to-generate-and-save-a-file
+function download(th) {
+    contentType = th.getAttribute("mime");
+    content = $("#" + th.getAttribute("code_id")).text();
+    filename = th.getAttribute("filename");
+    if(!contentType) {
+        contentType = 'application/octet-stream';
+    }
+    var a = document.createElement('a');
+    var blob = new Blob([content], {'type':contentType});
+    a.href = window.URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+}
+
