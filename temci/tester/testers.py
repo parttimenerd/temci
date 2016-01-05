@@ -6,9 +6,7 @@ import temci.utils.util as util
 import scipy as np
 import scipy.stats as st
 import scipy.optimize as opti
-import scipy
 from temci.utils.typecheck import *
-from temci.utils.settings import Settings
 from temci.utils.registry import AbstractRegistry, register
 import logging, warnings
 
@@ -18,7 +16,7 @@ class TesterRegistry(AbstractRegistry):
     settings_key_path = "stats"
     use_key = "tester"
     use_list = False
-    default = "anderson"
+    default = "t"
     registry = {}
 
 
@@ -48,8 +46,9 @@ class Tester(object, metaclass=util.Singleton):
         Calculates the probability of the null hypotheses.
         """
         res = 0
+        min_len = min(len(data1), len(data2))
         with warnings.catch_warnings(record=True) as w:
-            res = self._test_impl(data1, data2)
+            res = self._test_impl(data1[0:min_len], data2[0: min_len])
         return res
 
     def _test_impl(self, data1: list, data2: list) -> float:
@@ -130,7 +129,7 @@ class TTester(Tester):
 
 
 @register(TesterRegistry, name="ks", misc_type=Dict())
-class TTester(Tester):
+class KSTester(Tester):
     """
     Uses the Kolmogorov-Smirnov statistic on 2 samples.
     """
@@ -140,13 +139,13 @@ class TTester(Tester):
 
 
 @register(TesterRegistry, name="anderson", misc_type=Dict())
-class TTester(Tester):
+class AndersonTester(Tester):
     """
     Uses the Anderson statistic on 2 samples.
     """
 
     scipy_stat_method = "anderson_ksamp"
     def _test_impl(self, data1: list, data2: list) -> float:
-        return st.anderson_ksamp([data1, data2])[-1]
+        return max(st.anderson_ksamp([data1, data2])[-1], 1)
 
     name = "anderson"

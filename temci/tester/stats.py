@@ -2,20 +2,15 @@
 Statistical helper classes for tested pairs and single blocks.
 """
 
-import copy
-import functools
 import logging
 import os
-import traceback
-import warnings
+from collections import defaultdict
 from enum import Enum
 
 import itertools
 
 import math
 import path
-import sys
-
 from temci.tester.rundata import RunData
 from temci.tester.testers import Tester, TesterRegistry
 from temci.utils.settings import Settings
@@ -24,13 +19,8 @@ import numpy as np
 import scipy as sp
 import scipy.stats as st
 from temci.utils.typecheck import *
-import matplotlib.pyplot as plt
-import matplotlib
 
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    import seaborn as sns
-    import pandas as pd
+import pandas as pd
 
 from temci.utils.util import join_strs
 from fn import _
@@ -191,6 +181,8 @@ class BaseStatObject:
     """
 
     _filename_counter = 0
+    img_filename_ending = ".svg"
+
 
     def __init__(self):
         self._stat_messages = []
@@ -262,7 +254,7 @@ class BaseStatObject:
                   'figure.figsize': self._fig_size_cm_to_inch(fig_width,fig_height),
                   'font.family': 'serif'
         }
-
+        import matplotlib
         matplotlib.rcParams.update(params)
 
     def _format_axes(self, ax):
@@ -295,6 +287,7 @@ class BaseStatObject:
     def store_figure(self, filename: str, fig_width: float, fig_height: float = None,
                      pdf: bool = True, tex: bool = True, tex_standalone: bool = True,
                      img: bool = True) -> t.Dict[str, str]:
+        import matplotlib.pyplot as plt
         """
         Stores the current figure in different formats and returns a dict, that maps
         each used format (pdf, tex or img) to the resulting files name.
@@ -311,7 +304,7 @@ class BaseStatObject:
         #filename = # self._get_new_file_name(dir)
         ret_dict = {}
         if img:
-            ret_dict["img"] = self._store_as_image(filename + ".svg", fig_width, fig_height)
+            ret_dict["img"] = self._store_as_image(filename + self.img_filename_ending, fig_width, fig_height)
         if tex:
             ret_dict["tex"] = self._store_as_tex(filename + ".tex", fig_width, fig_height, standalone=False)
         if pdf:
@@ -327,6 +320,7 @@ class BaseStatObject:
         Stores the current figure in a pdf file.
         :warning modifies the current figure
         """
+        import matplotlib.pyplot as plt
         if not filename.endswith(".pdf"):
             filename += ".pdf"
         self.reset_plt()
@@ -396,10 +390,11 @@ class BaseStatObject:
 
     def _store_as_image(self, filename: str, fig_width: float, fig_height: float) -> str:
         """
-        Stores the current figure as an svg image.
+        Stores the current figure as an $img_filename_ending image.
         """
-        if not filename.endswith(".svg"):
-            filename += ".svg"
+        import matplotlib.pyplot as plt
+        if not filename.endswith(self.img_filename_ending):
+            filename += self.img_filename_ending
         self.reset_plt()
         plt.savefig(filename)
         self.reset_plt()
@@ -414,6 +409,7 @@ class BaseStatObject:
         Adapted from seaborns source code.
         """
         # From http://stats.stackexchange.com/questions/798/
+        import seaborn as sns
         def freedman_diaconis(array: np.array):
             h = 2 * sns.utils.iqr(array) / (len(array) ** (1 / 3))
             # fall back to sqrt(a) bins if iqr is 0
@@ -454,6 +450,7 @@ class BaseStatObject:
         :param other_obj_names: names of the additional objects
         :param own_name: used with other_objs option
         """
+        import matplotlib.pyplot as plt
         if fig_height is None:
             fig_height = self._height_for_width(fig_width)
         if self.is_single_valued():
@@ -488,8 +485,10 @@ class BaseStatObject:
             plt.xticks(x_ticks)
         if y_ticks is not None:
             plt.yticks(y_ticks)
+        legend = None
         if show_legend or (show_legend is None and len(df_t) > 1):
-            plt.legend()
+            legend = list(df.keys())
+            plt.legend(labels=legend)
         if len(df_t) == 1:
             plt.xlabel(df.keys()[0])
         if x_label is not None:
@@ -498,7 +497,7 @@ class BaseStatObject:
             plt.xlabel(y_label)
         self._hist_data = {
             "xlabel": x_label or ("" if len(df_t) > 1 else df.keys()[0]),
-            "legend": list(df.keys()) if show_legend or (show_legend is None and len(df_t) > 1) else None,
+            "legend": legend,
             "min_xval": min_xval,
             "max_xval": max_xval,
             "values": df_t.values,
@@ -512,9 +511,11 @@ class BaseStatObject:
         return self.description()
 
     def reset_plt(self):
+        import seaborn as sns
         sns.reset_defaults()
         sns.set_style("darkgrid")
         sns.set_palette(sns.color_palette("muted"))
+
 
 class Single(BaseStatObject):
     """
@@ -527,6 +528,7 @@ class Single(BaseStatObject):
             self.rundata = data
         else:
             self.rundata = data.rundata
+        self.attributes = self.rundata.attributes
         self.properties = {} # type: t.Dict[str, SingleProperty]
         """ SingleProperty objects for each property """
         for prop in data.properties:
@@ -753,10 +755,27 @@ class TestedPairsAndSingles(BaseStatObject):
     A wrapper around a list of tested pairs and singles.
     """
 
-    def __init__(self, singles: t.List[t.Union[RunData, Single]], pairs: t.List[TestedPair] = None):
+    def __init__(self, singles: t.List[t.Union[RunData, Single]], pairs: t.List[TestedPair] = None,
+                 distinct_descriptions: bool = False):
         super().__init__()
         self.singles = list(map(Single, singles)) # type: t.List[Single]
         self.pairs = pairs or [] # type: t.List[TestedPair]
+        if distinct_descriptions:
+            descr_attrs = defaultdict(lambda: 0) # type: t.Dict[str, int]
+            descr_nr_zero = {} # type: t.Dict[str, Single]
+            for single in self.singles:
+                if "description" in single.attributes:
+                    descr = single.attributes["description"]
+                    num = descr_attrs[descr]
+                    descr_attrs[descr] += 1
+                    if num != 0:
+                        single.attributes["description"] += " [{}]".format(num)
+                        if num == 1:
+                            descr_nr_zero[descr].attributes["description"] += " [0]"
+                    else:
+                        descr_nr_zero[descr] = single
+
+
         if pairs is None and len(self.singles) > 1:
             for i in range(0, len(self.singles) - 1):
                 for j in range(i + 1, len(self.singles)):
@@ -774,7 +793,7 @@ class TestedPairsAndSingles(BaseStatObject):
         """
         Returns the properties that are shared among all single run data objects.
         """
-        if self.singles == []:
+        if not self.singles:
             return
         props = set(self.singles[0].properties.keys())
         for single in self.singles[1:]:
@@ -794,7 +813,6 @@ class TestedPairsAndSingles(BaseStatObject):
     def __getitem__(self, id: int) -> Single:
         assert 0 <= id < self.number_of_singles()
         return self.singles[id]
-
 
 class EffectToSmallWarning(StatWarning):
 
@@ -837,10 +855,11 @@ class TestedPairProperty(BaseStatObject):
         :return: simplified list of all messages
         """
         msgs = self.first.get_stat_messages() + self.second.get_stat_messages()
-        msgs += [
-            EffectToSmallWarning.create_if_valid(self, self.mean_diff_per_dev(), self.property),
-            EffectToSmallError.create_if_valid(self, self.mean_diff_per_dev(), self.property)
-        ]
+        if self.is_equal() == False:
+            msgs += [
+                EffectToSmallWarning.create_if_valid(self, self.mean_diff_per_dev(), self.property),
+                EffectToSmallError.create_if_valid(self, self.mean_diff_per_dev(), self.property)
+            ]
         return msgs
     
     def mean_diff(self) -> float:
@@ -902,7 +921,7 @@ class TestedPairProperty(BaseStatObject):
             columns = [str(self.first), str(self.second)]
         series_dict = {
             columns[0]: pd.Series(self.first.data, name=columns[0]),
-            columns[1]: pd.Series(self.first.data, name=columns[1])
+            columns[1]: pd.Series(self.second.data, name=columns[1])
         }
         frame = pd.DataFrame(series_dict, columns=columns)
         return frame
@@ -914,8 +933,11 @@ class TestedPairProperty(BaseStatObject):
         return isinstance(other, type(self)) and self.first.eq_except_property(self.second) \
                and self.tester == other.tester
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return self.eq_except_property(other) and self.property == other.property
+
+    def min_observations(self) -> int:
+        return min(self.first.observations(), self.second.observations())
 
     def description(self) -> str:
         return "{} vs. {}".format(self.first, self.second)

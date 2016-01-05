@@ -63,13 +63,14 @@ class Settings(metaclass=Singleton):
                                                       "> 0: benchmark parallel with n instances, "
                                                       "-1: determine n automatically") // Default(0),
                 "sub_core_number": ValidCPUCoreNumber() // Description("Number of cpu cores per parallel running program.")
-                                   // Default(1),
-                "disable_ht": Bool() // Description("Disable hyper threading of the cpu if possible.")
-                    // Default(False)
+                                   // Default(1)
             }),
+            "disable_hyper_threading": Bool() // Default(False)
+                                       // Description("Disable the hyper threaded cores. Good for cpu bound programs."),
             "show_report": Bool() // Default(True)
                 // Description("Print console report if log_level=info"),
-            "append": Bool() // Default(False) // Description("Append to the output file instead of overwriting")
+            "append": Bool() // Default(False)
+                      // Description("Append to the output file instead of overwriting by adding new run data blocks")
         }),
         "build": Dict({
             "rand": Dict({

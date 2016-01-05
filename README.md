@@ -26,6 +26,7 @@ Installing
 ----------
 First you have to install numpy, scipy, perf stat and latex (most linux distros use texlive)
 if they aren't installed already.
+Also install the cset tool from https://github.com/lpechacek/cpuset.
 Then you can install temci from source:
 ```
     cd FOLDER_THIS_README_LIES_IN
@@ -39,3 +40,8 @@ To simplify using temci, enable tab completion for your favorite shell (bash and
 
 Usage
 -----
+
+
+To build haskell projects randomized (or any other compiled language that is not
+directly supported by gcc) you'll to tell the compiler to use the gcc or the gnu as tool.
+This is e.g. possible with ghc's "-pgmc" option.

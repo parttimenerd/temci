@@ -15,7 +15,7 @@ class RunProcessor:
     It is configured by setting the settings of the stats and run domain.
     """
 
-    def __init__(self, runs: list = None, append: bool = False, show_report: bool = True):
+    def __init__(self, runs: list = None, append: bool = None, show_report: bool = None):
         """
         Important note: this constructor also setups the cpusets and plugins that can alter the system,
         e.g. confine most processes on only one core. Be sure to call the teardown() or the
@@ -43,15 +43,16 @@ class RunProcessor:
             typecheck(Settings()["run/out"], ValidYamlFileName())
             with open(Settings()["run/out"], "r") as f:
                 run_data = yaml.load(f)
-            self.stats_helper = RunDataStatsHelper.init_from_dicts(Settings()["stats"], run_data)
+            self.stats_helper = RunDataStatsHelper.init_from_dicts(run_data, external=True)
+            for run in runs:
+                self.stats_helper.runs.append(RunData(attributes=run["attributes"]))
         else:
-            tester = TesterRegistry.get_for_name(TesterRegistry.get_used(), Settings()["stats/uncertainty_range"])
-            self.stats_helper = RunDataStatsHelper.init_from_dicts(Settings()["stats"], runs)
+            self.stats_helper = RunDataStatsHelper.init_from_dicts(runs)
         self.run_block_size = Settings()["run/run_block_size"]
         self.discarded_blocks = Settings()["run/discarded_blocks"]
         self.pre_runs = self.discarded_blocks * self.run_block_size
-        self.max_runs = max(Settings()["run/min_runs"], Settings()["run/max_runs"]) + self.pre_runs
-        self.min_runs = min(Settings()["run/min_runs"], Settings()["run/max_runs"]) + self.pre_runs
+        self.max_runs = max(Settings()["run/max_runs"], Settings()["run/min_runs"]) + self.pre_runs
+        self.min_runs = Settings()["run/min_runs"] + self.pre_runs
         self.start_time = round(time.time())
         self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"])
         self.block_run_count = 0
@@ -141,7 +142,8 @@ class RunProcessor:
 
     def store(self):
         with open(Settings()["run/out"], "w") as f:
-            f.write(yaml.dump(self.stats_helper.to_dict()["runs"]))
+            f.write(yaml.dump(self.stats_helper.serialize()))
 
     def print_report(self) -> str:
-        ReporterRegistry.get_for_name("console", self.stats_helper).report()
+        if len(self.stats_helper.runs) > 0:
+            ReporterRegistry.get_for_name("console", self.stats_helper).report()

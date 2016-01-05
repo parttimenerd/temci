@@ -1,6 +1,8 @@
 """
 This module consists of the abstract run worker pool class and several implementations.
 """
+import re
+
 from ..utils.typecheck import *
 from ..utils.settings import Settings
 from .run_driver import RunProgramBlock, BenchmarkingResultBlock, AbstractRunDriver, RunDriverRegistry
@@ -9,7 +11,96 @@ from fn import _
 from .cpuset import CPUSet
 import logging, threading, subprocess, shlex, os, tempfile, yaml
 
-class RunWorkerPool:
+
+class AbstractRunWorkerPool:
+    """
+    An abstract run worker pool that just deals with the hyper threading setting.
+    """
+
+    def __init__(self, run_driver_name: str = None):
+        if Settings()["run/disable_hyper_threading"]:
+            self._disable_hyper_threading()
+
+    def submit(self, block: RunProgramBlock, id: int, runs: int):
+        pass
+
+    def results(self):
+        pass
+
+    def teardown(self):
+        if Settings()["run/disable_hyper_threading"]:
+            self._enable_hyper_threading()
+
+    def _disable_hyper_threading(self):
+        """
+         Adapted from http://unix.stackexchange.com/a/223322
+        """
+        total_logical_cpus = 0
+        total_physical_cpus = 0
+        total_cores = 0
+        cpu = None
+
+        logical_cpus = {}
+        physical_cpus = {}
+        cores = {}
+
+        hyperthreading = False
+
+        for line in open('/proc/cpuinfo').readlines():
+            if re.match('processor', line):
+                cpu = int(line.split()[2])
+
+                if cpu not in  logical_cpus:
+                    logical_cpus[cpu] = []
+                    total_logical_cpus += 1
+
+            if re.match('physical id', line):
+                phys_id = int(line.split()[3])
+
+                if phys_id not in physical_cpus:
+                    physical_cpus[phys_id] = []
+                    total_physical_cpus += 1
+
+            if re.match('core id', line):
+                core = int(line.split()[3])
+
+                if core not in cores:
+                    cores[core] = []
+                    total_cores += 1
+
+                cores[core].append(cpu)
+
+        if (total_cores * total_physical_cpus) * 2 == total_logical_cpus:
+            hyperthreading = True
+
+        self.ht_cores = []
+
+        if hyperthreading:
+
+            for c in cores:
+                for p, val in enumerate(cores[c]):
+                    if p > 0:
+                        self.ht_cores.append(val)
+        self._set_status_of_ht_cores(self.ht_cores, 0)
+
+    def _enable_hyper_threading(self):
+        self._set_status_of_ht_cores(self.ht_cores, 1)
+
+    def _set_status_of_ht_cores(self, ht_cores: list, online_status: int):
+        if len(ht_cores) == 0:
+            return
+        arg = "\n".join("echo {} > /sys/devices/system/cpu/cpu{}/online"
+                        .format(online_status, core_id) for core_id in ht_cores)
+        proc = subprocess.Popen(["/bin/sh", "-c", "sudo bash -c '{}'".format(arg)],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                universal_newlines=True)
+        out, err = proc.communicate()
+        if proc.poll() > 0:
+            raise EnvironmentError("Error while disabling the hyper threaded cores: " + str(err))
+
+
+class RunWorkerPool(AbstractRunWorkerPool):
     """
     This run worker pool implements the sequential benchmarking of program blocks.
     """
@@ -19,6 +110,7 @@ class RunWorkerPool:
         Initializes a worker pool.
         :param run_driver_name: name of the used run driver or None if the one set in the Settings should be used
         """
+        super().__init__(run_driver_name)
         self.queue = Queue()
         self.result_queue = Queue()
         if run_driver_name is None:
@@ -60,12 +152,13 @@ class RunWorkerPool:
         Tears down the inherited run driver.
         This should be called if all benchmarking with this pool is finished.
         """
+        super().teardown()
         self.run_driver.teardown()
         if self.cpuset is not None:
             self.cpuset.teardown()
 
 
-class ParallelRunWorkerPool:
+class ParallelRunWorkerPool(AbstractRunWorkerPool):
     """
     This run worker pool implements the parallel benchmarking of program blocks.
     It uses a server-client-model to benchmark on different cpu cores.
@@ -76,6 +169,7 @@ class ParallelRunWorkerPool:
         Initializes a worker pool.
         :param run_driver_name: name of the used run driver or None if the one set in the Settings should be used
         """
+        super().__init__(run_driver_name)
         self.submit_queue = Queue()
         self.intermediate_queue = Queue()
         self.result_queue = Queue()
@@ -133,6 +227,7 @@ class ParallelRunWorkerPool:
         Tears down the inherited run driver.
         This should be called if all benchmarking with this pool is finished.
         """
+        super().teardown()
         self.cpuset.teardown()
         self.run_driver.teardown()
         try:

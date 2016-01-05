@@ -44,7 +44,6 @@ def cli():
 
 command_docs = {
     "build": "Build program blocks",
-    "run": "Benchmark some program blocks",
     "report": "Generate a report from benchmarking result",
     "init": "Helper commands to initialize files (like settings)",
     "completion": "Creates completion files for several shells.",
@@ -73,9 +72,9 @@ for driver in run_driver.RunDriverRegistry.registry:
     options = CmdOptionList(
         CmdOption.from_registry(run_driver.RunDriverRegistry.registry[driver]),
         CmdOption.from_non_plugin_settings("run/{}_misc".format(driver)),
+        CmdOption.from_non_plugin_settings("run/cpuset", name_prefix="cpuset_"),
         run_options["common"]
     )
-
     if driver not in run_options["run_driver_specific"]:
         run_options["run_driver_specific"][driver] = options
     else:
@@ -178,7 +177,7 @@ def exec(with_description: list = None, without_description: list = None, **kwar
         for (descr, cmd) in with_description:
             runs.append({
                 "run_config": {
-                    "run_cmds": [cmd]
+                    "run_cmd": [cmd]
                 },
                 "attributes": {
                     "description": descr
@@ -187,7 +186,7 @@ def exec(with_description: list = None, without_description: list = None, **kwar
     if without_description is not None:
         for cmd in without_description:
             runs.append({"run_config": {
-                    "run_cmds": [cmd]
+                    "run_cmd": [cmd]
                 },
                 "attributes": {
                     "description": cmd

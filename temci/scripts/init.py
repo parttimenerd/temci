@@ -11,7 +11,6 @@ import io
 import yaml
 from prompt_toolkit.document import Document
 from prompt_toolkit.validation import Validator, ValidationError
-from pygments.lexers.shell import BashLexer
 from prompt_toolkit import prompt
 from prompt_toolkit.layout.lexers import PygmentsLexer
 from prompt_toolkit.contrib.completers import WordCompleter, SystemCompleter, PathCompleter
@@ -152,7 +151,7 @@ def create_revision_completer(vcs: VCSDriver) -> WordCompleter:
     if vcs.has_uncommitted():
         valid.append("HEAD")
         meta_dict["HEAD"] = "Uncommitted changes"
-    for info_dict in vcs.get_info_for_all_revisions():
+    for info_dict in vcs.get_info_for_all_revisions(max=50):
         commit_number = str(info_dict["commit_number"])
         if not info_dict["is_uncommitted"]:
             valid.append(str(info_dict["commit_id"]))
@@ -190,6 +189,7 @@ def prompt_bash(msg: str, allow_empty: bool) -> str:
     :param msg: shown message
     :return: user input
     """
+    from pygments.lexers.shell import BashLexer
     validator = None if allow_empty else NonEmptyValidator()
     return prompt(msg, lexer=PygmentsLexer(BashLexer), completer=SystemCompleter())
 
@@ -420,6 +420,7 @@ def prompt_exec_driver_dict(choose_revision: bool, working_dir: str = None, bina
     """
     Prompt for the contents of run config dict for suitable for the exec run driver.
     """
+    from pygments.lexers.shell import BashLexer
     old_cwd = os.path.realpath(".")
     working_dir = working_dir or prompt_dir("Working directory: ")
     run_dict = {}

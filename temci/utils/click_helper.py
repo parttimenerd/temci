@@ -1,10 +1,9 @@
 import logging
 import warnings
 
-import click, sys
+import click
 from temci.utils.typecheck import *
 from temci.utils.settings import Settings, SettingsError
-import temci.utils.util as util
 from temci.utils.registry import AbstractRegistry
 import typing as t
 

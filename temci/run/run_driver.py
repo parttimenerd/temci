@@ -270,9 +270,8 @@ class ExecRunDriver(AbstractRunDriver):
             block["run_cmds"] = block["run_cmd"]
         else:
             block["run_cmds"] = [block["run_cmd"]]
-
         if isinstance(block["cwd"], List(Str())):
-            if len(block["cwd"]) != len(block["run_cmd"]):
+            if len(block["cwd"]) != len(block["run_cmds"]):
                 raise ValueError("Number of passed working directories is unequal with number of passed run commands")
             block["cwds"] = block["cwd"]
         else:
@@ -309,7 +308,6 @@ class ExecRunDriver(AbstractRunDriver):
         self._teardown_block(block)
         t = time.time() - t
         assert isinstance(res, BenchmarkingResultBlock)
-        #print(t)
         res.data["ov-time"] = [t / runs] * runs
         #print(res.data)
         return res
@@ -491,7 +489,6 @@ class PerfStatExecRunner(ExecRunner):
                 cmd=cmd,
                 repeat="--repeat {}".format(self.misc["properties"]) if do_repeat else ""
             )
-
         block["run_cmds"] = [modify_cmd(cmd) for cmd in block["run_cmds"]]
 
 
@@ -502,7 +499,10 @@ class PerfStatExecRunner(ExecRunner):
         for line in exec_res.stderr.strip().split("\n"):
             if ';' in line:
                 var, empty, descr = line.split(";")[0:3]
-                m[descr] = float(var)
+                try:
+                    m[descr] = float(var)
+                except:
+                    pass
         res.add_run_data(m)
         return res
 

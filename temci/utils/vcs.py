@@ -1,4 +1,4 @@
-import os, shutil, errno, shlex, subprocess, logging, tarfile
+import os, shutil, errno, subprocess, tarfile
 from .settings import Settings
 from os.path import abspath
 from temci.utils.typecheck import *
@@ -121,7 +121,7 @@ class VCSDriver:
         """
         raise NotImplementedError()
 
-    def get_info_for_all_revisions(self) -> t.List[t.Dict[str, t.Any]]:
+    def get_info_for_all_revisions(self, max: int = -1) -> t.List[t.Dict[str, t.Any]]:
         """
         Get an info dict for all revisions.
         A single info dict has the following structure::
@@ -133,12 +133,18 @@ class VCSDriver:
             "is_from_other_branch": True/False,
             "branch": … # branch name or empty string if this commit belongs to no branch
 
+        :param max: if max isn't -1 it gives the maximum number of revision infos returned
         :return: list of info dicts
         """
         info_dicts = []
-        if self.has_uncommitted():
+        if self.has_uncommitted() and (max >= 1 or max == -1):
             info_dicts.append(self.get_info_for_revision(-1))
-        for i in range(self.number_of_revisions()):
+            if max != -1:
+                max -= 1
+        num = self.number_of_revisions()
+        if max != -1 and max < num:
+            num = max
+        for i in range(num):
             info_dicts.append(self.get_info_for_revision(i))
 
         return info_dicts

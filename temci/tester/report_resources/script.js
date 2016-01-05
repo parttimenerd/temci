@@ -20,8 +20,7 @@ function download(th) {
     }
     var a = document.createElement('a');
     var blob = new Blob([content], {'type':contentType});
-    a.href = window.URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
+    $('a').attr("href", window.URL.createObjectURL(blob));
+    $('a').attr("download", filename);
 }
 
