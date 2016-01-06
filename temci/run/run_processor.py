@@ -38,6 +38,7 @@ class RunProcessor:
             self.pool = RunWorkerPool()
         else:
             self.pool = ParallelRunWorkerPool()
+        self.stats_helper = None # type: RunDataStatsHelper
         if self.append:
             run_data = []
             typecheck(Settings()["run/out"], ValidYamlFileName())
@@ -53,8 +54,10 @@ class RunProcessor:
         self.pre_runs = self.discarded_blocks * self.run_block_size
         self.max_runs = max(Settings()["run/max_runs"], Settings()["run/min_runs"]) + self.pre_runs
         self.min_runs = Settings()["run/min_runs"] + self.pre_runs
+        if Settings()["run/runs"] != -1:
+            self.max_runs = self.min_runs = Settings()["run/runs"] + self.pre_runs
         self.start_time = round(time.time())
-        self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"])
+        self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"], Settings()["run/discarded_blocks"])
         self.block_run_count = 0
         self.min_runs += self.run_block_size
 
@@ -145,5 +148,5 @@ class RunProcessor:
             f.write(yaml.dump(self.stats_helper.serialize()))
 
     def print_report(self) -> str:
-        if len(self.stats_helper.runs) > 0:
+        if len(self.stats_helper.runs) > 0 and all(x.benchmarkings() > 0 for x in self.stats_helper.runs):
             ReporterRegistry.get_for_name("console", self.stats_helper).report()

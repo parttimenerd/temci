@@ -45,3 +45,16 @@ Usage
 To build haskell projects randomized (or any other compiled language that is not
 directly supported by gcc) you'll to tell the compiler to use the gcc or the gnu as tool.
 This is e.g. possible with ghc's "-pgmc" option.
+
+
+Fancy Plugins
+-------------
+
+###DisableCaches
+
+Build it via "temci setup". Needs the kernel develop packet of you're distribitution. It's called
+`kernel-devel` on fedora
+
+_Attention_: Everything takes very very long. It might require a restart of you're system.
+Example for the slow down: A silly haskell program (just printing `"sdf"`): the measured
+task-clock went from just 1.4 seconds to 875,2 seconds. The speed up with caches is 62084%.

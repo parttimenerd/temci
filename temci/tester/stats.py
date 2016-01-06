@@ -338,6 +338,8 @@ class BaseStatObject:
         """
         if not filename.endswith(".tex"):
             filename += ".tex"
+        if "min_xval" not in self._hist_data:
+            return
         x_range = (self._hist_data["min_xval"], self._hist_data["max_xval"])
         x_bin_width = (self._hist_data["min_xval"] - self._hist_data["max_xval"]) / self._hist_data["bin_count"]
         plot_tex = ""
@@ -411,6 +413,7 @@ class BaseStatObject:
         # From http://stats.stackexchange.com/questions/798/
         import seaborn as sns
         def freedman_diaconis(array: np.array):
+            array = [a for a in array if not math.isnan(a)]
             h = 2 * sns.utils.iqr(array) / (len(array) ** (1 / 3))
             # fall back to sqrt(a) bins if iqr is 0
             if h == 0:
@@ -450,10 +453,14 @@ class BaseStatObject:
         :param other_obj_names: names of the additional objects
         :param own_name: used with other_objs option
         """
+        self._hist_data = {}
         import matplotlib.pyplot as plt
         if fig_height is None:
             fig_height = self._height_for_width(fig_width)
         if self.is_single_valued():
+            descr = self.description()
+            if isinstance(self, SingleProperty):
+                descr += " [" + self.property + "]"
             logging.error("Can't plot histogram for {} as it's only single valued.".format(self))
             return
         df = self.get_data_frame(**kwargs)
@@ -469,6 +476,7 @@ class BaseStatObject:
             series_dict[own_name] = self.data
             df = pd.DataFrame(series_dict, columns=sorted(list(series_dict.keys())))
         df_t = df.T
+        show_legend = show_legend or (show_legend is None and len(df_t) > 1)
         min_xval = min(map(min, df_t.values)) if zoom_in else 0
         max_xval = max(map(max, df_t.values))
         if type is None:
@@ -476,8 +484,14 @@ class BaseStatObject:
         bin_count = self._freedman_diaconis_bins(*df_t.values)
         bins = np.linspace(min_xval, max_xval, bin_count)
         self.reset_plt()
+        ymax = 0
+        for value in df_t.values:
+            hist, bin_edges = np.histogram(value, bins=bin_count, range=(min_xval, max_xval))
+            ymax = max(ymax, max(hist))
+
         self.fig = plt.figure(figsize=self._fig_size_cm_to_inch(fig_width, fig_height))
         plt.xlim(min_xval, max_xval)
+        plt.ylim(0, ymax * (1.2 if show_legend else 1.05))
         plt.hist(df.values, bins=bin_count,
                  range=(min_xval, max_xval), histtype=type, align=align,
                  label=list(df.keys()))
@@ -486,7 +500,7 @@ class BaseStatObject:
         if y_ticks is not None:
             plt.yticks(y_ticks)
         legend = None
-        if show_legend or (show_legend is None and len(df_t) > 1):
+        if show_legend:
             legend = list(df.keys())
             plt.legend(labels=legend)
         if len(df_t) == 1:
@@ -686,13 +700,13 @@ class SingleProperty(BaseStatObject):
         """
         Calculates the skewedness of the data.
         """
-        return sp.stats.skew(self.data, axis=0, bias=True)
+        return sp.stats.skew(self.data, axis=0, bias=True) if len(self.data) >= 8 else float("nan")
 
     def normality(self) -> float:
         """
         Calculates the probability of the data being normal distributed.
         """
-        return sp.stats.normaltest(self.data)[1]
+        return sp.stats.normaltest(self.data)[1] if len(self.data) >= 8 else float("nan")
 
 class TestedPair(BaseStatObject):
     """
@@ -816,6 +830,8 @@ class TestedPairsAndSingles(BaseStatObject):
 
 class EffectToSmallWarning(StatWarning):
 
+    # todo improve: it doesn't work as expected
+
     message = "The mean difference per standard deviation of {props} is less than {b_val}."
     hint = "Try to reduce the standard deviation if you think that the measured difference is significant: " \
            "With the exec run driver you can probably use the stop_start plugin, preheat and sleep plugins. " \
@@ -841,14 +857,22 @@ class TestedPairProperty(BaseStatObject):
 
     def __init__(self, parent: TestedPair, first: Single, second: Single, property: str, tester: Tester = None):
         super().__init__()
-        self.parent = parent
+        self._parent = parent
         self.first = SingleProperty(first, first.rundata, property)
-        self.second = SingleProperty(first, second.rundata, property)
+        self.second = SingleProperty(second, second.rundata, property)
         self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),
                                                             Settings()["stats/tester"],
                                                             Settings()["stats/uncertainty_range"])
         self.property = property
-    
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @parent.setter
+    def parent(self, value):
+        raise NotImplementedError()
+
     def _get_stat_messages(self) -> t.List[StatMessage]:
         """
         Combines the messages for all inherited TestedPairProperty objects (for each property),
@@ -910,7 +934,7 @@ class TestedPairProperty(BaseStatObject):
         return (self.first.mean() + self.second.mean()) / 2
 
     def max_std_dev(self) -> float:
-        return max(self.first.mean(), self.second.mean())
+        return max(self.first.std_dev(), self.second.std_dev())
 
     def get_data_frame(self, show_property = True) -> pd.DataFrame:
         columns = []
@@ -941,3 +965,7 @@ class TestedPairProperty(BaseStatObject):
 
     def description(self) -> str:
         return "{} vs. {}".format(self.first, self.second)
+
+    def swap(self) -> 'TestedPairProperty':
+        return TestedPairProperty(self.parent, self.parent.first, self.parent.second,
+                                  self.property, self.tester)

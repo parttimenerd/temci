@@ -531,7 +531,7 @@ class HTMLReporter(AbstractReporter):
     "fig_width_small": Float() // Default(15.0) // Description("Width of all small plotted figures"),
     "fig_width_big": Float() // Default(25.0) // Description("Width of all big plotted figures"),
     "alpha": Float() // Default(0.05) // Description("Alpha value for confidence intervals"),
-    "gen_tex": Bool() // Default(False) // Description("Generate simple latex versions of the plotted figures?"),
+    "gen_tex": Bool() // Default(True) // Description("Generate simple latex versions of the plotted figures?"),
     "gen_pdf": Bool() // Default(False) // Description("Generate pdf versions of the plotted figures?")
 }))
 class HTMLReporter2(AbstractReporter):
@@ -697,26 +697,30 @@ class HTMLReporter2(AbstractReporter):
     def _extended_summary(self, obj: BaseStatObject, with_title: bool = True, title_level: int = 3,
                           title_class: str = "") -> str:
         html = ""
-        if with_title:
-            html += """<h{level} id='{id}' class="{tc}">
-                            {title}</h{level}>""".format(level=title_level, tc=title_class,
-                                                         title=self._obj_description(obj),
-                                                         id=self._html_id_for_object("misc", obj))
+        other_id_obj = None # type: BaseStatObject
         if isinstance(obj, Single):
             html += self._extended_summary_of_single(obj, title_level)
         if isinstance(obj, SingleProperty):
             html += self._extended_summary_of_single_property(obj, title_level)
         if isinstance(obj, TestedPair):
             html += self._extended_summary_of_tested_pair(obj, title_level)
+            other_id_obj = obj.swap()
         if isinstance(obj, TestedPairProperty):
             html += self._extended_summary_of_tested_pair_property(obj, title_level)
+        if with_title:
+            other_id_app = "" if other_id_obj is None else """<div id="{}"/>"""\
+                .format(self._html_id_for_object("misc", other_id_obj))
+            html = """<h{level} id='{id}' class="{tc}">
+                            {title}</h{level}>""".format(level=title_level, tc=title_class,
+                                                         title=self._obj_description(obj),
+                                                         id=self._html_id_for_object("misc", obj)) + other_id_app + html
         return html
 
     def _extended_summary_of_single(self, obj: Single, title_level: int) -> str:
         html = self._short_summary(obj, use_modals=True, extended=False, title_level=title_level + 1)
         for prop in sorted(obj.properties.keys()):
-            html += """<div class="sub-block"><h{level} class="page-header">{prop}</h{level}>""".format(
-                level=title_level + 1, prop=prop
+            html += """<div class="sub-block"><h{level} class="page-header" id="{id}">{prop}</h{level}>""".format(
+                level=title_level + 1, prop=prop, id=self._html_id_for_object("misc", obj.properties[prop])
             )
             html += self._extended_summary(obj.properties[prop], with_title=False,
                                            title_level=title_level + 1, title_class="page-header")
@@ -729,9 +733,14 @@ class HTMLReporter2(AbstractReporter):
 
     def _extended_summary_of_tested_pair(self, obj: TestedPair, title_level: int) -> str:
         html = self._short_summary(obj, use_modals=True, extended=True, title_level=title_level + 1)
+        swapped = obj.swap()
         for prop in sorted(obj.properties.keys()):
-            html += """<div class="sub-block"><h{level} class="page-header">{prop}</h{level}>""".format(
-                level=title_level + 1, prop=prop
+            html += """
+                <div class="sub-block">
+                    <h{level} class="page-header" id="{id}">{prop}</h{level}>
+                    <div id="{id2}"></div>""".format(
+                level=title_level + 1, prop=prop, id=self._html_id_for_object("misc", obj.properties[prop]),
+                id2=self._html_id_for_object("misc", swapped.properties[prop])
             )
             html += self._extended_summary(obj.properties[prop], with_title=False,
                                            title_level=title_level + 1, title_class="page-header")
@@ -784,11 +793,11 @@ class HTMLReporter2(AbstractReporter):
             html += self._filenames_to_img_html(filenames)
         ci_popover = Popover(self, "Confidence interval", """
                         The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
-                        \\[ \\text{{{first}}}[{prop}] - \\text{{{second}}}[{prop}] \\\\ = {diff} \\]
-                        lies in the interval $$({ci[0]}, {ci[1]})$$ (assuming the data is normal
+                        \\begin{{align}} &\\text{{{first}}} - \\text{{{second}}} \\\\ =& {diff} \\end{{align}}
+                        lies in the interval $$({ci[0]:5.5f}, {ci[1]:5.5f})$$ (assuming the data is normal
                         distributed to a certain degree).
                         """.format(p=1-self.misc["alpha"], first=str(obj.first.parent),
-                                   second=obj.second.parent, prop=obj.property,
+                                   second=str(obj.second.parent), prop=obj.property,
                                    diff=obj.mean_diff(), ci=obj.mean_diff_ci(self.misc["alpha"])))
         tested_per_prop = [
             {
@@ -811,7 +820,7 @@ class HTMLReporter2(AbstractReporter):
                 gives a number that helps to talk about the practical significance of the mean difference.
                 A tiny difference might be cool, but irrelevant (as caching effects are probably higher, use the
                 <pre>temci build</pre> if you're curious about this).
-                """ % (str(obj.first.parent), str(obj.second.parent), str(obj.first.parent), float(obj.mean_diff()),
+                """ % (obj.first.parent.description(), obj.second.parent.description(), str(obj.first.parent), float(obj.mean_diff()),
                        float(obj.first.mean())))
             }, {
                 "title": "... per std dev",
@@ -834,7 +843,7 @@ class HTMLReporter2(AbstractReporter):
                         <li>Don't believe any effect that is less than a standard deviation</li>
                         <li>Be highly suspicious if it is less than two standard deviations</li>
                     </ul>
-                """.format(first=str(obj.first.parent), second=obj.second.parent,
+                """.format(first=obj.first.parent.description(), second=obj.second.parent.description(),
                            md=obj.mean_diff(), std=obj.max_std_dev()), trigger="hover click")
             }, {
                 "title": "... ci (lower bound)",
@@ -860,6 +869,14 @@ class HTMLReporter2(AbstractReporter):
                 "popover": Popover(self, "Explanation", """
                     The minimum of the number of valid runs of both.
                 or statistically spoken: the minimum sample size.""")
+            }, {
+                "title": "speed up",
+                "func": lambda x: x.second.mean() / x.first.mean(),
+                "format": "{:5.0%}",
+                "popover": Popover(self, "Explanation","""
+                    The speed up of the first regarding the second
+                    $$ \\frac{ \\overline{\\text{%s}} }{ \\overline{\\text{%s}} } $$
+                """ % (str(obj.second.parent), str(obj.first.parent)))
             }
         ]
         if not extended:
@@ -1038,7 +1055,8 @@ class HTMLReporter2(AbstractReporter):
                     (<a href='https://en.wikipedia.org/wiki/Standard_deviation'>wikipedia</a>)
                 """, trigger="hover click"),
                 "func": lambda x: x.std_dev(),
-                "format": "{:5.5f}"
+                "format": "{:5.5f}",
+                "extended": True
             }, {
                 "title": "... per mean",
                 "func": lambda x: x.std_dev_per_mean(),
@@ -1530,7 +1548,9 @@ class Cell:
             html += """<a data-toggle="modal" data-target="#{id}" style="width:100%;">""".format(id=self.modal_id)
             html_end = "</a>" + html_end
         if self.link:
-            html += """<a href="{link}" data-dismiss="modal" style="width:100%;">""".format(link=self.link)
+            html += """
+                <a href="{link}" onclick="scrollTo('{elem_id}', '{link}')" data-dismiss="modal" style="width:100%;">
+                """.format(link=self.link, elem_id=self.parent._random_html_id())
             html_end = "</a>" + html_end
         return html + self.content + html_end
 

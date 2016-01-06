@@ -6,6 +6,8 @@ import os
 import datetime
 import re
 import shutil
+
+import collections
 import pytimeparse, numpy, math
 
 from temci.utils.settings import Settings
@@ -122,31 +124,31 @@ class RunProgramBlock:
 
 class BenchmarkingResultBlock:
 
-    def __init__(self, properties: list, data: dict = None):
-        typecheck(properties, List(Str()))
-        self.properties = properties
-        self.data = data if data is not None else {}
-        for prop in properties:
-            self.data[prop] = []
+    def __init__(self, data: dict = None):
+        self.data = collections.defaultdict(lambda: [])
+        if data:
+            self.add_run_data(data)
+
+    def properties(self) -> t.List[str]:
+        return list(self.data.keys())
 
     def add_run_data(self, data: dict):
         typecheck(data, Dict(all_keys=False, key_type=Str(), value_type=Int()|Float()))
-        for prop in self.properties:
+        for prop in data:
             self.data[prop].append(data[prop])
 
     def to_dict(self):
         return {
-            "properties": self.properties,
+            "properties": self.properties(),
             "data": self.data
         }
 
     @classmethod
     def from_dict(cls, source: dict):
         typecheck(source, Dict({
-            "properties": List(Str()),
             "data": Dict(all_keys=False, key_type=Str(), value_type=Int()|Float())
-        }))
-        return BenchmarkingResultBlock(source["properties"], source["data"])
+        }, all_keys=False))
+        return BenchmarkingResultBlock(source["data"])
 
 
 class AbstractRunDriver(AbstractRegistry):
@@ -494,7 +496,7 @@ class PerfStatExecRunner(ExecRunner):
 
     def parse_result(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
-        res = res or BenchmarkingResultBlock(list(set(list(self.misc["properties"]) + ["ov-time"])))
+        res = res or BenchmarkingResultBlock()
         m = {"ov-time": exec_res.time}
         for line in exec_res.stderr.strip().split("\n"):
             if ';' in line:
@@ -571,7 +573,7 @@ class SpecExecRunner(ExecRunner):
                           "and match the passed regular expression {!r}"
                           .format(self.misc["base_path"], self.path_regexp))
 
-        res = res or BenchmarkingResultBlock(list(props.keys()))
+        res = res or BenchmarkingResultBlock()
         res.add_run_data(data)
         return res
 

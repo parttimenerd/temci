@@ -40,6 +40,12 @@
     -ms-hyphens: auto;
     -moz-hyphens: auto;
 }
+
+.link {
+    color: #0000EE;
+    cursor: pointer;
+}
+
 /*
  * jquery.tocify.css 1.9.0
  * Author: @gregfranko

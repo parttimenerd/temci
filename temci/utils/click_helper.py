@@ -170,7 +170,7 @@ class CmdOption:
             self.callback = callback
         else:
             self.callback = None
-        self.description = self.type_scheme.description.strip()
+        self.description = self.type_scheme.description.strip().split("\n")[0]
         self.has_description = self.description not in [None, ""]
         if not self.has_description:
             warnings.warn("Option {} is without documentation.".format(option_name))

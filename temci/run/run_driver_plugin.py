@@ -156,7 +156,9 @@ class PreheatPlugin(AbstractRunDriverPlugin):
 
 @register(ExecRunDriver, "other_nice", Dict({
     "nice": Int(range=range(-20, 20)) // Description("Niceness values for other processes.")
-                                      // Default(18)
+                                      // Default(18),
+    "min_nice": Int(range=range(-15, 20)) // Default(-10)
+                // Description("Processes with lower nice values are ignored.")
 }))
 class OtherNicePlugin(AbstractRunDriverPlugin):
     """
@@ -178,12 +180,13 @@ class OtherNicePlugin(AbstractRunDriverPlugin):
                 continue
             pid = int(arr[0].strip())
             nice = arr[1].strip()
-            if nice != "-" and int(nice) > -10 and pid != os.getpid():
+            if nice != "-" and int(nice) > self.misc_settings["min_nice"] and pid != os.getpid():
                 self.old_nices[pid] = int(nice)
                 try:
                     self._set_nice(pid, self.misc_settings["nice"])
                 except EnvironmentError as err:
-                    logging.info(err)
+                    #logging.info(err)
+                    pass
 
     def _set_nice(self, pid: int, nice: int):
         self._exec_command("sudo renice -n {} -p {}".format(nice, pid))
@@ -193,7 +196,8 @@ class OtherNicePlugin(AbstractRunDriverPlugin):
             try:
                 self._set_nice(pid, self.old_nices[pid])
             except EnvironmentError as err:
-                logging.info(err)
+                #logging.info(err)
+                pass
 
 
 @register(ExecRunDriver, "stop_start", Dict({
@@ -267,7 +271,7 @@ class SleepPlugin(AbstractRunDriverPlugin):
 }))
 class DropFSCaches(AbstractRunDriverPlugin):
     """
-    Frees some (file system) caches before every benchmarking run.
+    Drop page cache, directoy entries and inodes before every benchmarking run.
     """
 
     def setup(self):

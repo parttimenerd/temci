@@ -20,4 +20,4 @@ def exec(dir: str, cmd: str):
 
 def make_scripts():
     exec("hadori", "make")
-    exec("cpu_cache", "./build.sh")
+    exec("cpu_cache", "make")
