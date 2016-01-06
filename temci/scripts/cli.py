@@ -283,9 +283,11 @@ def zsh(**kwargs):
                     option_str=option_str, descr=descr, hint=option.completion_hints["zsh"]
                 ))
             else:
-                strs.append('{option_str}\"[{descr}]: :()"'.format(
+                format_str = '{option_str}\"[{descr}]"' if option.is_flag else '{option_str}\"[{descr}]: :()"'
+                strs.append(format_str.format(
                     option_str=option_str, descr=descr
                 ))
+
         if one_line:
             return " ".join(strs)
         return "\n\t".join(strs)
@@ -318,7 +320,7 @@ _temci(){{
             sub_cmd=$words[1]
     esac
 
-    #echo $words[2] > tmp_file
+    #echo $words[@] >> tmp_file
 
     case $words[2] in
         ({misc_cmds_wo_subs})

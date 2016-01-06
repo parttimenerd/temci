@@ -830,8 +830,6 @@ class TestedPairsAndSingles(BaseStatObject):
 
 class EffectToSmallWarning(StatWarning):
 
-    # todo improve: it doesn't work as expected
-
     message = "The mean difference per standard deviation of {props} is less than {b_val}."
     hint = "Try to reduce the standard deviation if you think that the measured difference is significant: " \
            "With the exec run driver you can probably use the stop_start plugin, preheat and sleep plugins. " \
@@ -857,21 +855,13 @@ class TestedPairProperty(BaseStatObject):
 
     def __init__(self, parent: TestedPair, first: Single, second: Single, property: str, tester: Tester = None):
         super().__init__()
-        self._parent = parent
+        self.parent = parent
         self.first = SingleProperty(first, first.rundata, property)
         self.second = SingleProperty(second, second.rundata, property)
         self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),
                                                             Settings()["stats/tester"],
                                                             Settings()["stats/uncertainty_range"])
         self.property = property
-
-    @property
-    def parent(self):
-        return self._parent
-
-    @parent.setter
-    def parent(self, value):
-        raise NotImplementedError()
 
     def _get_stat_messages(self) -> t.List[StatMessage]:
         """

@@ -141,7 +141,7 @@ class HTMLReporter(AbstractReporter):
         <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="file://{resources_path}/style.css">
         <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" integrity="sha512-K1qjQ+NcF2TYO/eI3M6v8EiNYZfA95pQumfvcVrTHtwQVDG+aHRqLi/ETn2uB+1JqwYqVG3LIvdm9lj6imS/pQ==" crossorigin="anonymous"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
         <script src="http://gregfranko.com/jquery.tocify.js/js/jquery-ui-1.9.1.custom.min.js"></script>
         <script src="file://{resources_path}/script.js"></script>
     </head>
@@ -560,7 +560,7 @@ class HTMLReporter2(AbstractReporter):
         <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="file://{resources_path}/style.css">
         <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js" integrity="sha512-K1qjQ+NcF2TYO/eI3M6v8EiNYZfA95pQumfvcVrTHtwQVDG+aHRqLi/ETn2uB+1JqwYqVG3LIvdm9lj6imS/pQ==" crossorigin="anonymous"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
         <script src="http://gregfranko.com/jquery.tocify.js/js/jquery-ui-1.9.1.custom.min.js"></script>
         <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_SVG"></script>
         <script src="file://{resources_path}/script.js"></script>
@@ -820,8 +820,8 @@ class HTMLReporter2(AbstractReporter):
                 gives a number that helps to talk about the practical significance of the mean difference.
                 A tiny difference might be cool, but irrelevant (as caching effects are probably higher, use the
                 <pre>temci build</pre> if you're curious about this).
-                """ % (obj.first.parent.description(), obj.second.parent.description(), str(obj.first.parent), float(obj.mean_diff()),
-                       float(obj.first.mean())))
+                """ % (obj.first.parent.description(), obj.second.parent.description(), str(obj.first.parent),
+                       float(obj.mean_diff()), float(obj.first.mean())))
             }, {
                 "title": "... per std dev",
                 "func": lambda x: x.mean_diff_per_dev(),
