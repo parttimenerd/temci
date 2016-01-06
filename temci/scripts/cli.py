@@ -271,6 +271,8 @@ def zsh(**kwargs):
         typecheck(options, CmdOptionList)
         strs = []
         for option in sorted(options):
+            multiple = isinstance(option.type_scheme, List) or isinstance(option.type_scheme, ListOrTuple)
+            rounds = 10 if multiple else 1 # hack to allow multiple applications of an option
             assert isinstance(option, CmdOption)
             descr = "{}".format(option.description) if option.description is not None else "Undoc"
             option_str = "--{}".format(option.option_name)
@@ -278,15 +280,18 @@ def zsh(**kwargs):
                 option_str = "{{-{},--{}}}".format(option.short, option.option_name)
             if option.is_flag:
                 option_str = "{{--{o},--no-{o}}}".format(o=option.option_name)
+            new_completion = ""
             if option.has_completion_hints and "zsh" in option.completion_hints:
-                strs.append('{option_str}\"[{descr}]: :{hint}"'.format(
+                new_completion = '{option_str}\"[{descr}]: :{hint}"'.format(
                     option_str=option_str, descr=descr, hint=option.completion_hints["zsh"]
-                ))
+                )
             else:
                 format_str = '{option_str}\"[{descr}]"' if option.is_flag else '{option_str}\"[{descr}]: :()"'
-                strs.append(format_str.format(
+                new_completion = format_str.format(
                     option_str=option_str, descr=descr
-                ))
+                )
+            for i in range(rounds):
+                strs.append(new_completion)
 
         if one_line:
             return " ".join(strs)
@@ -492,7 +497,7 @@ _temci(){{
     """
     with open("/tmp/temci_zsh_completion.sh", "w") as f:
         f.write(ret_str)
-        print("\n".join("{:>3}: {}".format(i, s) for (i, s) in enumerate(ret_str.split("\n"))))
+        #print("\n".join("{:>3}: {}".format(i, s) for (i, s) in enumerate(ret_str.split("\n"))))
         f.flush()
 
 
@@ -584,7 +589,6 @@ def bash(**kwargs):
 
     file_structure = """
     _temci(){{
-        #printf '%s\n' "${{COMP_WORDS[@]}}" > /tmp/out
         local cur=${{COMP_WORDS[COMP_CWORD]}}
         local prev=${{COMP_WORDS[COMP_CWORD-1]}}
 

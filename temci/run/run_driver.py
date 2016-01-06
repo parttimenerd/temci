@@ -347,7 +347,8 @@ class ExecRunDriver(AbstractRunDriver):
         if cpuset is not None:
             executed_cmd.insert(0, "sudo cset proc --move --force --pid $$ {} > /dev/null"\
                 .format(cpuset.get_sub_set(set_id)))
-        env = block["env"]
+        env = os.environ.copy()
+        env.update(block["env"])
         env.update({'LC_NUMERIC': 'en_US.ASCII'})
         t = time.time()
         executed_cmd = "; ".join(executed_cmd)
