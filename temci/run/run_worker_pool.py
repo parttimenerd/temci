@@ -7,7 +7,6 @@ from ..utils.typecheck import *
 from ..utils.settings import Settings
 from .run_driver import RunProgramBlock, BenchmarkingResultBlock, AbstractRunDriver, RunDriverRegistry
 from queue import Queue, Empty
-from fn import _
 from .cpuset import CPUSet
 import logging, threading, subprocess, shlex, os, tempfile, yaml
 
@@ -115,8 +114,8 @@ class RunWorkerPool(AbstractRunWorkerPool):
         self.result_queue = Queue()
         if run_driver_name is None:
             run_driver_name = RunDriverRegistry().get_used()
-        self.run_driver = RunDriverRegistry().get_for_name(run_driver_name)
         self.cpuset = CPUSet(parallel=0) if Settings()["run/cpuset/active"] else None
+        self.run_driver = RunDriverRegistry().get_for_name(run_driver_name)
         self.parallel_number = 1
 
     def submit(self, block: RunProgramBlock, id: int, runs: int):
@@ -130,7 +129,7 @@ class RunWorkerPool(AbstractRunWorkerPool):
         """
         typecheck(block, RunProgramBlock)
         typecheck(runs, NaturalNumber())
-        typecheck(id, Int(_ >= 0))
+        typecheck(id, NaturalNumber())
         block.is_enqueued = True
         self.result_queue.put((block, self.run_driver.benchmark(block, runs), id))
         block.is_enqueued = False
@@ -204,7 +203,7 @@ class ParallelRunWorkerPool(AbstractRunWorkerPool):
         """
         typecheck(block, RunProgramBlock)
         typecheck(runs, NaturalNumber())
-        typecheck(id, Int(_ >= 0))
+        typecheck(id, NaturalNumber())
         block.is_enqueued = True
         self.submit_queue.put((block, id, runs))
 

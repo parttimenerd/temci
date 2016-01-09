@@ -11,7 +11,6 @@ setup(
         'fn',
         'pyaml',
         'typing', 'seaborn', 'pytimeparse',
-        'path.py',
         'pympler',
         'cairocffi',
         'matplotlib',

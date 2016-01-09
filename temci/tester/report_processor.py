@@ -1,4 +1,3 @@
-from temci.utils.typecheck import *
 from temci.tester.report import ReporterRegistry
 from temci.tester.rundata import RunDataStatsHelper
 

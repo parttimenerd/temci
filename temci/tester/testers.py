@@ -3,9 +3,11 @@ Contains the tester base class and several simple implementations.
 """
 
 import temci.utils.util as util
-import scipy as np
-import scipy.stats as st
-import scipy.optimize as opti
+import temci.utils.util as util
+if util.can_import("scipy"):
+    import scipy as np
+    import scipy.stats as st
+    import scipy.optimize as opti
 from temci.utils.typecheck import *
 from temci.utils.registry import AbstractRegistry, register
 import logging, warnings
@@ -54,17 +56,17 @@ class Tester(object, metaclass=util.Singleton):
     def _test_impl(self, data1: list, data2: list) -> float:
         return getattr(st, self.scipy_stat_method)(data1, data2)[-1]
 
-    def is_uncertain(self, data1: np.array, data2: np.array) -> bool:
+    def is_uncertain(self, data1: list, data2: list) -> bool:
         return min(len(data1), len(data2)) == 0 or \
                self.uncertainty_range[0] <= self.test(data1, data2) <= self.uncertainty_range[1]
 
-    def is_equal(self, data1: np.array, data2: np.array):
+    def is_equal(self, data1: list, data2: list):
         return self.test(data1, data2) > max(*self.uncertainty_range)
 
-    def is_unequal(self, data1: np.array, data2: np.array):
+    def is_unequal(self, data1: list, data2: list):
         return self.test(data1, data2) < min(*self.uncertainty_range)
 
-    def estimate_needed_runs(self, data1: np.array, data2: np.array,
+    def estimate_needed_runs(self, data1: list, data2: list,
                              run_bin_size: int, min_runs: int,
                              max_runs: int) -> int:
         """
@@ -145,6 +147,7 @@ class AndersonTester(Tester):
     """
 
     scipy_stat_method = "anderson_ksamp"
+
     def _test_impl(self, data1: list, data2: list) -> float:
         return max(st.anderson_ksamp([data1, data2])[-1], 1)
 

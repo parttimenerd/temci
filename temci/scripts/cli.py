@@ -1,4 +1,9 @@
 import warnings
+
+from temci.utils import util
+if __name__ == "__main__":
+    util.allow_all_imports = True
+
 warnings.simplefilter("ignore")
 import shutil
 import subprocess
@@ -733,8 +738,9 @@ def cli_with_error_catching():
     try:
         cli()
     except TypeError as err:
-        logging.error("TypeError: " + str(err))
-        exit(1)
+        #logging.error(err.__traceback__.__repr__())
+        #exit(1)
+        raise
 
 @cli.command(short_help="Compile all needed binaries in the temci scripts folder")
 def setup():
@@ -762,11 +768,14 @@ if __name__ == "__main__":
 
     #print(repr(sys.argv))
 
+    #run_driver.ExecRunDriver.get_for_name("stop_start").setup()
+
     import cProfile
     t = time.time()
     cProfile.runctx("cli()", globals(), locals(), filename="cli.profile")
     print("Execution took ", humanfriendly.format_timespan(time.time() - t))
     ctr.create_snapshot()
+    # create kcachegrind valid file via "python3 -m pyprof2calltree -i cli.profile"
     #ctr.stats.print_summary()
     #tr.print_diff()
     #cli()

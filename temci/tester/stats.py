@@ -15,15 +15,15 @@ from temci.tester.rundata import RunData
 from temci.tester.testers import Tester, TesterRegistry
 from temci.utils.settings import Settings
 import typing as t
-import numpy as np
-import scipy as sp
-import scipy.stats as st
+import temci.utils.util as util
+if util.can_import("scipy"):
+    import numpy as np
+    import scipy as sp
+    import scipy.stats as st
+    import pandas as pd
 from temci.utils.typecheck import *
 
-import pandas as pd
-
 from temci.utils.util import join_strs
-from fn import _
 
 
 class StatMessageType(Enum):
@@ -455,6 +455,7 @@ class BaseStatObject:
         """
         self._hist_data = {}
         import matplotlib.pyplot as plt
+        import seaborn as sns
         if fig_height is None:
             fig_height = self._height_for_width(fig_width)
         if self.is_single_valued():
@@ -494,7 +495,8 @@ class BaseStatObject:
         plt.ylim(0, ymax * (1.2 if show_legend else 1.05))
         plt.hist(df.values, bins=bin_count,
                  range=(min_xval, max_xval), histtype=type, align=align,
-                 label=list(df.keys()))
+                 label=list(reversed(df.keys())), alpha= 0.75 if len(df_t) > 1 else 1)
+        #sns.distplot(df, bins=bin_count, color=["red", "blue", "yellow"][0:len(df_t)])
         if x_ticks is not None:
             plt.xticks(x_ticks)
         if y_ticks is not None:
@@ -502,7 +504,7 @@ class BaseStatObject:
         legend = None
         if show_legend:
             legend = list(df.keys())
-            plt.legend(labels=legend)
+            plt.legend(labels=list(reversed(legend)))
         if len(df_t) == 1:
             plt.xlabel(df.keys()[0])
         if x_label is not None:
@@ -511,10 +513,10 @@ class BaseStatObject:
             plt.xlabel(y_label)
         self._hist_data = {
             "xlabel": x_label or ("" if len(df_t) > 1 else df.keys()[0]),
-            "legend": legend,
+            "legend": None if legend is None else list(reversed(legend)),
             "min_xval": min_xval,
             "max_xval": max_xval,
-            "values": df_t.values,
+            "values": list(reversed(df_t.values)),
             "bin_count": bin_count
         }
 
@@ -582,8 +584,8 @@ class SingleProperty(BaseStatObject):
         super().__init__()
         self.parent = parent
         if isinstance(data, RunData):
-            self.rundata = data
-            self.data = data[property]
+            self.rundata = data # type: RunData
+            self.data = data[property] # type: t.List[t.Union[int, float]]
         else:
             self.rundata = data.rundata
             self.data = data.data
@@ -708,6 +710,51 @@ class SingleProperty(BaseStatObject):
         """
         return sp.stats.normaltest(self.data)[1] if len(self.data) >= 8 else float("nan")
 
+    def percentile(self, q: int) -> float:
+        """
+        Calculates the q th percentile. q must be between 0 and 100 inclusive.
+        """
+        return np.percentile(self.data, q)
+
+    def quartiles(self) -> t.Tuple[float, float, float]:
+        """
+        Calculates the 3 quartiles (1, 2 and 3)
+        """
+        return self.percentile(25), self.percentile(50), self.percentile(75)
+
+    def iqr(self) -> float:
+        """
+        Calculates the interquartile range.
+        """
+        return np.subtract(*np.percentile(self.data, [75, 25]))
+
+    def whiskers(self, whis: float = 1.5) -> t.Tuple[float, float]:
+        """
+        Calculates the upper and the lower whisker for a boxplot.
+        I.e. the minimum and the maximum value of the data set
+        the lie in the range (Q1 - whis * IQR, Q3 + whis * IQR).
+        IQR being the interquartil distance, Q1 the lower and Q2 the upper quartile.
+
+        Adapted from http://stackoverflow.com/a/20096945
+        """
+        q1, q2, q3 = self.quartiles()
+        iqr = self.iqr()
+        hi_val = q1 + whis * self.iqr()
+        whisk_hi = np.compress(self.array <= hi_val, self.array)
+        if len(whisk_hi) == 0 or np.max(whisk_hi) < q3:
+            whisk_hi = q3
+        else:
+            whisk_hi = max(whisk_hi)
+
+        # get low extreme
+        lo_val = q1 - whis * iqr
+        whisk_lo = np.compress(self.array >= lo_val, self.array)
+        if len(whisk_lo) == 0 or np.min(whisk_lo) > q1:
+            whisk_lo = q1
+        else:
+            whisk_lo = min(whisk_lo)
+        return whisk_lo, whisk_hi
+
 class TestedPair(BaseStatObject):
     """
     A statistical wrapper around two run data objects that are compared via a tester.
@@ -788,12 +835,13 @@ class TestedPairsAndSingles(BaseStatObject):
                             descr_nr_zero[descr].attributes["description"] += " [0]"
                     else:
                         descr_nr_zero[descr] = single
-
-
         if pairs is None and len(self.singles) > 1:
             for i in range(0, len(self.singles) - 1):
                 for j in range(i + 1, len(self.singles)):
                     self.pairs.append(self.get_pair(i, j))
+        self.singles_properties = {} # type: t.Dict[str, SinglesProperty]
+        for prop in self.properties():
+            self.singles_properties[prop] = SinglesProperty(self.singles, prop)
 
     def number_of_singles(self) -> int:
         return len(self.singles)
@@ -937,7 +985,7 @@ class TestedPairProperty(BaseStatObject):
             columns[0]: pd.Series(self.first.data, name=columns[0]),
             columns[1]: pd.Series(self.second.data, name=columns[1])
         }
-        frame = pd.DataFrame(series_dict, columns=columns)
+        frame = pd.DataFrame(series_dict, columns=list(reversed(columns)))
         return frame
 
     def is_single_valued(self) -> bool:
@@ -959,3 +1007,98 @@ class TestedPairProperty(BaseStatObject):
     def swap(self) -> 'TestedPairProperty':
         return TestedPairProperty(self.parent, self.parent.first, self.parent.second,
                                   self.property, self.tester)
+
+
+class SinglesProperty(BaseStatObject):
+
+    def __init__(self, singles: t.List[Single], property: str):
+        super().__init__()
+        self.singles = [single.properties[property] for single in singles] # type: t.List[SingleProperty]
+        self.property = property
+
+    def __str__(self) -> str:
+        return "SinglesProperty(property={prop})".format(prop=self.property)
+
+    def get_data_frame(self, **kwargs) -> 'pd.DataFrame':
+        columns = []
+        data = {}
+        for single in self.singles:
+            name = single.parent.description()
+            columns.append(name)
+            data[name] = single.data
+        return pd.DataFrame(data, columns=columns)
+
+    def boxplot(self, fig_width: int, fig_height: float = None):
+        """
+        Creates a (horizontal) box plot comparing all single object for a given property.
+        """
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+        if fig_height is None:
+            fig_height = self._height_for_width(fig_width)
+        self.fig = plt.figure(figsize=self._fig_size_cm_to_inch(fig_width, fig_height))
+        df = self.get_data_frame()
+        sns.boxplot(x=df, orient="h")
+
+    def _store_as_tex(self, filename: str, fig_width: float, fig_height: float, standalone: bool):
+        """
+        Stores the current figure as latex in a tex file. Needs pgfplots in latex.
+        Works independently of matplotlib.
+
+        Needs following code in the document preamble:
+
+            \\usepackage{pgfplots}
+            \\usepgfplotslibrary{statistics}
+
+        Useful demo at http://tex.stackexchange.com/questions/115210/boxplot-in-latex
+        """
+        if not filename.endswith(".tex"):
+            filename += ".tex"
+        descrs = [str(single.parent) for single in self.singles]
+        tex = """
+\\pgfplotsset{{width={width}cm, height={height}cm, compat=1.8}}
+\\begin{{tikzpicture}}
+    \\begin{{axis}}[
+    cycle list name=auto,
+    xlabel={xlabel},
+    ytick={{{yticks}}},
+    yticklabels={{{yticklabels}}},
+    max space between ticks=50pt
+    ]""".format(
+            width=fig_width, height=fig_height, xlabel=self.property,
+            yticklabels="\\\\".join(descrs) + "\\\\",
+            yticks=",".join(map(str, range(1, len(descrs) + 1)))
+        )
+        for single in self.singles:
+            q1, q2, q3 = single.quartiles()
+            wh_lower, wh_upper = single.whiskers()
+            tex += """
+        \\addplot+[
+        boxplot prepared={{
+            median={median},
+            upper quartile={q3},
+            lower quartile={q1},
+            upper whisker={wh_upper},
+            lower whisker={wh_lower}
+        }},
+        ] coordinates {{}};
+        """.format(median=single.median(), **locals())
+        tex += """
+    \end{axis}
+\end{tikzpicture}
+        """
+        if standalone:
+            tex = """
+\\documentclass[margin=10pt]{standalone}
+\\usepackage{pgfplots}
+\\usepgfplotslibrary{statistics}
+\\begin{document}
+                  """ + tex + """
+\\end{document}
+"""
+        with open(filename, "w") as f:
+            f.write(tex)
+        return os.path.realpath(filename)
+
+    def max(self) -> float:
+        return max(single.max() for single in self.singles)

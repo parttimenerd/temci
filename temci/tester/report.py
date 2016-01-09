@@ -14,14 +14,16 @@ import sys
 import itertools
 
 from temci.tester.stats import TestedPairsAndSingles, BaseStatObject, TestedPair, TestedPairProperty, StatMessage, \
-    StatMessageType, Single, SingleProperty
+    StatMessageType, Single, SingleProperty, SinglesProperty
 from temci.tester.testers import TesterRegistry, Tester
 from temci.tester.rundata import RunDataStatsHelper, RunData
 from temci.utils.typecheck import *
 from temci.utils.registry import AbstractRegistry, register
-import click, yaml, numpy, os
-import numpy as np
-import pandas as pd
+import temci.utils.util as util
+import click, yaml, os
+if util.can_import("numpy"):
+    import numpy as np
+    import pandas as pd
 from temci.utils.settings import Settings
 from multiprocessing import Pool
 from temci.utils.util import join_strs
@@ -67,8 +69,8 @@ class ConsoleReporter(AbstractReporter):
                 print("{descr:<20} ({num:>5} single benchmarkings)"
                       .format(descr=block.description(), num=len(block.data[block.properties[0]])), file=f)
                 for prop in sorted(block.properties):
-                    mean = numpy.mean(block[prop])
-                    stdev = numpy.std(block[prop])
+                    mean = np.mean(block[prop])
+                    stdev = np.std(block[prop])
                     print("\t {prop:<18} mean = {mean:>15.5f}, "
                           "deviation = {dev_perc:>10.5%} ({dev:>15.5f})".format(
                         prop=prop, mean=mean,
@@ -106,7 +108,7 @@ class ConsoleReporter(AbstractReporter):
 
 
 @register(ReporterRegistry, "html", Dict({
-    "out": DirName() // Default("report") // Description("Output directory"),
+    "out": Str() // Default("report") // Description("Output directory"),
     "html_filename": Str() // Default("report.html") // Description("Name of the HTML file"),
     "pair_kind": ExactEither("scatter", "reg", "resid", "kde", "hex") // Default("kde")
                  // Description("Kind of plot to draw for pair plots (see searborn.joinplot)"),
@@ -127,6 +129,7 @@ class HTMLReporter(AbstractReporter):
     PlotTuple = namedtuple("PlotTuple", ["func", "args", "kwargs", "filename"])
 
     def report(self):
+        typecheck(self.misc["out"], DirName(), value_name="reporter option out")
         if os.path.exists(self.misc["out"]):
             shutil.rmtree(self.misc["out"])
         resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
@@ -454,14 +457,14 @@ class HTMLReporter(AbstractReporter):
                     <th>geometric mean</th>
         """
         # why? see https://dl.acm.org/citation.cfm?id=5673
-        mult_compare_against = numpy.prod(list(values[compare_against].values()))
+        mult_compare_against = np.prod(list(values[compare_against].values()))
         for (i, run) in enumerate(runs):
-            mult = numpy.prod(list(values[i].values()))
+            mult = np.prod(list(values[i].values()))
             ret_str += """
                 <td align="right"></td><td align="right">{rel:3.3}</td>
             """.format(
-                abs=numpy.power(mult, 1 / len(values[i])),
-                rel=numpy.power(mult / mult_compare_against, 1 / len(values[i]))
+                abs=np.power(mult, 1 / len(values[i])),
+                rel=np.power(mult / mult_compare_against, 1 / len(values[i]))
             )
         ret_str += """
                     </tr>
@@ -526,10 +529,11 @@ class HTMLReporter(AbstractReporter):
 
 
 @register(ReporterRegistry, "html2", Dict({
-    "out": DirName() // Default("report") // Description("Output directory"),
+    "out": Str() // Default("report") // Description("Output directory"),
     "html_filename": Str() // Default("report.html") // Description("Name of the HTML file"),
     "fig_width_small": Float() // Default(15.0) // Description("Width of all small plotted figures"),
     "fig_width_big": Float() // Default(25.0) // Description("Width of all big plotted figures"),
+    "boxplot_height": Float() // Default(2.0) // Description("Height per run block for the big comparison box plots"),
     "alpha": Float() // Default(0.05) // Description("Alpha value for confidence intervals"),
     "gen_tex": Bool() // Default(True) // Description("Generate simple latex versions of the plotted figures?"),
     "gen_pdf": Bool() // Default(False) // Description("Generate pdf versions of the plotted figures?")
@@ -545,6 +549,7 @@ class HTMLReporter2(AbstractReporter):
 
     def report(self):
         import humanfriendly as hf
+        typecheck(self.misc["out"], DirName(), value_name="reporter option out")
         start_time = time.time()
         if os.path.exists(self.misc["out"]):
             shutil.rmtree(self.misc["out"])
@@ -618,6 +623,10 @@ class HTMLReporter2(AbstractReporter):
                 <h3>Summary regarding {prop}</h3>
             """.format(**locals())
             inner_html += self._full_single_property_comp_table(prop).html()
+            inner_html += """
+                <p/>
+            """
+            inner_html += self._comparison_for_prop(prop)
         for single in self.stats.singles:
             inner_html += """<div class="block">"""
             inner_html += self._extended_summary(single, with_title=True, title_level=2,
@@ -626,20 +635,35 @@ class HTMLReporter2(AbstractReporter):
             inner_html += """<div class="block">"""
             inner_html += self._extended_summary(pair, with_title=True, title_level=2,
                                                  title_class="page-header") + """</div>"""
-        pool = multiprocessing.Pool(4)
         self._write(html.format(timespan=hf.format_timespan(time.time() - start_time), **locals()))
         logging.info("Finished generating html")
         logging.info("Generate images...")
-        pool_res = [pool.apply_async(self._process_hist_cache_entry, args=(entry,))
-                for entry in self._hist_async_img_cache.values()]
-        for res in pool_res:
-            res.get()
+        self._process_hist_cache(self._hist_async_img_cache.values(), "Generate images")
+        self._process_boxplot_cache(self._boxplot_async_cache.values(), "Generate box plots")
         self._write(html.format(timespan=hf.format_timespan(time.time() - start_time), **locals()))
         if self.misc["gen_pdf"] or self.misc["gen_tex"]:
-            logging.info("Generate other figure formats...")
-            pool_res = [pool.apply_async(self._process_hist_cache_entry, args=(entry,))
-                        for entry in self._hist_async_misc_cache.values()]
-            for (i, res) in enumerate(pool_res):
+            self._process_hist_cache(self._hist_async_misc_cache.values(), "Generate other figure formats")
+
+    def _process_hist_cache(self, cache: t.Iterable[dict], title: str):
+        pool = multiprocessing.Pool(4)
+        pool_res = [pool.apply_async(self._process_hist_cache_entry, args=(entry,)) for entry in cache]
+        if Settings().has_log_level("info"):
+            with click.progressbar(pool_res, label=title) as pool_res:
+                for res in pool_res:
+                    res.get()
+        else:
+            for res in pool_res:
+                res.get()
+
+    def _process_boxplot_cache(self, cache: t.Iterable[dict], title: str):
+        pool = multiprocessing.Pool(4)
+        pool_res = [pool.apply_async(self._process_boxplot_cache_entry, args=(entry,)) for entry in cache]
+        if Settings().has_log_level("info"):
+            with click.progressbar(pool_res, label=title) as pool_res:
+                for res in pool_res:
+                    res.get()
+        else:
+            for res in pool_res:
                 res.get()
 
     def _write(self, html_string: str):
@@ -869,14 +893,6 @@ class HTMLReporter2(AbstractReporter):
                 "popover": Popover(self, "Explanation", """
                     The minimum of the number of valid runs of both.
                 or statistically spoken: the minimum sample size.""")
-            }, {
-                "title": "speed up",
-                "func": lambda x: x.second.mean() / x.first.mean(),
-                "format": "{:5.0%}",
-                "popover": Popover(self, "Explanation","""
-                    The speed up of the first regarding the second
-                    $$ \\frac{ \\overline{\\text{%s}} }{ \\overline{\\text{%s}} } $$
-                """ % (str(obj.second.parent), str(obj.first.parent)))
             }
         ]
         if not extended:
@@ -1218,45 +1234,106 @@ class HTMLReporter2(AbstractReporter):
                                         header_popover_func=header_popover_func)
         return str(table)
 
-    def _filenames_to_img_html(self, filenames: t.Dict[str, str]):
+    def _comparison_for_prop(self, property) -> str:
+        html = self._filenames_to_img_html(
+            self._singles_property_boxplot(self.stats.singles_properties[property], big=True), kind="boxplot"
+        )
+        html += "<p/>"
+        html += self._tabular_comparison_for_prop(property)
+        return html
+
+    def _tabular_comparison_for_prop(self, property: str) -> str:
+        return self._short_summary_table_for_single_property(self.stats.singles_properties[property].singles,
+                                                             use_modal=True, objs_in_cols=False)
+
+    def _filenames_to_img_html(self, filenames: t.Dict[str, str], kind: str = "hist"):
         return """
             <center>
                 <div {popover}>
                     <img width="100%" src="file://{img}" class="img"></img>
                 </div>
             </center>
-        """.format(popover=self._img_filenames_popover(filenames), **filenames)
+        """.format(popover=self._img_filenames_popover(filenames, kind), **filenames)
 
-    def _img_filenames_popover(self, filenames: t.Dict[str, str]) -> 'Popover':
+    def _img_filenames_popover(self, filenames: t.Dict[str, str], kind: str = "hist") -> 'Popover':
         html = """
             <div class='list-group'>
         """
         if "img" in filenames:
             html += """
-                  <a href='file://{img}' class='list-group-item'>
+                <a href='file://{img}' class='list-group-item'>
                     The current image
-                  </a>
+                </a>
             """.format(**filenames)
         if "pdf" in filenames:
             html += """
-                  <a href='file://{pdf}' class='list-group-item'>
+                <a href='file://{pdf}' class='list-group-item'>
                     PDF (generated by matplotlib)
-                  </a>
+                </a>
             """.format(**filenames)
         if "tex" in filenames:
-            html += """
-                  <a href='file://{tex}' class='list-group-item'>
-                    TeX (requiring the package pgfplots)
-                  </a>
-                  <a href='file://{tex_standalone}' class='list-group-item'>
+            if kind == "hist":
+                html += """
+                    <a href='file://{tex}' class='list-group-item'>
+                        TeX (requiring the package <code>pgfplots</code>)
+                    </a>
+                """.format(**filenames)
+            elif kind == "boxplot":
+                html += """
+                    <a href='file://{tex}' class='list-group-item'>
+                        TeX (requiring the package <code>pgfplots</code> and
+                        <small><code>\\usepgfplotslibrary{{statistics}}</code></small>)
+                    </a>
+                """.format(**filenames)
+            html +="""
+                <a href='file://{tex_standalone}' class='list-group-item'>
                     Standalone TeX
-                  </a>
+                </a>
             """.format(**filenames)
         html += """
             </div>
         """.format(**filenames)
         return Popover(self, "Get this image in your favorite format", content=html,
                        trigger="hover click")
+
+    _boxplot_cache = {}
+    _boxplot_async_cache = {}
+
+    def _singles_property_boxplot(self, obj: SinglesProperty, fig_width: int = None, big: bool = False):
+        if fig_width is None:
+            fig_width = self.misc["fig_width_big"] if big else self.misc["fig_width_small"]
+        filename = self._get_fig_filename(obj) + "___{}".format(fig_width)
+        if filename not in self._boxplot_async_cache:
+            d = {
+                "img": filename + BaseStatObject.img_filename_ending
+            }
+            if self.misc["gen_tex"]:
+                d["tex"] = filename + ".tex"
+                d["tex_standalone"] = filename + "____standalone.tex"
+            if self.misc["gen_pdf"]:
+                d["pdf"] = filename + ".pdf"
+            self._boxplot_cache[filename] = d
+            self._boxplot_async_cache[filename] = {
+                "filename": filename,
+                "obj": obj,
+                "fig_width": fig_width,
+                "img": True,
+                "tex": self.misc["gen_tex"],
+                "pdf": self.misc["gen_pdf"],
+                "tex_sa": self.misc["gen_tex"]
+            }
+        return self._boxplot_cache[filename]
+
+    def _process_boxplot_cache_entry(self, entry: t.Dict[str, str]):
+        height = self.misc["boxplot_height"] * len(entry["obj"].singles) + 2
+        entry["obj"].boxplot(fig_width=entry["fig_width"],
+                             fig_height=height)
+        entry["obj"].store_figure(entry["filename"], fig_width=entry["fig_width"], img=entry["img"], tex=entry["tex"],
+                              pdf=entry["pdf"], tex_standalone=entry["tex_sa"], fig_height=height)
+        logging.debug("Plotted {}, fig_width={}cm, img={}, tex={}, pdf={}"
+                     .format(entry["obj"], entry["fig_width"],
+                     entry["img"], entry["tex"], entry["pdf"]))
+
 
     _hist_cache = {} # type: t.Dict[str, t.Dict[str, str]]
     _hist_async_img_cache = {}
@@ -1379,6 +1456,8 @@ class HTMLReporter2(AbstractReporter):
             return self._get_obj_id(obj.first) + "_" + self._get_obj_id(obj.second)
         if isinstance(obj, SingleProperty) or isinstance(obj, TestedPairProperty):
             return self._get_obj_id(obj.parent) + "__" + self._html_escape_property(obj.property)
+        if isinstance(obj, SinglesProperty):
+            return "SinglesProperty______" + self._html_escape_property(obj.property)
         assert False # you shouldn't reach this point
 
     def _html_escape_property(self, property: str) -> str:
@@ -1435,7 +1514,7 @@ class HTMLReporter2(AbstractReporter):
     def _get_fig_filename(self, obj: BaseStatObject) -> str:
         """ Without any extension. """
         return os.path.realpath(os.path.join(os.path.abspath(self.misc["out"]),
-                                             self._html_id_for_object("fig{}".format(self._time), obj)))
+                                             self._html_id_for_object("fig", obj)))
 
     _id_counter = 1000
 
@@ -1446,21 +1525,27 @@ class HTMLReporter2(AbstractReporter):
 
 class Popover:
 
+    divs = {} # t.Dict[str, str]
+    """ Maps the contents of the created divs to their ids """
+
     def __init__(self, parent: HTMLReporter2, title: str, content: str, trigger: str = "hover"):
         self.parent = parent
         self.title = title
-        self.content = content
+        self.content = content or ""
         self.trigger = trigger
 
     def __str__(self) -> str:
         content = """<div class='hyphenate'>""" + self.content + """</div>"""
+        if content not in self.divs:
+            id = self.parent._random_html_id()
+            self.parent.app_html += """
+            <div style="display: none" id="{id}">
+            {content}
+            </div>
+            """.format(id=id, content=content)
+            self.divs[content] = id
+        id = self.divs[content]
         focus = 'tabindex="0" role="button"' if "focus" in self.trigger or "click" in self.trigger else ""
-        id = self.parent._random_html_id()
-        self.parent.app_html += """
-        <div style="display: none" id="{id}">
-        {content}
-        </div>
-        """.format(id=id, content=content)
         return '{focus} data-trigger="{trigger}" data-toggle="popover" data-html="true"' \
                 'data-placement="auto" data-title="{title}" data-container="body" ' \
                 'data-content-id="{id}"'\
@@ -1475,7 +1560,7 @@ def color_class(obj: BaseStatObject) -> str:
     if isinstance(obj, TestedPairProperty):
         if obj.is_equal() is not None:
             return "sucess" if obj.is_equal() == False and obj.mean_diff_per_mean() < 1 else "active"
-    return None
+    return ""
 
 
 def color_explanation(obj: BaseStatObject) -> str:

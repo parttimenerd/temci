@@ -65,7 +65,7 @@ __all__ = [
     "typecheck_locals"
 ]
 
-import fn, pytimeparse
+import pytimeparse
 import itertools, os, yaml, click, inspect
 
 
@@ -572,10 +572,10 @@ class Constraint(Type):
     def __str__(self):
         descr = self.description
         if self.description is None:
-            if isinstance(self.constraint, type(fn._)):
-                descr = str(self.constraint)
-            else:
-                descr = "<function>"
+            #if isinstance(self.constraint, type(fn._)):
+            #    descr = str(self.constraint)
+            #else:
+            descr = "<function>"
         return "{}:{}".format(self.constrained_type, descr)
 
 
@@ -617,10 +617,10 @@ class NonErrorConstraint(Type):
     def __str__(self):
         descr = self.description
         if self.description is None:
-            if isinstance(self.constraint, type(fn._)):
-                descr = str(self.constraint)
-            else:
-                descr = "<function>"
+            #if isinstance(self.constraint, type(fn._)):
+            #    descr = str(self.constraint)
+            #else:
+            descr = "<function>"
         return "{}:{}".format(self.constrained_type, descr)
 
 
@@ -930,10 +930,10 @@ class Int(Type):
         else:
             if self.constraint is not None:
                 descr = ""
-                if isinstance(self.constraint, type(fn._)):
-                    descr = str(self.constraint)
-                else:
-                    descr = "<function>"
+                #if isinstance(self.constraint, type(fn._)):
+                #    descr = str(self.constraint)
+                #else:
+                descr = "<function>"
                 arr.append("constraint={}".format(descr))
             if self.range is not None:
                 arr.append("range={}".format(self.range))
@@ -1224,7 +1224,7 @@ def NaturalNumber(constraint = None):
     """
     if constraint is not None:
         return Int(lambda x: x >= 0 and constraint(x))
-    return Int(fn._ >= 0)
+    return Int(lambda x: x >= 0)
 
 
 def PositiveInt(constraint = None):
@@ -1233,7 +1233,7 @@ def PositiveInt(constraint = None):
     """
     if constraint is not None:
         return Int(lambda x: x > 0 and constraint(x))
-    return Int(fn._ > 0)
+    return Int(lambda x: x > 0)
 
 
 def Float(constraint = None):
@@ -1277,7 +1277,6 @@ def typecheck(value, type, value_name: str = None):
     :raises TypeError
     """
     if not isinstance(value, type):
-        print(value, type, value_name)
         raise TypeError(str(verbose_isinstance(value, type, value_name)))
 
 

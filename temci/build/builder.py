@@ -9,10 +9,10 @@ import threading
 from collections import namedtuple
 
 import multiprocessing
+from macpath import dirname
 from time import sleep
 
 import temci.setup.setup as setup
-from path import Path
 
 from ..utils.typecheck import *
 from ..utils.vcs import VCSDriver
@@ -118,7 +118,7 @@ class BuilderThread(threading.Thread):
                 return
             tmp_build_dir = item.tmp_build_dir
             shutil.copytree(item.tmp_dir, tmp_build_dir)
-            as_path = Path(__file__).parent.parent + "/scripts"
+            as_path = os.path.realpath(dirname(dirname(os.path.abspath(__file__)))) + "/scripts"
             env = {
                 "RANDOMIZATION": json.dumps(item.rand_conf),
                 "PATH": as_path + "/:" + os.environ["PATH"],

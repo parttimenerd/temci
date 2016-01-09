@@ -8,7 +8,6 @@ import re
 import shutil
 
 import collections
-import pytimeparse, numpy, math
 
 from temci.utils.settings import Settings
 from temci.utils.typecheck import NoInfo
@@ -19,8 +18,7 @@ from .cpuset import CPUSet
 from copy import deepcopy
 import logging, time, random, subprocess
 from collections import namedtuple
-import shlex, gc
-from fn import _
+import gc
 import typing as t
 
 class RunDriverRegistry(AbstractRegistry):
@@ -247,7 +245,7 @@ class ExecRunDriver(AbstractRunDriver):
         "run_cmd": (List(Str()) | Str()) // Description("Commands to benchmark"),
         "env": Dict(all_keys=False, key_type=Str()) // Description("Environment variables"),
         "cmd_prefix": List(Str()) // Description("Command to append before the commands to benchmark"),
-        "revision": (Int(_ >= -1) | Str()) // Description("Used revision (or revision number)."
+        "revision": (Int(lambda x: x >= -1) | Str()) // Description("Used revision (or revision number)."
                                                         "-1 is the current revision."),
         "cwd": (List(Str())|Str()) // Description("Execution directories for each command"),
         "runner": ExactEither() // Description("Used runner")

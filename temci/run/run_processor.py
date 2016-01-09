@@ -4,10 +4,8 @@ from temci.run.run_driver import RunProgramBlock, BenchmarkingResultBlock, RunDr
 import temci.run.run_driver_plugin
 from temci.tester.rundata import RunDataStatsHelper, RunData
 from temci.utils.settings import Settings
-from temci.tester.testers import TesterRegistry
-from temci.tester.report_processor import ReportProcessor, ReporterRegistry
-from temci.tester.report import ConsoleReporter
-import time, logging, humanfriendly, yaml, sys, math, pytimeparse
+from temci.tester.report_processor import ReporterRegistry
+import time, logging, humanfriendly, yaml, sys, math, pytimeparse, os
 
 class RunProcessor:
     """
@@ -34,21 +32,22 @@ class RunProcessor:
         self.run_blocks = [RunProgramBlock.from_dict(id, run) for (id, run) in enumerate(runs)]
         self.append = Settings().default(append, "run/append")
         self.show_report = Settings().default(show_report, "run/show_report")
-        if Settings()["run/cpuset/parallel"] == 0:
-            self.pool = RunWorkerPool()
-        else:
-            self.pool = ParallelRunWorkerPool()
         self.stats_helper = None # type: RunDataStatsHelper
+        typecheck(Settings()["run/out"], ValidYamlFileName(allow_non_existent=True))
         if self.append:
             run_data = []
-            typecheck(Settings()["run/out"], ValidYamlFileName())
-            with open(Settings()["run/out"], "r") as f:
-                run_data = yaml.load(f)
+            if os.path.exists(Settings()["run/out"]):
+                with open(Settings()["run/out"], "r") as f:
+                    run_data = yaml.load(f)
             self.stats_helper = RunDataStatsHelper.init_from_dicts(run_data, external=True)
             for run in runs:
                 self.stats_helper.runs.append(RunData(attributes=run["attributes"]))
         else:
             self.stats_helper = RunDataStatsHelper.init_from_dicts(runs)
+        if Settings()["run/cpuset/parallel"] == 0:
+            self.pool = RunWorkerPool()
+        else:
+            self.pool = ParallelRunWorkerPool()
         self.run_block_size = Settings()["run/run_block_size"]
         self.discarded_blocks = Settings()["run/discarded_blocks"]
         self.pre_runs = self.discarded_blocks * self.run_block_size
@@ -57,7 +56,10 @@ class RunProcessor:
         if Settings()["run/runs"] != -1:
             self.max_runs = self.min_runs = Settings()["run/runs"] + self.pre_runs
         self.start_time = round(time.time())
-        self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"], Settings()["run/discarded_blocks"])
+        try:
+            self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"], Settings()["run/discarded_blocks"])
+        except:
+            self.teardown()
         self.block_run_count = 0
         self.min_runs += self.run_block_size
 
@@ -87,7 +89,7 @@ class RunProcessor:
             while self.block_run_count <= self.pre_runs or not self._finished():
                 last_round_span = time.time() - last_round_time
                 last_round_time = time.time()
-                if Settings()["log_level"] == "info" and self.block_run_count > self.pre_runs and \
+                if Settings().has_log_level("info") and self.block_run_count > self.pre_runs and \
                         ("exec" != RunDriverRegistry.get_used() or "start_stop" not in ExecRunDriver.get_used()):
                     last_round_actual_estimate = \
                         self.stats_helper.estimate_time_for_next_round(self.run_block_size,
@@ -113,7 +115,7 @@ class RunProcessor:
                 self.print_report()
             raise
         self.store_and_teardown()
-        if Settings()["log_level"] == "info" and self.show_report:
+        if Settings().has_log_level("info") and self.show_report:
             self.print_report()
 
     def _benchmarking_block_run(self):

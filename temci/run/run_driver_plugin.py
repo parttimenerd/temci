@@ -8,9 +8,8 @@ from .run_driver import ExecRunDriver
 from ..utils.registry import register
 from ..utils.typecheck import *
 import temci.setup.setup as setup
-import subprocess, shlex, logging, os, signal, random, multiprocessing, time
-import numpy as np
-
+import subprocess, logging, os, signal, random, multiprocessing, time
+import typing as t
 
 class AbstractRunDriverPlugin:
     """
@@ -65,7 +64,7 @@ class AbstractRunDriverPlugin:
         out, err = proc.communicate()
         if proc.poll() > 0:
             msg = "Error executing '" + cmd + "' in {}: ".format(type(self)) + str(err) + " " + str(out)
-            logging.error(msg)
+            #logging.error(msg)
             raise EnvironmentError(msg)
         return str(out)
 
@@ -202,7 +201,19 @@ class OtherNicePlugin(AbstractRunDriverPlugin):
 
 @register(ExecRunDriver, "stop_start", Dict({
     "min_nice": Int(range=range(-15, 20)) // Default(-10)
-                // Description("Processes with lower nice values are ignored.")
+                // Description("Processes with lower nice values are ignored."),
+    "min_id": PositiveInt() // Default(1500)
+                // Description("Processes with lower id are ignored."),
+    "comm_prefixes": ListOrTuple(Str()) // Default(["ssh", "xorg"])
+                // Description("Each process which name (lower cased) starts with one of the prefixes is not ignored. "
+                               "Overrides the decision based on the min_id."),
+    "comm_prefixes_ignored": ListOrTuple(Str()) // Default(["dbus", "kworker"])
+                // Description("Each process which name (lower cased) starts with one of the prefixes is ignored. "
+                               "It overrides the decisions based on comm_prefixes and min_id."),
+    "subtree_suffixes": ListOrTuple(Str()) // Default(["dm"])
+                        // Description("Suffixes of processes names which are stopped."),
+    "dry_run": Bool() // Default(False)
+               // Description("Just output the to be stopped processes but don't actually stop them?")
 }))
 class StopStartPlugin(AbstractRunDriverPlugin):
     """
@@ -212,20 +223,69 @@ class StopStartPlugin(AbstractRunDriverPlugin):
     def __init__(self, misc_settings):
         ensure_root()
         super().__init__(misc_settings)
+        self.processes = {}
         self.pids = []
 
+    def parse_processes(self):
+        self.processes = {}
+        for line in self._exec_command("/bin/ps --noheaders -e -o pid,nice,comm,cmd,ppid").split("\n"):
+            line = line.strip()
+            arr = list(map(lambda x: x.strip(), filter(lambda x: len(x) > 0, line.split(" "))))
+            if len(arr) == 0:
+                continue
+            self.processes[int(arr[0])] = {
+                "pid": int(arr[0]) if arr[0] != "-" else -1,
+                "nice": int(arr[1]) if arr[1] != "-" else -20,
+                "comm": arr[2],
+                "cmd": arr[3],
+                "ppid": int(arr[4]) if len(arr) == 5 else 0
+            }
+
+    def _get_ppids(self, pid: int) -> t.List[int]:
+        ppids = []
+        cur_pid = pid
+        while cur_pid >= 1:
+            cur_pid = self.processes[cur_pid]["ppid"]
+            if cur_pid != 0:
+                ppids.append(cur_pid)
+        return ppids
+
+    def _get_pcomms(self, pid: int) -> t.List[str]:
+        return [self.processes[id]["comm"] for id in self._get_ppids(pid)]
+
+    def _get_child_pids(self, pid: int) -> t.List[int]:
+        ids = []
+        for proc in self.processes:
+            if proc["ppid"] == pid:
+                ids.append(proc["ppid"])
+        return ids
+
+    def _get_child_comms(self, pid: int) -> t.List[str]:
+        return [self.processes[id] for id in self._get_child_pids(pid)]
+
+    def _proc_dict_to_str(self, proc_dict: t.Dict) -> str:
+        return "Process(id={pid:5d}, parent={ppid:5d}, nice={nice:2d}, name={comm})".format(**proc_dict)
 
     def setup(self):
         ensure_root()
-        for line in self._exec_command("/bin/ps --noheaders -e -o pid,nice").split("\n"):
-            line = line.strip()
-            arr = list(filter(lambda x: len(x) > 0, line.split(" ")))
-            if len(arr) == 0:
+        self.parse_processes()
+        for proc in self.processes.values():
+            if proc["pid"] == os.getpid():
                 continue
-            pid = int(arr[0].strip())
-            nice = arr[1].strip()
-            if nice != "-" and int(nice) >= self.misc_settings["min_nice"] and pid != os.getpid():
-                self.pids.append(pid)
+            if any(proc["comm"].startswith(pref) for pref in self.misc_settings["comm_prefixes_ignored"]):
+                continue
+            if proc["nice"] == "-" or int(proc["nice"]) < self.misc_settings["min_nice"]:
+                continue
+            suffixes = self.misc_settings["subtree_suffixes"]
+            if any(proc["comm"].startswith(pref) for pref in self.misc_settings["comm_prefixes"]) or \
+                    proc["pid"] >= self.misc_settings["min_id"] or \
+                    any(any(pcomm.endswith(suff) for suff in suffixes) for pcomm in self._get_pcomms(proc["pid"])):
+                if self.misc_settings["dry_run"]:
+                    logging.info(self._proc_dict_to_str(proc))
+                else:
+                    self.pids.append(proc["pid"])
+        if self.misc_settings["dry_run"]:
+            raise KeyboardInterrupt()
         self._send_signal(signal.SIGSTOP)
 
     def _send_signal(self, signal: int):
@@ -233,6 +293,7 @@ class StopStartPlugin(AbstractRunDriverPlugin):
             try:
                 os.kill(pid, signal)
             except BaseException as ex:
+                logging.info(ex)
                 pass
 
     def teardown(self):

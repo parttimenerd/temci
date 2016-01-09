@@ -1,11 +1,10 @@
 import yaml
 import copy
-import os, shutil, logging
+import os, logging
 import click
 from temci.utils.util import recursive_exec_for_leafs, Singleton
 from temci.utils.typecheck import *
 import multiprocessing
-from fn import _
 
 def ValidCPUCoreNumber():
     return Int(range=range(0, multiprocessing.cpu_count()))
@@ -32,7 +31,7 @@ class Settings(metaclass=Singleton):
                                                               "all"])
                                               + ")")
                         // Description("Properties to use for reporting and null hypothesis tests"),
-            "uncertainty_range": Tuple(Float(_ >= 0), Float(_ >= 0)) // Default((0.05, 0.15))
+            "uncertainty_range": Tuple(Float(lambda x: x >= 0), Float(lambda x: x >= 0)) // Default((0.05, 0.15))
                         // Description("Range of p values that allow no conclusion.")
         }, all_keys=False),
         "report": Dict({
@@ -44,7 +43,7 @@ class Settings(metaclass=Singleton):
             "discarded_blocks": NaturalNumber() // Description("First n blocks that are discarded") // Default(2),
             "min_runs": NaturalNumber() // Default(20) // Description("Minimum number of benchmarking runs"),
             "max_runs": NaturalNumber() // Default(100) // Description("Maximum number of benchmarking runs"),
-            "runs": Int(_ >= -1) // Default(-1) // Description("if != -1 sets max and min runs to it's value"),
+            "runs": Int(lambda x: x >= -1) // Default(-1) // Description("if != -1 sets max and min runs to it's value"),
             "max_time": ValidTimeSpan() // Default("10min") // Description(""), # in seconds
             "run_block_size": PositiveInt() // Default(5)
                               // Description("Number of benchmarking runs that are done together"),
@@ -60,7 +59,7 @@ class Settings(metaclass=Singleton):
                 "active": Bool() // Description("Use cpuset functionality?") // Default(True),
                 "base_core_number": ValidCPUCoreNumber() // Description("Number of cpu cores for the base "
                                                                  "(remaining part of the) system") // Default(1),
-                "parallel": Int(_ >= -1) // Description("0: benchmark sequential, "
+                "parallel": Int(lambda x: x >= -1) // Description("0: benchmark sequential, "
                                                       "> 0: benchmark parallel with n instances, "
                                                       "-1: determine n automatically") // Default(0),
                 "sub_core_number": ValidCPUCoreNumber() // Description("Number of cpu cores per parallel running program.")
@@ -340,3 +339,7 @@ class Settings(metaclass=Singleton):
         """
         with open(file_name, "w") as f:
             print(self.type_scheme.get_default_yaml(defaults=self.prefs), file=f)
+
+    def has_log_level(self, level: str) -> bool:
+        levels = ["error", "warn", "info", "debug"]
+        return levels.index(level) <= levels.index(self["log_level"])

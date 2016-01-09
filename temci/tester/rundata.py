@@ -7,7 +7,9 @@ these objects.
 from temci.tester.testers import Tester, TesterRegistry
 from temci.utils.typecheck import *
 from temci.utils.settings import Settings
-import scipy
+import temci.utils.util as util
+if util.can_import("scipy"):
+    import scipy
 import typing as t
 
 

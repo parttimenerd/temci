@@ -2,6 +2,8 @@ import os
 import subprocess
 import typing as t
 
+import sys
+
 
 def recursive_exec_for_leafs(data: dict, func, _path_prep=[]):
     """
@@ -53,6 +55,21 @@ def join_strs(strs: t.List[str], last_word: str = "and") -> str:
         return strs[0]
     elif len(strs) > 1:
         return " {} ".format(last_word).join([", ".join(strs[0:-1]), strs[-1]])
+
+allow_all_imports = False
+
+def can_import(module: str) -> bool:
+    """
+    Can a module (like scipy or numpy) be imported without a severe and avoidable performance penalty?
+    :param module: name of the module
+    """
+    if allow_all_imports:
+        return True
+    if module not in ["scipy", "numpy"]:
+        return True
+    if len(sys.argv) == 1 or sys.argv[1] in ["completion"]:
+        return False
+    return True
 
 
 class Singleton(type):
