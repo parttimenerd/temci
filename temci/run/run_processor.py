@@ -1,3 +1,5 @@
+import random
+
 from temci.utils.typecheck import *
 from temci.run.run_worker_pool import RunWorkerPool, ParallelRunWorkerPool
 from temci.run.run_driver import RunProgramBlock, BenchmarkingResultBlock, RunDriverRegistry, ExecRunDriver
@@ -53,6 +55,7 @@ class RunProcessor:
         self.pre_runs = self.discarded_blocks * self.run_block_size
         self.max_runs = max(Settings()["run/max_runs"], Settings()["run/min_runs"]) + self.pre_runs
         self.min_runs = Settings()["run/min_runs"] + self.pre_runs
+        self.shuffle = Settings()["run/shuffle"]
         if Settings()["run/runs"] != -1:
             self.max_runs = self.min_runs = Settings()["run/runs"] + self.pre_runs
         self.start_time = round(time.time())
@@ -123,9 +126,11 @@ class RunProcessor:
             self.block_run_count += self.run_block_size
             to_bench = []
             if self.block_run_count < self.min_runs:
-                to_bench = enumerate(self.run_blocks)
+                to_bench = list(enumerate(self.run_blocks))
             else:
                 to_bench = [(i, self.run_blocks[i]) for i in self.stats_helper.get_program_ids_to_bench()]
+            if self.shuffle:
+                random.shuffle(to_bench)
             for (id, run_block) in to_bench:
                 self.pool.submit(run_block, id, self.run_block_size)
             for (block, result, id) in self.pool.results():
@@ -151,4 +156,4 @@ class RunProcessor:
 
     def print_report(self) -> str:
         if len(self.stats_helper.runs) > 0 and all(x.benchmarkings() > 0 for x in self.stats_helper.runs):
-            ReporterRegistry.get_for_name("console", self.stats_helper).report()
+            ReporterRegistry.get_for_name("console", self.stats_helper).report(with_tester_results=False)

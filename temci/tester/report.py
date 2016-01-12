@@ -62,7 +62,7 @@ class ConsoleReporter(AbstractReporter):
     Simple reporter that outputs just text.
     """
 
-    def report(self):
+    def report(self, with_tester_results: bool = True):
         with click.open_file(self.misc["out"], mode='w') as f:
             for block in self.stats_helper.runs:
                 assert isinstance(block, RunData)
@@ -76,19 +76,20 @@ class ConsoleReporter(AbstractReporter):
                         prop=prop, mean=mean,
                         dev=stdev, dev_perc=stdev/mean
                     ))
+            if with_tester_results:
+                self._report_list("Equal program blocks",
+                                  self.stats_helper.get_evaluation(with_equal=True,
+                                                                   with_uncertain=False,
+                                                                   with_unequal=False), f)
+                self._report_list("Unequal program blocks",
+                                  self.stats_helper.get_evaluation(with_equal=False,
+                                                                   with_uncertain=False,
+                                                                   with_unequal=True), f)
+                self._report_list("Uncertain program blocks",
+                                  self.stats_helper.get_evaluation(with_equal=True,
+                                                                   with_uncertain=True,
+                                                                   with_unequal=True), f)
 
-            self._report_list("Equal program blocks",
-                              self.stats_helper.get_evaluation(with_equal=True,
-                                                               with_uncertain=False,
-                                                               with_unequal=False), f)
-            self._report_list("Unequal program blocks",
-                              self.stats_helper.get_evaluation(with_equal=False,
-                                                               with_uncertain=False,
-                                                               with_unequal=True), f)
-            self._report_list("Uncertain program blocks",
-                              self.stats_helper.get_evaluation(with_equal=True,
-                                                               with_uncertain=True,
-                                                               with_unequal=True), f)
 
     def _report_list(self, title: str, list, file):
         if len(list) != 0:
@@ -536,7 +537,9 @@ class HTMLReporter(AbstractReporter):
     "boxplot_height": Float() // Default(2.0) // Description("Height per run block for the big comparison box plots"),
     "alpha": Float() // Default(0.05) // Description("Alpha value for confidence intervals"),
     "gen_tex": Bool() // Default(True) // Description("Generate simple latex versions of the plotted figures?"),
-    "gen_pdf": Bool() // Default(False) // Description("Generate pdf versions of the plotted figures?")
+    "gen_pdf": Bool() // Default(False) // Description("Generate pdf versions of the plotted figures?"),
+    "show_zoomed_out": Bool() // Default(False)
+                       // Description("Show zoomed out (x min = 0) figures in the extended summaries?")
 }))
 class HTMLReporter2(AbstractReporter):
     """
@@ -563,12 +566,12 @@ class HTMLReporter2(AbstractReporter):
         <link rel="stylesheet" src="http://gregfranko.com/jquery.tocify.js/css/jquery.ui.all.css">
         <link rel="stylesheet" src="http://gregfranko.com/jquery.tocify.js/css/jquery.tocify.css">
         <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="file://{resources_path}/style.css">
+        <link rel="stylesheet" href="file:style.css">
         <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
         <script src="http://gregfranko.com/jquery.tocify.js/js/jquery-ui-1.9.1.custom.min.js"></script>
         <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_SVG"></script>
-        <script src="file://{resources_path}/script.js"></script>
+        <script src="file:script.js"></script>
     </head>
     <body style="font-family: sans-serif;">
         <div id="toc"></div>
@@ -642,7 +645,8 @@ class HTMLReporter2(AbstractReporter):
         self._process_boxplot_cache(self._boxplot_async_cache.values(), "Generate box plots")
         self._write(html.format(timespan=hf.format_timespan(time.time() - start_time), **locals()))
         if self.misc["gen_pdf"] or self.misc["gen_tex"]:
-            self._process_hist_cache(self._hist_async_misc_cache.values(), "Generate other figure formats")
+            strs = (["tex"] if self.misc["gen_tex"] else []) + (["pdf"] if self.misc["gen_pdf"] else [])
+            self._process_hist_cache(self._hist_async_misc_cache.values(), "Generate {}".format(join_strs(strs)))
 
     def _process_hist_cache(self, cache: t.Iterable[dict], title: str):
         pool = multiprocessing.Pool(4)
@@ -802,7 +806,7 @@ class HTMLReporter2(AbstractReporter):
     def _short_summary_of_single_property(self, obj: SingleProperty, use_modals: bool = False, extended: bool = False):
         filenames = self._histogram(obj, big=extended, zoom_in=True)
         html = self._filenames_to_img_html(filenames)
-        if extended:
+        if extended and self.misc["show_zoomed_out"]:
             html += self._filenames_to_img_html(self._histogram(obj, big=extended, zoom_in=False))
         html += self._short_summary_table_for_single_property([obj], objs_in_cols=True, use_modal=use_modals,
                                                               extended=extended)
@@ -812,7 +816,7 @@ class HTMLReporter2(AbstractReporter):
                                                use_modals: bool = False):
         filenames = self._histogram(obj, big=extended, zoom_in=True)
         html = self._filenames_to_img_html(filenames)
-        if extended:
+        if extended and self.misc["show_zoomed_out"]:
             filenames = self._histogram(obj, big=extended, zoom_in=False)
             html += self._filenames_to_img_html(filenames)
         ci_popover = Popover(self, "Confidence interval", """
@@ -1074,7 +1078,7 @@ class HTMLReporter2(AbstractReporter):
                 "format": "{:5.5f}",
                 "extended": True
             }, {
-                "title": "... per mean",
+                "title": "$$\sigma$$ per mean",
                 "func": lambda x: x.std_dev_per_mean(),
                 "format": "{:5.0%}",
                 "popover": Popover(self, "Explanation", """
@@ -1250,43 +1254,48 @@ class HTMLReporter2(AbstractReporter):
         return """
             <center>
                 <div {popover}>
-                    <img width="100%" src="file://{img}" class="img"></img>
+                    <img width="100%" src="file:{img}" class="img"></img>
                 </div>
             </center>
-        """.format(popover=self._img_filenames_popover(filenames, kind), **filenames)
+        """.format(popover=self._img_filenames_popover(filenames, kind),
+                   img=self._filename_relative_to_out_dir(filenames["img"]))
 
     def _img_filenames_popover(self, filenames: t.Dict[str, str], kind: str = "hist") -> 'Popover':
+        _filenames = {}
+        for key in filenames:
+            _filenames[key] = self._filename_relative_to_out_dir(filenames[key])
+        filenames = _filenames
         html = """
             <div class='list-group'>
         """
         if "img" in filenames:
             html += """
-                <a href='file://{img}' class='list-group-item'>
+                <a href='file:{img}' class='list-group-item'>
                     The current image
                 </a>
             """.format(**filenames)
         if "pdf" in filenames:
             html += """
-                <a href='file://{pdf}' class='list-group-item'>
+                <a href='file:{pdf}' class='list-group-item'>
                     PDF (generated by matplotlib)
                 </a>
             """.format(**filenames)
         if "tex" in filenames:
             if kind == "hist":
                 html += """
-                    <a href='file://{tex}' class='list-group-item'>
+                    <a href='file:{tex}' class='list-group-item'>
                         TeX (requiring the package <code>pgfplots</code>)
                     </a>
                 """.format(**filenames)
             elif kind == "boxplot":
                 html += """
-                    <a href='file://{tex}' class='list-group-item'>
+                    <a href='file:{tex}' class='list-group-item'>
                         TeX (requiring the package <code>pgfplots</code> and
                         <small><code>\\usepgfplotslibrary{{statistics}}</code></small>)
                     </a>
                 """.format(**filenames)
             html +="""
-                <a href='file://{tex_standalone}' class='list-group-item'>
+                <a href='file:{tex_standalone}' class='list-group-item'>
                     Standalone TeX
                 </a>
             """.format(**filenames)
@@ -1295,6 +1304,12 @@ class HTMLReporter2(AbstractReporter):
         """.format(**filenames)
         return Popover(self, "Get this image in your favorite format", content=html,
                        trigger="hover click")
+
+    def _filename_relative_to_out_dir(self, abs_filename: str) -> str:
+        ret = os.path.realpath(abs_filename)[len(os.path.realpath(self.misc["out"])) + 1: ]
+        if ret == "":
+            return "."
+        return ret
 
     _boxplot_cache = {}
     _boxplot_async_cache = {}
@@ -1575,6 +1590,8 @@ def color_explanation(obj: BaseStatObject) -> str:
     elif isinstance(obj, TestedPairProperty) and obj.is_equal() is not None:
         msg = "This color means that everything is probably okay with the corresponding data" \
               " and that the tester could make a decision."
+    else:
+        msg = "Everything seems to be okay."
     if msg != "":
         return """
             <p class='{_color_class}'>

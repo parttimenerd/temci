@@ -35,7 +35,7 @@ class Settings(metaclass=Singleton):
                         // Description("Range of p values that allow no conclusion.")
         }, all_keys=False),
         "report": Dict({
-          #  "reporter": Str() // Default("console") // Description(),
+            #  "reporter": Str() // Default("console") // Description(),
             "in": Str() // Default("run_output.yaml") // Description("File that contains the benchmarking results")
                     // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
         }, all_keys=False),
@@ -70,7 +70,9 @@ class Settings(metaclass=Singleton):
             "show_report": Bool() // Default(True)
                 // Description("Print console report if log_level=info"),
             "append": Bool() // Default(False)
-                      // Description("Append to the output file instead of overwriting by adding new run data blocks")
+                      // Description("Append to the output file instead of overwriting by adding new run data blocks"),
+            "shuffle": Bool() // Default(True) // Description("Randomize the order in which the program blocks are "
+                                                              "benchmarked.")
         }),
         "build": Dict({
             "rand": Dict({

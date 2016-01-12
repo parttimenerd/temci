@@ -53,7 +53,7 @@ class BuildProcessor:
                 except BuilderKeyboardInterrupt as err:
                     working_dirs = err.result
                     error = err.error
-                block["run_config"]["cwds"] = working_dirs
+                block["run_config"]["cwd"] = working_dirs
                 run_blocks.append({
                     "attributes": block["attributes"],
                     "run_config": block["run_config"]

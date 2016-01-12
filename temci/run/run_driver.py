@@ -228,7 +228,9 @@ class AbstractRunDriver(AbstractRegistry):
                                                      "repeated n times. Therefore scale the number of times a program."
                                                      "is benchmarked.") // Default(1),
     "runner": ExactEither("perf_stat") // Description("Used benchmarking runner")
-                              // Default("perf_stat")
+                              // Default("perf_stat"),
+    "random_cmd": Bool() // Default(True)
+        // Description("Pick a random command if more than one run command is passed.")
 }, all_keys=False))
 class ExecRunDriver(AbstractRunDriver):
     """
@@ -271,8 +273,10 @@ class ExecRunDriver(AbstractRunDriver):
         else:
             block["run_cmds"] = [block["run_cmd"]]
         if isinstance(block["cwd"], List(Str())):
-            if len(block["cwd"]) != len(block["run_cmds"]):
-                raise ValueError("Number of passed working directories is unequal with number of passed run commands")
+            if len(block["cwd"]) != len(block["run_cmd"]) and not isinstance(block["run_cmd"], str):
+                raise ValueError("Number of passed working directories {} "
+                                 "is unequal with number of passed run commands {}"
+                                 .format(len(block["cwd"]), len(block["run_cmd"])))
             block["cwds"] = block["cwd"]
         else:
             block["cwds"] = [block["cwd"]] * len(block["run_cmds"])
@@ -338,7 +342,7 @@ class ExecRunDriver(AbstractRunDriver):
         :return: time in seconds the execution needed to finish
         """
         typecheck(cmds, List(Str()))
-        rand_index = random.randrange(0, len(cmds))
+        rand_index = random.randrange(0, len(cmds)) if self.misc_settings["random_cmd"] else 0
         cmd = cmds[rand_index]
         cwd = block["cwds"][rand_index]
         executed_cmd = block["cmd_prefix"] + [cmd]
@@ -357,6 +361,8 @@ class ExecRunDriver(AbstractRunDriver):
                                 env=env)
         out, err = proc.communicate()
         t = time.time() - t
+        # todo: use os.wait4 instead of proc.poll. Note: only rough estimate
+        # to get better results, write wrapper http://stackoverflow.com/a/24366506
         if proc.poll() > 0:
             msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
             logging.error(msg)

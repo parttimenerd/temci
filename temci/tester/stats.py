@@ -209,7 +209,7 @@ class BaseStatObject:
     def has_warnings(self) -> bool:
         return any([x.type == StatMessageType.WARNING for x in self.get_stat_messages()])
 
-    def get_data_frame(self, **kwargs) -> pd.DataFrame:
+    def get_data_frame(self, **kwargs) -> 'pd.DataFrame':
         """
         Get the data frame that is associated with this stat object.
         """
@@ -325,7 +325,10 @@ class BaseStatObject:
             filename += ".pdf"
         self.reset_plt()
         self._latexify(fig_width, fig_height)
-        plt.tight_layout()
+        try:
+            plt.tight_layout()
+        except ValueError:
+            pass
         self._format_axes(plt.gca())
         plt.savefig(filename)
         self.reset_plt()
@@ -558,7 +561,7 @@ class Single(BaseStatObject):
         msgs = [x for prop in self.properties for x in self.properties[prop].get_stat_messages()]
         return msgs
 
-    def get_data_frame(self) -> pd.DataFrame:
+    def get_data_frame(self) -> 'pd.DataFrame':
         series_dict = {}
         for prop in self.properties:
             series_dict[prop] = pd.Series(self.properties[prop].data, name=prop)
@@ -693,7 +696,7 @@ class SingleProperty(BaseStatObject):
     def description(self) -> str:
         return self.rundata.description()
 
-    def get_data_frame(self) -> pd.DataFrame:
+    def get_data_frame(self) -> 'pd.DataFrame':
         series_dict = {self.property: pd.Series(self.data, name=self.property)}
         frame = pd.DataFrame(series_dict, columns=[self.property])
         return frame
@@ -974,7 +977,7 @@ class TestedPairProperty(BaseStatObject):
     def max_std_dev(self) -> float:
         return max(self.first.std_dev(), self.second.std_dev())
 
-    def get_data_frame(self, show_property = True) -> pd.DataFrame:
+    def get_data_frame(self, show_property = True) -> 'pd.DataFrame':
         columns = []
         if show_property:
             columns = ["{}: {}".format(self.first, self.property),
@@ -1022,10 +1025,11 @@ class SinglesProperty(BaseStatObject):
     def get_data_frame(self, **kwargs) -> 'pd.DataFrame':
         columns = []
         data = {}
+        min_len = min(len(single.data) for single in self.singles)
         for single in self.singles:
             name = single.parent.description()
             columns.append(name)
-            data[name] = single.data
+            data[name] = single.data[0:min_len]
         return pd.DataFrame(data, columns=columns)
 
     def boxplot(self, fig_width: int, fig_height: float = None):
@@ -1042,7 +1046,7 @@ class SinglesProperty(BaseStatObject):
 
     def _store_as_tex(self, filename: str, fig_width: float, fig_height: float, standalone: bool):
         """
-        Stores the current figure as latex in a tex file. Needs pgfplots in latex.
+        Stores the current figure as latex in a tex file.
         Works independently of matplotlib.
 
         Needs following code in the document preamble:

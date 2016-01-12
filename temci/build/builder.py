@@ -117,6 +117,8 @@ class BuilderThread(threading.Thread):
             except queue.Empty:
                 return
             tmp_build_dir = item.tmp_build_dir
+            if os.path.exists(tmp_build_dir):
+                shutil.rmtree(tmp_build_dir)
             shutil.copytree(item.tmp_dir, tmp_build_dir)
             as_path = os.path.realpath(dirname(dirname(os.path.abspath(__file__)))) + "/scripts"
             env = {
@@ -133,8 +135,16 @@ class BuilderThread(threading.Thread):
                                     universal_newlines=True,
                                     cwd=tmp_build_dir, env=env)
             out, err = proc.communicate()
+            if proc.poll() > 0:
+                proc = subprocess.Popen(["/bin/sh", "-c", item.build_cmd],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    universal_newlines=True,
+                                    cwd=tmp_build_dir, env=env)
+                out, err = proc.communicate()
+                if proc.poll() > 0:
+                    shutil.rmtree(tmp_build_dir)
+                    #self.submit_queue.put(item)
+                    raise EnvironmentError("Thread {}: Build error: {}".format(self.id, str(err)))
             logging.info("Thread {}: {}".format(self.id, str(out)))
             setup.exec("hadori", "./hadori {} {}".format(item.tmp_dir, tmp_build_dir))
-            if proc.poll() > 0 or len(str(err).strip()) > 0:
-                shutil.rmtree(tmp_build_dir)
-                raise EnvironmentError("Thread {}: Build error: {}".format(self.id, str(err)))
