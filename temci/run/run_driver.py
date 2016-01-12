@@ -9,6 +9,7 @@ import shutil
 
 import collections
 
+from temci.setup import setup
 from temci.utils.settings import Settings
 from temci.utils.typecheck import NoInfo
 from temci.utils.vcs import VCSDriver
@@ -513,6 +514,101 @@ class PerfStatExecRunner(ExecRunner):
         res.add_run_data(m)
         return res
 
+
+def get_av_rusage_properties() -> t.Dict[str, str]:
+    """
+    Returns the available properties for the RusageExecRunner mapped to their descriptions.
+    """
+    return {
+        "utime": "user CPU time used",
+        "stime": "system CPU time used",
+        "maxrss": "maximum resident set size",
+        "ixrss": "integral shared memory size",
+        "idrss": "integral unshared data size",
+        "isrss": "integral unshared stack size",
+        "nswap": "swaps",
+        "minflt": "page reclaims (soft page faults)",
+        "majflt": "page faults (hard page faults)",
+        "inblock": "block input operations",
+        "oublock": "block output operations",
+        "msgsnd": "IPC messages sent",
+        "msgrcv": "IPC messages received",
+        "nsignals": "signals received",
+        "nvcsw": "voluntary context switches",
+        "nivcsw": "involuntary context switches"
+    }
+
+
+class ValidRusagePropertyList(Type):
+    """
+    Checks for the value to be a valid rusage runner measurement property list.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.av = list(get_av_rusage_properties().keys())
+        self.completion_hints = {
+            "zsh": "({})".format(" ".join(self.av)),
+            "fish": {
+                "hint": list(self.av)
+            }
+        }
+
+    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+        if not isinstance(value, List(Str())):
+            return info.errormsg(self)
+        for elem in value:
+            if elem not in self.av:
+                return info.errormsg(self, "No such rusage property " + repr(elem))
+        return info.wrap(True)
+
+    def __str__(self) -> str:
+        return "ValidRusagePropertyList()"
+
+    def _eq_impl(self, other):
+        return True
+
+
+@ExecRunDriver.register_runner()
+class RusageExecRunner(ExecRunner):
+    """
+    Runner that uses the getrusage(2) function to obtain resource measurements.
+    """
+
+    name = "rusage"
+    misc_options = Dict({
+        "properties": ValidRusagePropertyList() // Default(sorted(list(get_av_rusage_properties().keys())))
+    })
+
+    def __init__(self, block: RunProgramBlock):
+        super().__init__(block)
+
+    def setup_block(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
+
+        def modify_cmd(cmd):
+            return "{} {!r}".format(
+                setup.script_relative("rusage/rusage"),
+                cmd
+            )
+        block["run_cmds"] = [modify_cmd(cmd) for cmd in block["run_cmds"]]
+
+
+    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+                     res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
+        res = res or BenchmarkingResultBlock()
+        m = {"ov-time": exec_res.time}
+        for line in reversed(exec_res.stdout.strip().split("\n")):
+            if '#' in line:
+                break
+            if ' ' in line:
+                var, val = line.strip().split(" ")
+                if var in self.misc["properties"]:
+                    try:
+                        m[var] = float(val)
+                    except:
+                        pass
+        res.add_run_data(m)
+        return res
 
 @ExecRunDriver.register_runner()
 class SpecExecRunner(ExecRunner):

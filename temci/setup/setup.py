@@ -1,7 +1,7 @@
 import os, subprocess, logging
 
 def script_relative(file: str):
-    return os.path.join(os.path.abspath(os.path.dirname(__file__)), "../scripts", file)
+    return os.path.join(os.path.realpath(os.path.dirname(__file__)), "../scripts", file)
 
 def exec(dir: str, cmd: str):
     """
