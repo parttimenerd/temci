@@ -5,6 +5,7 @@ import subprocess, os, time
 from temci.utils.settings import Settings, SettingsError
 from temci.utils.util import ensure_root
 from temci.utils.typecheck import *
+import cgroupspy
 
 CPUSET_DIR = '/cpuset'
 NEW_ROOT_SET = 'bench.root'
@@ -266,7 +267,7 @@ class CPUSet:
         out, err = proc.communicate()
         if proc.poll() > 0:
             raise EnvironmentError (
-                "Error with cset tool. You've probably not installed it."
+                "Error with cset tool. "
                 " More specific error (cmd = 'sudo cset {}'): ".format(argument) + str(err) + str(out)
             )
         return str(out)

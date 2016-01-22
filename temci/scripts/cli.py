@@ -1,5 +1,6 @@
 import warnings
 
+from temci.scripts.temci_completion import completion_file_name
 from temci.utils import util
 if __name__ == "__main__":
     util.allow_all_imports = True
@@ -15,12 +16,6 @@ import humanfriendly
 from temci.scripts.init import prompt_run_config, prompt_build_config
 from temci.utils.typecheck import *
 
-from pympler import tracker, classtracker
-tr = tracker.SummaryTracker()
-ctr = classtracker.ClassTracker()
-ctr.track_class(Type)
-ctr.create_snapshot()
-
 from temci.run.run_processor import RunProcessor
 from temci.build.assembly import AssemblyProcessor
 from temci.build.build_processor import BuildProcessor
@@ -31,18 +26,21 @@ from temci.utils.settings import Settings
 from temci.tester.report_processor import ReportProcessor
 import click, sys, yaml, logging, json, os
 from temci.utils.click_helper import type_scheme_option, cmd_option, CmdOption, CmdOptionList
-
-ctr.create_snapshot()
+import temci.scripts.version
 
 @click.group(epilog="""
-This program is still in an early aplha stage. It may happen that
+temci (version {})  Copyright (C) 2016 Johannes Bechberger
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it
+under certain conditions.
+For details, see the LICENSE file in the source folder of temci.
+
+This program is still in an alpha stage. It may happen that
 you're system needs to be rebooted to be usable again.
 
 The main workflow is to write config files and use them with the program.
 Although command line options are supported, config files are way easier to use.
-
-It's licence is GPLv3.
-""")
+""".format(temci.scripts.version.version))
 def cli():
     pass
 
@@ -53,7 +51,8 @@ command_docs = {
     "init": "Helper commands to initialize files (like settings)",
     "completion": "Creates completion files for several shells.",
     "short": "Utility commands to ease working directly on the command line",
-    "clean": "Clean up the temporary files"
+    "clean": "Clean up the temporary files",
+    "version": "Print the current version ({})".format(temci.scripts.version.version)
 }
 for driver in run_driver.RunDriverRegistry.registry:
     command_docs[driver] = run_driver.RunDriverRegistry.registry[driver].__description__.strip().split("\n")[0]
@@ -137,9 +136,9 @@ misc_commands = {
 }
 misc_commands_description = {
     "completion": {
-        "zsh": "Creates a file /tmp/temci_zsh_completion for zsh completion support. ",
+        "zsh": "Creates a new tab completion file for zsh and returns it's file name",
         #"fish": "Creates a file /tmp/temci_fish_completion for fish completion support.",
-        "bash": "Creates a file /tmp/temci_bash_completion for bash completion support."
+        "bash": "Creates a new tab completion file for zsh and returns it's file name",
     },
     "init": {
         "settings": "Create a new settings file temci.yaml in the current directory",
@@ -260,13 +259,19 @@ def clean(**kwargs):
     shutil.rmtree(Settings()["tmp_dir"])
 
 
+@cli.command(short_help=command_docs["version"])
+@cmd_option(common_options)
+def version(**kwargs):
+    print(temci.scripts.version.version)
+
+
 @cli.group(short_help=command_docs["completion"])
 @cmd_option(common_options)
 def completion(**kwargs):
     pass
 
 
-@completion.command(short_help="Creates a file /tmp/temci_zsh_completion for zsh completion support. ")
+@completion.command(short_help=misc_commands_description["completion"]["zsh"])
 @cmd_option(common_options)
 def zsh(**kwargs):
     subcommands = "\n\t".join(['"{}:{}"'.format(cmd, command_docs[cmd])
@@ -306,6 +311,8 @@ def zsh(**kwargs):
     misc_cmds_w_subcmds = list(filter(lambda x: isinstance(misc_commands[x], dict), misc_commands.keys()))
 
     ret_str = """
+# Auto generated tab completion for the temci ({version}) benchmarking tool.
+
 
 #compdef temci
 _temci(){{
@@ -350,7 +357,8 @@ _temci(){{
     ;;
     """.format(common_opts=process_options(common_options),
                subcommands=" ".join("\"{}:{}\"".format(cmd, command_docs[cmd]) for cmd in command_docs),
-               misc_cmds_wo_subs="|".join(misc_cmds_wo_subcmds))
+               misc_cmds_wo_subs="|".join(misc_cmds_wo_subcmds),
+               version=temci.scripts.version.version)
     ret_str += """
     second_level)
 
@@ -500,13 +508,16 @@ _temci(){{
 
     compdef _temci temci=temci
     """
-    with open("/tmp/temci_zsh_completion.sh", "w") as f:
+    file_name = completion_file_name("zsh")
+    with open(file_name, "w") as f:
         f.write(ret_str)
-        #print("\n".join("{:>3}: {}".format(i, s) for (i, s) in enumerate(ret_str.split("\n"))))
+        logging.debug("\n".join("{:>3}: {}".format(i, s) for (i, s) in enumerate(ret_str.split("\n"))))
         f.flush()
+    os.chmod(file_name, 0o777)
+    print(file_name)
 
 
-@completion.command(short_help="Creates a file /tmp/temci_bash_completion for bash completion support. ")
+@completion.command(short_help=misc_commands_description["completion"]["bash"])
 @cmd_option(common_options)
 def bash(**kwargs):
     subcommands = "\n\t".join(sorted(command_docs.keys()))
@@ -593,6 +604,9 @@ def bash(**kwargs):
         """.format(driver=driver, driver_opts=process_options(run_options["run_driver_specific"][driver]))
 
     file_structure = """
+    # Auto generated tab completion for the temci ({version}) benchmarking tool.
+
+
     _temci(){{
         local cur=${{COMP_WORDS[COMP_CWORD]}}
         local prev=${{COMP_WORDS[COMP_CWORD-1]}}
@@ -675,12 +689,16 @@ def bash(**kwargs):
                misc_commands_case_code=process_misc_commands_case(),
                misc_commands_code=process_misc_commands(),
                build_common_opts=process_options(build_options),
-               run_cmd_file_code=run_cmd_file_code
+               run_cmd_file_code=run_cmd_file_code,
+               version=temci.scripts.version.version
                )
-    with open("/tmp/temci_bash_completion.sh", "w") as f:
+    file_name = completion_file_name("bash")
+    with open(file_name, "w") as f:
         f.write(file_structure)
-        print("\n".join("{:>3}: {}".format(i, s) for (i, s) in enumerate(file_structure.split("\n"))))
+        logging.debug("\n".join("{:>3}: {}".format(i, s) for (i, s) in enumerate(file_structure.split("\n"))))
         f.flush()
+    os.chmod(file_name, 0o777)
+    print(file_name)
 
 
 @cli.command(short_help="Wrapper around the gnu assembler")
@@ -748,6 +766,8 @@ def setup():
     make_scripts()
 
 if __name__ == "__main__":
+    # for testing purposes only
+
     #sys.argv[1:] = ["exec", "-wd", "ls", "-wd", "ls ..", "-wd", "ls /tmp", "--min_runs", "5", "--max_runs", "5",
     #                "--out", "ls_100.yaml", "--stop_start"]
     sys.argv[1:] = ["report", "run_output.yaml", "--reporter", "html2"]
@@ -770,11 +790,11 @@ if __name__ == "__main__":
 
     #run_driver.ExecRunDriver.get_for_name("stop_start").setup()
 
-    import cProfile
+    #import cProfile
     t = time.time()
-    cProfile.runctx("cli()", globals(), locals(), filename="cli.profile")
+    #cProfile.runctx("cli()", globals(), locals(), filename="cli.profile")
     print("Execution took ", humanfriendly.format_timespan(time.time() - t))
-    ctr.create_snapshot()
+    #ctr.create_snapshot()
     # create kcachegrind valid file via "python3 -m pyprof2calltree -i cli.profile"
     #ctr.stats.print_summary()
     #tr.print_diff()

@@ -1,8 +1,0 @@
-- run_config:
-    run_cmds: ['bash -c "ls /tmp"']
-  attributes:
-    description: ls with /bin/bash
-- run_config:
-    run_cmds: ['zsh -c "ls /tmp"']
-  attributes:
-    description: ls with /usr/bin/zsh

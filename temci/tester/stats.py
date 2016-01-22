@@ -786,9 +786,13 @@ class TestedPair(BaseStatObject):
     def rel_difference(self) -> float:
         """
         Calculates the geometric mean of the relative mean differences (first - second) / first.
+
         :see http://www.cse.unsw.edu.au/~cs9242/15/papers/Fleming_Wallace_86.pdf
         """
-        mean = sum(x.mean_diff_per_mean() for x in self.properties.values())
+        # todo: add method (and report.py support) to give a score (based on first mean / second mean)
+        mean = 1
+        for x in self.properties.values():
+            mean *= x.mean_diff_per_mean()
         if mean == 0:
             return 1
         sig = np.sign(mean)
@@ -1014,9 +1018,11 @@ class TestedPairProperty(BaseStatObject):
 
 class SinglesProperty(BaseStatObject):
 
-    def __init__(self, singles: t.List[Single], property: str):
+    def __init__(self, singles: t.List[t.Union[Single, SingleProperty]], property: str):
         super().__init__()
-        self.singles = [single.properties[property] for single in singles] # type: t.List[SingleProperty]
+        self.singles = singles # type: t.List[SingleProperty]
+        if isinstance(singles, List(T(Single))):
+            self.singles = [single.properties[property] for single in singles]
         self.property = property
 
     def __str__(self) -> str:
@@ -1027,7 +1033,7 @@ class SinglesProperty(BaseStatObject):
         data = {}
         min_len = min(len(single.data) for single in self.singles)
         for single in self.singles:
-            name = single.parent.description()
+            name = str(single.parent)
             columns.append(name)
             data[name] = single.data[0:min_len]
         return pd.DataFrame(data, columns=columns)

@@ -67,7 +67,7 @@ def can_import(module: str) -> bool:
         return True
     if module not in ["scipy", "numpy"]:
         return True
-    if len(sys.argv) == 1 or sys.argv[1] in ["completion"]:
+    if len(sys.argv) == 1 or sys.argv[1] in ["completion", "version"]:
         return False
     return True
 

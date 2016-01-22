@@ -5,6 +5,7 @@ import click
 from temci.utils.util import recursive_exec_for_leafs, Singleton
 from temci.utils.typecheck import *
 import multiprocessing
+import typing as t
 
 def ValidCPUCoreNumber():
     return Int(range=range(0, multiprocessing.cpu_count()))
@@ -44,7 +45,8 @@ class Settings(metaclass=Singleton):
             "min_runs": NaturalNumber() // Default(20) // Description("Minimum number of benchmarking runs"),
             "max_runs": NaturalNumber() // Default(100) // Description("Maximum number of benchmarking runs"),
             "runs": Int(lambda x: x >= -1) // Default(-1) // Description("if != -1 sets max and min runs to it's value"),
-            "max_time": ValidTimeSpan() // Default("10min") // Description(""), # in seconds
+            "max_time": ValidTimeSpan() // Default("2h") // Description("Maximum time the whole benchmarking should take "
+                                                                        "+- time to execute one block."), # in seconds
             "run_block_size": PositiveInt() // Default(5)
                               // Description("Number of benchmarking runs that are done together"),
             "in": Str() // Default("input.exec.yaml")
@@ -307,6 +309,22 @@ class Settings(metaclass=Singleton):
         for subkey in key.split("/"):
             tmp_typ = tmp_typ[subkey]
         return tmp_typ
+
+    def modify_type_scheme(self, key: str, modificator: t.Callable[[Type], Type]):
+        """
+        Modifies the type scheme of the given key via a modificator function.
+        :param key: given key
+        :param modificator: gets the type scheme and returns its modified version
+        :raises SettingsError if the setting with the given key doesn't exist
+        """
+        if not self.validate_key_path(key.split("/")):
+            raise SettingsError("Setting {} doesn't exist".format(key))
+        tmp_typ = self.type_scheme
+        subkeys = key.split("/")
+        for subkey in subkeys[:-1]:
+            tmp_typ = tmp_typ[subkey]
+        tmp_typ[subkeys[-1]] = modificator(tmp_typ[subkeys[-1]])
+        assert isinstance(tmp_typ[subkeys[-1]], Type)
 
     def get_default_value(self, key: str):
         """

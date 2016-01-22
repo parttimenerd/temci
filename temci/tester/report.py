@@ -1470,12 +1470,13 @@ class HTMLReporter2(AbstractReporter):
         if isinstance(obj, TestedPair):
             return self._get_obj_id(obj.first) + "_" + self._get_obj_id(obj.second)
         if isinstance(obj, SingleProperty) or isinstance(obj, TestedPairProperty):
-            return self._get_obj_id(obj.parent) + "__" + self._html_escape_property(obj.property)
+            return self._get_obj_id(obj.parent) + "__" + self.html_escape_property(obj.property)
         if isinstance(obj, SinglesProperty):
-            return "SinglesProperty______" + self._html_escape_property(obj.property)
+            return "SinglesProperty______" + self.html_escape_property(obj.property)
         assert False # you shouldn't reach this point
 
-    def _html_escape_property(self, property: str) -> str:
+    @classmethod
+    def html_escape_property(cls, property: str) -> str:
         return re.sub(r"([^a-zA-Z0-9]+)", "000000", property)
 
     def _format_errors_and_warnings(self, obj: BaseStatObject, show_parent: bool = True) -> str:
@@ -1884,3 +1885,6 @@ class Table:
             content_cells.append(a)
         return Table(parent, header_row, header_col, anchor_cell, content_cells)
 
+
+def html_escape_property(property: str) -> str:
+    return re.sub(r"([^a-zA-Z0-9]+)", "000000", property)

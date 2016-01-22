@@ -1,3 +1,4 @@
+import copy
 import random
 
 from temci.utils.typecheck import *
@@ -31,19 +32,25 @@ class RunProcessor:
             "attributes": Dict(all_keys=False, key_type=Str()),
             "run_config": Dict(all_keys=False)
         })))
-        self.run_blocks = [RunProgramBlock.from_dict(id, run) for (id, run) in enumerate(runs)]
+        self.run_blocks = []
+        for (id, run) in enumerate(runs):
+            self.run_blocks.append(RunProgramBlock.from_dict(id, copy.deepcopy(run)))
         self.append = Settings().default(append, "run/append")
         self.show_report = Settings().default(show_report, "run/show_report")
         self.stats_helper = None # type: RunDataStatsHelper
-        typecheck(Settings()["run/out"], ValidYamlFileName(allow_non_existent=True))
+        typecheck(Settings()["run/out"], FileName())
         if self.append:
             run_data = []
-            if os.path.exists(Settings()["run/out"]):
-                with open(Settings()["run/out"], "r") as f:
-                    run_data = yaml.load(f)
-            self.stats_helper = RunDataStatsHelper.init_from_dicts(run_data, external=True)
-            for run in runs:
-                self.stats_helper.runs.append(RunData(attributes=run["attributes"]))
+            try:
+                if os.path.exists(Settings()["run/out"]):
+                    with open(Settings()["run/out"], "r") as f:
+                        run_data = yaml.load(f)
+                self.stats_helper = RunDataStatsHelper.init_from_dicts(run_data, external=True)
+                for run in runs:
+                    self.stats_helper.runs.append(RunData(attributes=run["attributes"]))
+            except:
+                self.teardown()
+                raise
         else:
             self.stats_helper = RunDataStatsHelper.init_from_dicts(runs)
         if Settings()["run/cpuset/parallel"] == 0:
@@ -57,18 +64,18 @@ class RunProcessor:
         self.min_runs = Settings()["run/min_runs"] + self.pre_runs
         self.shuffle = Settings()["run/shuffle"]
         if Settings()["run/runs"] != -1:
-            self.max_runs = self.min_runs = Settings()["run/runs"] + self.pre_runs
+            self.min_runs = self.max_runs = self.min_runs = Settings()["run/runs"] + self.pre_runs
         self.start_time = round(time.time())
         try:
             self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"], Settings()["run/discarded_blocks"])
         except:
             self.teardown()
+            raise
         self.block_run_count = 0
-        self.min_runs += self.run_block_size
 
     def _finished(self):
         return (len(self.stats_helper.get_program_ids_to_bench()) == 0 \
-               or not self._can_run_next_block()) and self.min_runs <= self.block_run_count
+               or not self._can_run_next_block()) and self.min_runs < self.block_run_count
 
     def _can_run_next_block(self):
         estimated_time = self.stats_helper.estimate_time_for_next_round(self.run_block_size,
@@ -77,7 +84,7 @@ class RunProcessor:
         if round(time.time() + estimated_time) > self.end_time:
             logging.warning("Ran to long ({}) and is therefore now aborted. "
                             "{} program blocks should've been benchmarked again."
-                            .format(humanfriendly.format_timespan(time.time() + estimated_time),
+                            .format(humanfriendly.format_timespan(time.time() + estimated_time - self.start_time),
                                     to_bench_count))
             return False
         if self.block_run_count >= self.max_runs and self.block_run_count + self.run_block_size > self.min_runs:
@@ -92,21 +99,32 @@ class RunProcessor:
             while self.block_run_count <= self.pre_runs or not self._finished():
                 last_round_span = time.time() - last_round_time
                 last_round_time = time.time()
-                if Settings().has_log_level("info") and self.block_run_count > self.pre_runs and \
-                        ("exec" != RunDriverRegistry.get_used() or "start_stop" not in ExecRunDriver.get_used()):
-                    last_round_actual_estimate = \
-                        self.stats_helper.estimate_time_for_next_round(self.run_block_size,
-                                                                       all=self.block_run_count < self.min_runs)
-                    estimate = self.stats_helper.estimate_time(self.run_block_size, self.min_runs, self.max_runs)
-                    if last_round_actual_estimate != 0:
-                        estimate *= last_round_span / last_round_actual_estimate
-                        estimate = (estimate / self.pool.parallel_number) - (time.time() - self.start_time)
-                    else:
-                        estimate = 0
-                    estimate_str = humanfriendly.format_timespan(math.floor(estimate))
-                    logging.info("[{nr:>3}] Estimated time to completion: {time:>20}"
-                             .format(nr=self.block_run_count - self.pre_runs,
-                                     time=estimate_str))
+                try:
+                    if Settings().has_log_level("info") and self.block_run_count > self.pre_runs and \
+                            ("exec" != RunDriverRegistry.get_used() or "start_stop" not in ExecRunDriver.get_used()):
+                        # last_round_actual_estimate = \
+                        #    self.stats_helper.estimate_time_for_next_round(self.run_block_size,
+                        #                                                   all=self.block_run_count < self.min_runs)
+                        # estimate = self.stats_helper.estimate_time(self.run_block_size, self.min_runs, self.max_runs)
+                        # if last_round_actual_estimate != 0:
+                        #    estimate *= last_round_span / last_round_actual_estimate
+                        #    estimate = (estimate / self.pool.parallel_number) - (time.time() - self.start_time)
+                        # else:
+                        #    estimate = 0
+                        nr = self.block_run_count - self.pre_runs
+                        estimate, title = "", ""
+                        if nr <= self.min_runs:
+                            estimate = last_round_span * (self.min_runs - self.block_run_count)
+                            title = "Estimated time till minimum runs completed"
+                        else:
+                            estimate = last_round_span * (self.max_runs - self.block_run_count)
+                            title = "Estimated time till maximum runs completed"
+                        estimate = min(estimate, self.end_time - time.time())
+                        estimate_str = humanfriendly.format_timespan(math.floor(estimate))
+                        logging.info("[{nr:>3}] {title}: {time:>20}"
+                                     .format(nr=nr, title=title, time=estimate_str))
+                except:
+                    logging.warning("Error in estimating and printing the needed time.")
                 self._benchmarking_block_run()
                 #print(not self._finished(), len(self.stats_helper.get_program_ids_to_bench()), self._can_run_next_block())
             print()
@@ -125,7 +143,7 @@ class RunProcessor:
         try:
             self.block_run_count += self.run_block_size
             to_bench = []
-            if self.block_run_count < self.min_runs:
+            if self.block_run_count <= self.min_runs:
                 to_bench = list(enumerate(self.run_blocks))
             else:
                 to_bench = [(i, self.run_blocks[i]) for i in self.stats_helper.get_program_ids_to_bench()]

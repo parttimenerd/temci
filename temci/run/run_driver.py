@@ -16,7 +16,7 @@ from temci.utils.vcs import VCSDriver
 from ..utils.typecheck import *
 from ..utils.registry import AbstractRegistry, register
 from .cpuset import CPUSet
-from copy import deepcopy
+from copy import deepcopy, copy
 import logging, time, random, subprocess
 from collections import namedtuple
 import gc
@@ -52,7 +52,7 @@ class RunProgramBlock:
         else:
             self.run_driver_class = RunDriverRegistry.get_class(RunDriverRegistry.get_used())
         self.type_scheme = self.run_driver_class.block_type_scheme
-        self.data = self.run_driver_class.block_default
+        self.data = deepcopy(self.run_driver_class.block_default)
         self.data.update(data)
         self.attributes = attributes
         self.is_enqueued = False
@@ -113,7 +113,8 @@ class RunProgramBlock:
             "attributes": Dict(all_keys=False, key_type=Str()),
             "run_config": Dict(all_keys=False)
         }))
-        return RunProgramBlock(id, data["run_config"], data["attributes"], run_driver)
+        block = RunProgramBlock(id, data["run_config"], data["attributes"], run_driver)
+        return block
 
     def to_dict(self):
         return {
@@ -228,8 +229,9 @@ class AbstractRunDriver(AbstractRegistry):
     "perf_stat_repeat": PositiveInt() // Description("If runner=perf_stat make measurements of the program"
                                                      "repeated n times. Therefore scale the number of times a program."
                                                      "is benchmarked.") // Default(1),
-    "runner": ExactEither("perf_stat") // Description("Used benchmarking runner")
-                              // Default("perf_stat"),
+    "runner": ExactEither("")
+              // Description("If not '' overrides the runner setting for each program block")
+                              // Default(""),
     "random_cmd": Bool() // Default(True)
         // Description("Pick a random command if more than one run command is passed.")
 }, all_keys=False))
@@ -292,6 +294,8 @@ class ExecRunDriver(AbstractRunDriver):
             os.mkdir(self.dirs[block.id])
             self.vcs_driver.copy_revision(block["revision"], ".", self.dirs[block.id])
             block["working_dir"] = self.dirs[block.id]
+        if self.misc_settings["runner"] != "":
+            block["runner"] = self.misc_settings["runner"]
         super()._setup_block(block)
 
     def benchmark(self, block: RunProgramBlock, runs: int,
@@ -299,7 +303,6 @@ class ExecRunDriver(AbstractRunDriver):
         t = time.time()
         block = block.copy()
         self._setup_block(block)
-        runner = self.misc_settings["runner"]
         gc.collect()
         gc.disable()
         try:
@@ -362,8 +365,6 @@ class ExecRunDriver(AbstractRunDriver):
                                 env=env)
         out, err = proc.communicate()
         t = time.time() - t
-        # todo: use os.wait4 instead of proc.poll. Note: only rough estimate
-        # to get better results, write wrapper http://stackoverflow.com/a/24366506
         if proc.poll() > 0:
             msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
             logging.error(msg)
@@ -384,6 +385,7 @@ class ExecRunDriver(AbstractRunDriver):
             assert issubclass(klass, ExecRunner)
             cls.runners[klass.name] = klass
             cls.block_type_scheme["runner"] |= E(klass.name)
+            Settings().modify_type_scheme("run/exec_misc/runner", lambda x: x | E(klass.name))
             cls.block_type_scheme[klass.name] = klass.misc_options
             cls.block_default[klass.name] = klass.misc_options.get_default()
             if klass.__doc__ is not None:
@@ -395,7 +397,6 @@ class ExecRunDriver(AbstractRunDriver):
             else:
                 klass.__description__ = ""
             return klass
-
         return dec
 
     @classmethod

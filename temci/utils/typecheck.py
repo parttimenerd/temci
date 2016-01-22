@@ -1021,7 +1021,7 @@ class FileName(Str):
     and the file must be creatable.
     """
 
-    def __init__(self, constraint = None, allow_std=False):
+    def __init__(self, constraint = None, allow_std: bool = False, allow_non_existent: bool = True):
         super().__init__()
         self.constraint = constraint
         self.completion_hints = {
@@ -1031,6 +1031,7 @@ class FileName(Str):
             }
         }
         self.allow_std = allow_std
+        self.allow_non_existent = allow_non_existent
 
     def _instancecheck_impl(self, value, info: Info):
         if not isinstance(value, str) or value == "":
@@ -1043,6 +1044,8 @@ class FileName(Str):
                     and (self.constraint is None or self.constraint(value)):
                 return info.wrap(True)
             return info.errormsg(self)
+        if not self.allow_non_existent:
+            return info.errormsg("File doesn't exist")
         abs_name = os.path.abspath(value)
         dir_name = os.path.dirname(abs_name)
         if os.path.exists(dir_name) and os.access(dir_name, os.EX_OK) and os.access(dir_name, os.W_OK) \
@@ -1074,18 +1077,18 @@ class ValidYamlFileName(Str):
 
     def _instancecheck_impl(self, value, info: Info):
         if not isinstance(value, str):
-            return info.errormsg(self)
+            return info.errormsg(self, "isn't a string")
         if not os.path.exists(value):
             if not self.allow_non_existent or not isinstance(value, FileName()):
-                return info.errormsg(self)
+                return info.errormsg(self, "doesn't exist or hasn't an accessible parent directory")
             return info.wrap(True)
         if not os.path.isfile(value):
-            return info.errormsg(self)
+            return info.errormsg(self, "isn't a file")
         try:
             with open(value, "r") as f:
                  yaml.load(f.readline())
         except (IOError, yaml.YAMLError) as ex:
-            return info.errormsg(self)
+            return info.errormsg(self, "YAML parse error: " + str(ex))
         return info.wrap(True)
 
     def __str__(self):
