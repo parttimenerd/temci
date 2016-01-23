@@ -1048,7 +1048,7 @@ class SinglesProperty(BaseStatObject):
             fig_height = self._height_for_width(fig_width)
         self.fig = plt.figure(figsize=self._fig_size_cm_to_inch(fig_width, fig_height))
         df = self.get_data_frame()
-        sns.boxplot(x=df, orient="h")
+        sns.boxplot(data=df, orient="h")
 
     def _store_as_tex(self, filename: str, fig_width: float, fig_height: float, standalone: bool):
         """

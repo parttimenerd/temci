@@ -25,6 +25,9 @@ from temci.utils.typecheck import *
 import os, shutil, copy
 from pprint import pprint
 from temci.tester import report
+from temci.utils.util import InsertionTimeOrderedDict
+
+itod_from_list = InsertionTimeOrderedDict.from_list
 
 if util.can_import("scipy"):
     import scipy.stats as stats
@@ -34,7 +37,6 @@ from temci.tester.report import HTMLReporter2, html_escape_property
 
 FIG_WIDTH = 15
 FIG_HEIGHT_PER_ELEMENT = 1.5
-
 
 
 class BaseObject:
@@ -63,13 +65,12 @@ class BaseObject:
         else:
             return [tmp]
 
-    def _buildup_dict(self, path: str, base_objs: t.Union[t.List['BaseObject'], t.Dict[str, 'BaseObject']],
+    def _buildup_dict(self, path: str,
+                      base_objs: t.Dict[str, 'BaseObject'],
                       multiprocess: bool = False) -> t.List[dict]:
-        objs = sorted(base_objs)
-        if isinstance(base_objs, dict):
-            objs = []
-            for key in sorted(base_objs):
-                objs.append((path, base_objs[key]))
+        objs = []
+        for key in base_objs:
+            objs.append((path, base_objs[key]))
         map_func = map
         if multiprocess:
             pool = multiprocessing.Pool()
@@ -190,9 +191,7 @@ class ProgramWithInput(BaseObject):
         super().__init__(str(id))
         self.parent = parent
         self.input = input
-        self.impls = {} # type: t.Dict[str, Implementation]
-        for impl in impls:
-            self.impls[impl.name] = impl
+        self.impls = itod_from_list(impls, lambda x: x.name) # type: t.Dict[str, Implementation]
 
     def build(self, base_dir: str) -> t.List[dict]:
         path = self._create_own_dir(base_dir)
@@ -202,13 +201,13 @@ class ProgramWithInput(BaseObject):
         return self.impls[name]
 
     def get_single(self):
-        data = {}
+        data = InsertionTimeOrderedDict()
         for impl in self.impls:
             data[impl] = self.impls[impl]
         return Single(RunData(data))
 
     def get_single_properties(self) -> t.List[t.Tuple[str, SingleProperty]]:
-        return [(impl, self.impls[impl].get_single_property()) for impl in sorted(self.impls)]
+        return [(impl, self.impls[impl].get_single_property()) for impl in self.impls]
 
     def get_means_rel_to_best(self) -> t.Dict[str, float]:
         return self.get_statistical_properties_for_each(rel_mean_func)
@@ -216,14 +215,14 @@ class ProgramWithInput(BaseObject):
     def get_statistical_properties_for_each(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
         sps = self.get_single_properties()
         best_mean = min(sp.mean() for (impl, sp) in sps)
-        d = {}
+        d = InsertionTimeOrderedDict()
         for (impl, sp) in sps:
             d[impl] = func(sp, best_mean)
         return d
 
     def get_box_plot_html(self, base_file_name: str) -> str:
         singles = []
-        for impl in sorted(self.impls.keys()):
+        for impl in self.impls:
             impl_val = self.impls[impl]
             data = RunData({self.name: impl_val.run_data}, {"description": "{!r}|{}".format(self.input, impl)})
             singles.append(SingleProperty(Single(data), data, self.name))
@@ -266,7 +265,7 @@ class ProgramWithInput(BaseObject):
             <tr>{header}</tr>
         """.format(h=h_level, input=repr(self.input), box_plot=self.get_box_plot_html(base_file_name),
                    header="".join("<th>{}</th>".format(elem["name"]) for elem in columns))
-        for impl in sorted(self.impls.keys()):
+        for impl in self.impls:
             impl_val = self.impls[impl]
             sp = impl_val.get_single_property()
             col_vals = []
@@ -281,11 +280,11 @@ class ProgramWithInput(BaseObject):
 class Program(BaseObject):
 
     def __init__(self, parent: 'ProgramCategory', name: str, file: str,
-                 prog_inputs: t.Dict[str, ProgramWithInput] = None, copied_files: t.List[str] = None):
+                 prog_inputs: t.List[ProgramWithInput] = None, copied_files: t.List[str] = None):
         super().__init__(name)
         self.parent = parent
         self.file = file
-        self.prog_inputs = prog_inputs or {} # type: t.Dict[str, ProgramWithInput]
+        self.prog_inputs = itod_from_list(prog_inputs, lambda x: x.name) # type: t.Dict[str, ProgramWithInput]
         self.copied_files = copied_files or [] # type: t.List[str]
 
     @classmethod
@@ -300,12 +299,11 @@ class Program(BaseObject):
         program = cls(parent, name=config["program"], file=config["file"],
                        copied_files=config["copied_files"] if "copied_files" in config else [])
         inputs = config["inputs"] if "inputs" in config else [""]
-        program.prog_inputs = {}
         for (i, input) in enumerate(inputs):
             prog_input = ProgramWithInput(program, input, [], i)
             program.prog_inputs[input] = prog_input
             impls = config["impls"] if "impls" in config else []
-            prog_input.impls = {}
+            prog_input.impls = InsertionTimeOrderedDict()
             for impl_conf in impls:
                 impl = Implementation.from_config_dict(prog_input, impl_conf)
                 prog_input.impls[impl.name] = impl
@@ -320,9 +318,9 @@ class Program(BaseObject):
 
     def get_box_plot_html(self, base_file_name: str) -> str:
         singles = []
-        for input in sorted(self.prog_inputs.keys()):
+        for input in self.prog_inputs:
             prog_in = self.prog_inputs[input]
-            for impl in sorted(prog_in.impls):
+            for impl in prog_in.impls:
                 impl_val = prog_in.impls[impl]
                 data = RunData({self.name: impl_val.run_data}, {"description": "{!r}|{}".format(input, impl)})
                 singles.append(SingleProperty(Single(data), data, self.name))
@@ -330,7 +328,7 @@ class Program(BaseObject):
 
     def get_box_plot_score_per_input_html(self, base_file_name: str) -> str:
         singles = []
-        for input in sorted(self.prog_inputs.keys()):
+        for input in self.prog_inputs:
             prog_in = self.prog_inputs[input]
             vals = list(prog_in.get_means_rel_to_best().values())
             data = RunData({prog_in.name: vals}, {"description": prog_in.name})
@@ -355,7 +353,7 @@ class Program(BaseObject):
                     <th>... std dev rel. to the best mean</th>
                 </tr>
         """
-        for impl in sorted(scores.keys()):
+        for impl in scores.keys():
             html += """
                 <tr><td>{}</td><td>{}</td><td>{}</td></tr>
             """.format(impl, scores[impl], std_devs[impl])
@@ -372,13 +370,13 @@ class Program(BaseObject):
                         <th>... std dev rel. to the best mean</th>
                     </tr>
             """
-            for input in sorted(scores_per_input.keys()):
+            for input in scores_per_input.keys():
                 html += """
                     <tr><td>{}</td><td>{}</td><td>{}</td></tr>
                 """.format(impl, scores_per_input[input], std_devs_per_input[input])
             html += "</table>"
-        impl_names = sorted(list(scores.keys()))
-        for (i, input) in enumerate(sorted(self.prog_inputs.keys())):
+        impl_names = list(scores.keys())
+        for (i, input) in enumerate(self.prog_inputs.keys()):
             app = html_escape_property(input)
             if len(app) > 20:
                 app = str(i)
@@ -392,20 +390,20 @@ class Program(BaseObject):
         return self.get_statistical_property_scores(rel_mean_func)
 
     def get_statistical_property_scores(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
-        d = {} # type: t.Dict[str, t.List[float]]
-        for input in sorted(self.prog_inputs):
+        d = InsertionTimeOrderedDict()  # type: t.Dict[str, t.List[float]]
+        for input in self.prog_inputs:
             rel_vals = self.prog_inputs[input].get_statistical_properties_for_each(func)
             for impl in rel_vals:
                 if impl not in d:
                     d[impl] = []
                 d[impl].append(rel_vals[impl])
-        scores = {}
+        scores = InsertionTimeOrderedDict()
         for impl in d:
             scores[impl] = stats.gmean(d[impl])
         return scores
 
     def get_statistical_property_scores_per_input(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
-        d = {}
+        d = InsertionTimeOrderedDict()
         for input in self.prog_inputs:
             d[input] = stats.gmean(list(self.prog_inputs[input].get_statistical_properties_for_each(func).values()))
         return d
@@ -422,9 +420,7 @@ class ProgramCategory(BaseObject):
     def __init__(self, parent: 'Language', name: str, programs: t.List[Program]):
         super().__init__(name)
         self.parent = parent
-        self.programs = {} # type: t.Dict[str, Program]
-        for prog in programs:
-            self.programs[prog.name] = programs
+        self.programs = itod_from_list(programs, lambda x: x.name) # type: t.Dict[str, Program]
 
     @classmethod
     def from_config_dict(cls, parent: 'Language', config: dict) -> 'ProgramCategory':
@@ -433,7 +429,7 @@ class ProgramCategory(BaseObject):
             "programs": List(Dict(all_keys=False))
         }))
         cat = cls(parent, config["category"], [])
-        cat.programs = {}
+        cat.programs = InsertionTimeOrderedDict()
         for prog_conf in config["programs"]:
             prog = Program.from_config_dict(cat, prog_conf)
             cat.programs[prog.name] = prog
@@ -449,7 +445,7 @@ class ProgramCategory(BaseObject):
     def get_box_plot_html(self, base_file_name: str) -> str: # a box plot over the mean scores per sub program
         scores_per_impl = self.get_scores_per_impl()
         singles = []
-        for impl in sorted(scores_per_impl.keys()):
+        for impl in scores_per_impl:
             scores = scores_per_impl[impl]
             name = "mean score"
             data = RunData({name: scores}, {"description": impl})
@@ -459,7 +455,7 @@ class ProgramCategory(BaseObject):
     def get_box_plot_html_per_input(self, base_file_name: str) -> str:
         scores_per_input = self.get_statistical_property_scores_per_input(rel_mean_func)
         singles = []
-        for input in sorted(scores_per_input.keys()):
+        for input in scores_per_input:
             scores = scores_per_input[input]
             name = "mean score"
             descr = list(self.programs.values())[0].prog_inputs[input].name
@@ -485,7 +481,7 @@ class ProgramCategory(BaseObject):
                 <th>... std devs relative to the best means </th>
                 </tr>
         """
-        for impl in sorted(scores.keys()):
+        for impl in scores.keys():
             html += """
                 <tr><td>{}</td><td>{}</td><td>{}</td></tr>
             """.format(impl, scores[impl], std_devs[impl])
@@ -505,13 +501,13 @@ class ProgramCategory(BaseObject):
                     <th>... std devs relative to the best means </th>
                     </tr>
             """
-            for input in sorted(scores_per_input.keys()):
+            for input in scores_per_input.keys():
                 html += """
                     <tr><td>{}</td><td>{}</td><td>{}</td></tr>
-                """.format(impl, scores_per_input[input], std_devs_per_input[input])
+                """.format(input, scores_per_input[input], std_devs_per_input[input])
             html += "</table>"
-        impl_names = sorted(list(scores.keys()))
-        for (i, prog) in enumerate(sorted(self.programs)):
+        impl_names = list(scores.keys())
+        for (i, prog) in enumerate(self.programs):
             html += self.programs[prog].get_html(base_file_name + "_" + html_escape_property(prog), h_level + 1)
         return html
 
@@ -519,8 +515,8 @@ class ProgramCategory(BaseObject):
         return self.get_statistical_property_scores_per_impl(rel_mean_func)
 
     def get_statistical_property_scores_per_impl(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
-        impl_scores = {}
-        for prog in sorted(self.programs):
+        impl_scores = InsertionTimeOrderedDict()
+        for prog in self.programs:
             scores = self.programs[prog].get_impl_mean_scores()
             for impl in scores:
                 if impl not in impl_scores:
@@ -529,8 +525,8 @@ class ProgramCategory(BaseObject):
         return impl_scores
 
     def get_statistical_property_scores_per_input(self, func: StatisticalPropertyFunc) -> t.Dict[str, t.List[float]]:
-        input_scores = {}
-        for prog in sorted(self.programs):
+        input_scores = InsertionTimeOrderedDict()
+        for prog in self.programs:
             scores = self.programs[prog].get_statistical_property_scores_per_input(func)
             for impl in scores:
                 if impl not in input_scores:
@@ -542,14 +538,14 @@ class ProgramCategory(BaseObject):
         return self.get_statistical_property_scores(rel_mean_func)
 
     def get_statistical_property_scores(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
-        ret = {}
+        ret = InsertionTimeOrderedDict()
         scores_per_impl = self.get_statistical_property_scores_per_impl(func)
         for impl in scores_per_impl:
             ret[impl] = stats.gmean(scores_per_impl[impl])
         return ret
 
     def get_statistical_property_score_per_input(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
-        ret = {}
+        ret = InsertionTimeOrderedDict()
         scores_per_input = self.get_statistical_property_scores_per_input(func)
         for impl in scores_per_input:
             ret[impl] = stats.gmean(scores_per_input[impl])
@@ -559,9 +555,7 @@ class Language(BaseObject):
 
     def __init__(self, name: str, categories: t.List[ProgramCategory]):
         super().__init__(name)
-        self.categories = {} # type: t.Dict[str, ProgramCategory]
-        for cat in categories:
-            self.categories[cat.name] = cat
+        self.categories = itod_from_list(categories, lambda x: x.name) # type: t.Dict[str, ProgramCategory]
 
     @classmethod
     def from_config_dict(cls, config: dict) -> 'Language':
@@ -571,7 +565,7 @@ class Language(BaseObject):
             "impls": List(Dict({"name": Str()}, all_keys=False)) | NonExistent()
         }))
         lang = cls(config["language"], [])
-        lang.categories = {}
+        lang.categories = InsertionTimeOrderedDict()
         for cat_conf in config["categories"]:
             cat = ProgramCategory.from_config_dict(lang, cat_conf)
             lang.categories[cat.name] = cat
@@ -621,7 +615,7 @@ class Language(BaseObject):
     def get_box_plot_html(self, base_file_name: str) -> str: # a box plot over the mean scores per category
         scores_per_impl = self.get_scores_per_impl()
         singles = []
-        for impl in sorted(scores_per_impl.keys()):
+        for impl in scores_per_impl:
             scores = scores_per_impl[impl]
             name = "mean score"
             data = RunData({name: scores}, {"description": impl})
@@ -652,13 +646,13 @@ class Language(BaseObject):
                 <th> ... std devs per best means</th>
                 </tr>
         """
-        for impl in sorted(scores.keys()):
+        for impl in scores:
             html += """
                 <tr><td>{}</td><td>{}</td><td>{}</td></tr>
             """.format(impl, scores[impl], std_devs[impl])
         html += "</table>"
         objs = []
-        for (i, cat) in enumerate(sorted(self.categories)):
+        for (i, cat) in enumerate(self.categories):
             objs.append((i, cat, base_file_name + "_" + html_escape_property(cat), h_level + 1))
         map_func = map
         if multiprocess: # doesn't work (fix warning issue of seaborn)
@@ -711,7 +705,7 @@ class Language(BaseObject):
 </html>
         """
         lang = self.name
-        comparing_str = util.join_strs(sorted(self.get_scores_per_impl()))
+        comparing_str = util.join_strs(self.get_scores_per_impl().keys())
         inner_html = self.get_html(base_file_name, 2, with_header=False)
         import humanfriendly
         timespan = humanfriendly.format_timespan(time.time() - START_TIME)
@@ -732,7 +726,7 @@ class Language(BaseObject):
         return self.get_statistical_property_scores_per_impl(rel_mean_func)
 
     def get_statistical_property_scores_per_impl(self, func: StatisticalPropertyFunc) -> t.Dict[str, t.List[float]]:
-        impl_scores = {}
+        impl_scores = InsertionTimeOrderedDict()
         for cat in self.categories:
             scores = self.categories[cat].get_statistical_property_scores(func)
             for impl in scores:
@@ -745,7 +739,7 @@ class Language(BaseObject):
         return self.get_statistical_property_scores(rel_mean_func)
 
     def get_statistical_property_scores(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
-        ret = {}
+        ret = InsertionTimeOrderedDict()
         scores_per_impl = self.get_statistical_property_scores_per_impl(func)
         for impl in scores_per_impl:
             ret[impl] = stats.gmean(scores_per_impl[impl])
@@ -804,7 +798,7 @@ def bench_categories(ending: str) -> t.List[dict]:
 
 
 def first_inputs(inputs: t.Dict[str, t.List[str]]) -> t.Dict[str, t.List[str]]:
-    ret = {}
+    ret = InsertionTimeOrderedDict()
     for key in inputs:
         if len(inputs[key]) > 0:
             ret[key] = [inputs[key][0]]
@@ -812,7 +806,7 @@ def first_inputs(inputs: t.Dict[str, t.List[str]]) -> t.Dict[str, t.List[str]]:
 
 
 def last_inputs(inputs: t.Dict[str, t.List[str]]) -> t.Dict[str, t.List[str]]:
-    ret = {}
+    ret = InsertionTimeOrderedDict()
     for key in inputs:
         if len(inputs[key]) > 0:
             ret[key] = [inputs[key][-1]]
@@ -1004,7 +998,7 @@ haskell_config = {
 #cparser_config = replace_run_with_build_cmd(cparser_config)
 #pprint(Language.from_config_dict(haskell_config).build("/tmp/"))
 php = Language.from_config_dict(haskell_config)
-php.create_temci_run_file("/tmp/", "abc")
+#php.create_temci_run_file("/tmp/", "abc")
 logging.info("run temci")
 #os.system("temci exec abc --discarded_blocks 1 --stop_start --drop_fs_caches --runs 15 --out haskell.yaml")
 php.process_result_file("haskell.yaml")
@@ -1027,7 +1021,7 @@ php.process_result_file("haskell_c_time.yaml")
 php.store_html("haskell_c_time", clear_dir=True)
 
 php = Language.from_config_dict(replace_run_with_build_cmd(cparser_config))
-php.create_temci_run_file("/tmp/", "abc")
+#php.create_temci_run_file("/tmp/", "abc")
 #logging.info("run temci")
 #os.system("temci exec abc --discarded_blocks 1 --stop_start --drop_fs_caches --nice --other_nice --runs 15 --out cparser_c_time.yaml")
 php.process_result_file("cparser_c_time.yaml")

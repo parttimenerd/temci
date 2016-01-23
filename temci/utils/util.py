@@ -106,8 +106,9 @@ class InsertionTimeOrderedDict:
         return self._dict[key]
 
     def __setitem__(self, key, value):
+        if key not in self._dict:
+            self._keys.append(key)
         self._dict[key] = value
-        self._keys.append(key)
 
     def __iter__(self):
         return self._keys.__iter__()
@@ -120,3 +121,18 @@ class InsertionTimeOrderedDict:
 
     def __len__(self):
         return len(self._keys)
+
+    @classmethod
+    def from_list(cls, items: t.Optional[list], key_func: t.Callable[[t.Any], t.Any]) -> 'InsertionTimeOrderedDict':
+        """
+        Creates an ordered dict out of a list of elements.
+        :param items: list
+        :param key_func: function that returns a key for each passed list element
+        :return: created ordered dict with the elements in the same order as in the passed list
+        """
+        if items is None:
+            return InsertionTimeOrderedDict()
+        ret = InsertionTimeOrderedDict()
+        for item in items:
+            ret[key_func(item)] = item
+        return ret

@@ -771,7 +771,7 @@ if __name__ == "__main__":
 
     #sys.argv[1:] = ["exec", "-wd", "ls", "-wd", "ls ..", "-wd", "ls /tmp", "--min_runs", "5", "--max_runs", "5",
     #                "--out", "ls_100.yaml", "--stop_start"]
-    sys.argv[1:] = ["report", "run_output.yaml", "--reporter", "html2"]
+    sys.argv[1:] = ["report", "../misc/cparser_c_time.yaml", "--reporter", "html"]
     #sys.argv[1:] = ["init", "settings"]
     #sys.argv[1:] = ["completion", "zsh"]
     #sys.argv[1:] = ["assembler", "'dsafasdf sdaf'"]
@@ -799,4 +799,4 @@ if __name__ == "__main__":
     # create kcachegrind valid file via "python3 -m pyprof2calltree -i cli.profile"
     #ctr.stats.print_summary()
     #tr.print_diff()
-    #cli()
+    cli()

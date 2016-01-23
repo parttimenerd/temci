@@ -121,7 +121,7 @@ class ConsoleReporter(AbstractReporter):
     "html_filename": Str() // Default("report.html") // Description("Name of the HTML file"),
     "pair_kind": ExactEither("scatter", "reg", "resid", "kde", "hex") // Default("kde")
                  // Description("Kind of plot to draw for pair plots (see searborn.joinplot)"),
-    "plot_size": PositiveInt() // Default(6) // Description("Width of the plots in centimeters"),
+    "plot_size": PositiveInt() // Default(8) // Description("Width of the plots in centimeters"),
     "compared_props": (ListOrTuple(Str())) // Default(["all"])
                       // Description("Properties to include in comparison table"),
     "compare_against": NaturalNumber() // Default(0)
@@ -229,7 +229,7 @@ class HTMLReporter(AbstractReporter):
         ret_str += """
             <table class="table"><tr>
         """
-        for prop in sorted(self.stats_helper.properties):
+        for prop in sorted(self.stats_helper.properties()):
             x = pd.Series(data[prop], name=prop)
             self._set_fig_size(self.small_size)
             ax = sns.distplot(x)
@@ -249,7 +249,7 @@ class HTMLReporter(AbstractReporter):
             </tr>
             </table>
         """
-        for prop in sorted(self.stats_helper.properties):
+        for prop in sorted(self.stats_helper.properties()):
             ret_str += """
             <h3>{prop}</h3><small>{benchs} benchmarkings<br/></small>
             """.format(prop=prop, benchs=len(data[prop]))
@@ -360,17 +360,17 @@ class HTMLReporter(AbstractReporter):
             <table class="table table-bordered">
                 <tr>
         """
-        for prop in sorted(self.stats_helper.properties):
+        for prop in sorted(self.stats_helper.properties()):
             inner_html += """
                     <td><img src="file://{filename}"/></td>
             """.format(filename=self._jointplot(first, second, prop, size=self.small_size, show_ticks=False))
         inner_html += "</tr><tr>"
-        for prop in sorted(self.stats_helper.properties):
+        for prop in sorted(self.stats_helper.properties()):
             inner_html += """
                     <td><img src="file://{filename}"/></td>
             """.format(filename=self._barplot(first, second, prop, size=self.small_size, show_ticks=False))
         inner_html += "</tr><tr>"
-        for prop in sorted(self.stats_helper.properties):
+        for prop in sorted(self.stats_helper.properties()):
             length = min(len(first[prop]), len(second[prop]))
             first_prop = first[prop][0:length]
             second_prop = second[prop][0:length]
@@ -404,13 +404,14 @@ class HTMLReporter(AbstractReporter):
     def _comparison_tables(self, runs: list = None, properties: list = None, compare_against: int = None,
                            heading_no: int = 3) -> str:
         runs = runs or self.stats_helper.runs
-        properties = list(properties or self.misc["compared_props"])
+        p = properties or self.misc["compared_props"]
+        properties = list(p)
         compare_against = compare_against or self.misc["compare_against"]
         typecheck(properties, List(Str()))
         typecheck(runs, List(T(RunData)) // (lambda l: len(l) > 0))
         typecheck(compare_against, Int(range=range(len(runs))))
         if "all" in properties:
-            properties = self.stats_helper.properties
+            properties = self.stats_helper.properties()
         stat_funcs = {
             "mean": np.mean,
             "median": np.median,
@@ -485,6 +486,7 @@ class HTMLReporter(AbstractReporter):
                    show_ticks: bool = True):
         import matplotlib.pyplot as plt
         import seaborn as sns
+        import numpy
         filename = filename or self._get_new_figure_filename()
         length = min(len(first[property]), len(second[property]))
         first_prop = first[property][0:length]
@@ -494,13 +496,17 @@ class HTMLReporter(AbstractReporter):
         x1 = pd.Series(first_prop, name="{descr}: {prop}".format(descr=first.description(), prop=property))
         x2 = pd.Series(second_prop, name="{descr}: {prop}".format(descr=second.description(), prop=property))
         plt.xlim(lim)
-        g = sns.jointplot(x1, x2, kind=self.misc["pair_kind"], size=size, space=0,
-                          stat_func=self.stats_helper.tester.test, xlim=lim, ylim=lim)
-        if not show_ticks:
-            g.ax_joint.set_xticklabels([])
-            g.ax_joint.set_yticklabels([])
-        g.savefig(filename)
-        plt.close()
+        g = None
+        try:
+            g = sns.jointplot(x1, x2, kind=self.misc["pair_kind"], size=size, space=0,
+                              stat_func=self.stats_helper.tester.test, xlim=lim, ylim=lim)
+            if not show_ticks:
+                g.ax_joint.set_xticklabels([])
+                g.ax_joint.set_yticklabels([])
+            g.savefig(filename)
+            plt.close()
+        except BaseException as ex:
+            logging.warning(ex)
         return filename
 
     def _barplot(self, first: RunData, second: RunData, property: str, size: int,
@@ -534,7 +540,7 @@ class HTMLReporter(AbstractReporter):
     def _get_new_figure_filename(self) -> str:
         self.counter += 1
         return os.path.join(os.path.abspath(self.misc["out"]), "figure.{}{}"
-                            .format(self.counter), BaseStatObject.img_filename_ending)
+                            .format(self.counter, BaseStatObject.img_filename_ending))
 
 
 @register(ReporterRegistry, "html2", Dict({
