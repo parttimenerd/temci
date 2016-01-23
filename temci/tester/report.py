@@ -62,48 +62,56 @@ class ConsoleReporter(AbstractReporter):
     Simple reporter that outputs just text.
     """
 
-    def report(self, with_tester_results: bool = True):
+    def report(self, with_tester_results: bool = True, to_string: bool = False) -> t.Optional[str]:
+        output = [""]
+        def string_printer(line: str, **args):
+            output[0] += str(line) + "\n"
+        print_func = string_printer if to_string else print
         with click.open_file(self.misc["out"], mode='w') as f:
             for block in self.stats_helper.runs:
                 assert isinstance(block, RunData)
-                print("{descr:<20} ({num:>5} single benchmarkings)"
+                print_func("{descr:<20} ({num:>5} single benchmarkings)"
                       .format(descr=block.description(), num=len(block.data[block.properties[0]])), file=f)
                 for prop in sorted(block.properties):
                     mean = np.mean(block[prop])
                     stdev = np.std(block[prop])
-                    print("\t {prop:<18} mean = {mean:>15.5f}, "
+                    print_func("\t {prop:<18} mean = {mean:>15.5f}, "
                           "deviation = {dev_perc:>10.5%} ({dev:>15.5f})".format(
                         prop=prop, mean=mean,
                         dev=stdev, dev_perc=stdev/mean
-                    ))
+                    ), file=f)
             if with_tester_results:
                 self._report_list("Equal program blocks",
                                   self.stats_helper.get_evaluation(with_equal=True,
                                                                    with_uncertain=False,
-                                                                   with_unequal=False), f)
+                                                                   with_unequal=False),
+                                  f, print_func)
                 self._report_list("Unequal program blocks",
                                   self.stats_helper.get_evaluation(with_equal=False,
                                                                    with_uncertain=False,
-                                                                   with_unequal=True), f)
+                                                                   with_unequal=True),
+                                  f, print_func)
                 self._report_list("Uncertain program blocks",
                                   self.stats_helper.get_evaluation(with_equal=True,
                                                                    with_uncertain=True,
-                                                                   with_unequal=True), f)
+                                                                   with_unequal=True),
+                                  f, print_func)
+        if to_string:
+            return output[0]
 
-
-    def _report_list(self, title: str, list, file):
+    def _report_list(self, title: str, list, file, print_func: t.Callable[[str, Any], None]):
         if len(list) != 0:
-            print(title, file=file)
-            print("####################", file=file)
+            print_func(title, file=file)
+            print_func("####################", file=file)
         for item in list:
-            print("\t {} ⟷ {}".format(item["data"][0].description(),
+            print_func("\t {} ⟷ {}".format(item["data"][0].description(),
                                        item["data"][1].description()), file=file)
             for prop in sorted(item["properties"]):
                 prop_data = item["properties"][prop]
                 perc = prop_data["p_val"]
                 if prop_data["unequal"]:
                     perc = 1 - perc
-                print("\t\t {descr:<18} probability = {perc:>10.5%}, speed up = {speed_up:>10.5%}"
+                print_func("\t\t {descr:<18} probability = {perc:>10.5%}, speed up = {speed_up:>10.5%}"
                       .format(descr=prop_data["description"], perc=perc,
                               speed_up=prop_data["speed_up"]), file=file)
 

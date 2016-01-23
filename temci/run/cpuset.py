@@ -31,7 +31,7 @@ class CPUSet:
         """
         #self.bench_set = "bench.set"
         logging.info("Initialize CPUSet")
-        ensure_root()
+        ensure_root("CPU sets can't be created and managed without root privileges")
         self.own_set = ''
         self.base_core_number = Settings().default(base_core_number, "run/cpuset/base_core_number")
         self.parallel = Settings().default(parallel, "run/cpuset/parallel")

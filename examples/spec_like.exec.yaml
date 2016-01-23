@@ -1,0 +1,18 @@
+- attributes:
+    description: spec
+  run_config:
+    runner: spec
+    spec:
+      file: "spec_like_result.yaml"
+      base_path: "abc.cde.efg"
+      path_regexp: 'bench\d'
+      code: 'get(".min") * 60 + get(".sec") + random.random()'
+- attributes:
+    description: "spec2"
+  run_config:
+    runner: spec
+    spec:
+      file: "spec_like_result.yaml"
+      base_path: "abc.cde.efg"
+      path_regexp: 'bench\d'
+      code: 'get(".min") * 60 + get(".sec") + 0.5 * random.random()'

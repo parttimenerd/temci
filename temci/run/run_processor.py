@@ -1,6 +1,9 @@
 import copy
 import random
 
+from temci.utils.util import join_strs
+
+from temci.utils.mail import send_mail
 from temci.utils.typecheck import *
 from temci.run.run_worker_pool import RunWorkerPool, ParallelRunWorkerPool
 from temci.run.run_driver import RunProgramBlock, BenchmarkingResultBlock, RunDriverRegistry, ExecRunDriver
@@ -167,6 +170,12 @@ class RunProcessor:
     def store_and_teardown(self):
         self.teardown()
         self.store()
+        if len(self.stats_helper.runs) > 0 and all(x.benchmarkings() > 0 for x in self.stats_helper.runs):
+            report = ReporterRegistry.get_for_name("console", self.stats_helper)\
+                .report(with_tester_results=False, to_string = True)
+            self.stats_helper.runs[0].description()
+            subject = "Finished " + join_strs([repr(run.description()) for run in self.stats_helper.runs])
+            send_mail(Settings()["run/send_mail"], subject, report, [Settings()["run/out"]])
 
     def store(self):
         with open(Settings()["run/out"], "w") as f:

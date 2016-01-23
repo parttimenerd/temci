@@ -20,12 +20,17 @@ def recursive_exec_for_leafs(data: dict, func, _path_prep=[]):
             func(subkey, _path_prep + [subkey], data[subkey])
 
 
-def ensure_root():
+def ensure_root(reason: str):
+    """
+    Throws an error if the user has no root privileges.
+    :param reason: why do you need root privileges? To improve the error message.
+    :raises EnvironmentError if the current user has no root privileges.
+    """
     proc = subprocess.Popen(["/usr/bin/sudo", "-n", "/usr/bin/id"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     proc.communicate()
     if proc.poll() > 0:
-        raise EnvironmentError("This program needs to be run with super user privileges")
+        raise EnvironmentError("This program needs to be run with super user privileges: " + reason)
 
 
 def get_cache_line_size(cache_level: int = None) -> t.Optional[int]:
@@ -81,3 +86,37 @@ class Singleton(type):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
+
+
+class InsertionTimeOrderedDict:
+    """
+    It's a dict which's elements are sorted by their insertion time.
+    """
+
+    def __init__(self):
+        self._dict = {}
+        self._keys = []
+        dict()
+
+    def __delitem__(self, key):
+        del(self._dict[key])
+        del(self._keys[self._keys.index(key)])
+
+    def __getitem__(self, key):
+        return self._dict[key]
+
+    def __setitem__(self, key, value):
+        self._dict[key] = value
+        self._keys.append(key)
+
+    def __iter__(self):
+        return self._keys.__iter__()
+
+    def values(self) -> t.List:
+        return [self._dict[key] for key in self._keys]
+
+    def keys(self) -> t.List:
+        return self._keys
+
+    def __len__(self):
+        return len(self._keys)

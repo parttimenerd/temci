@@ -74,7 +74,9 @@ class Settings(metaclass=Singleton):
             "append": Bool() // Default(False)
                       // Description("Append to the output file instead of overwriting by adding new run data blocks"),
             "shuffle": Bool() // Default(True) // Description("Randomize the order in which the program blocks are "
-                                                              "benchmarked.")
+                                                              "benchmarked."),
+            "send_mail": Str() // Default("")
+                         // Description("If not empty, recipient of a mail after the benchmarking finished.")
         }),
         "build": Dict({
             "rand": Dict({

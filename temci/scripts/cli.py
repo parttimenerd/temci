@@ -509,6 +509,8 @@ _temci(){{
     compdef _temci temci=temci
     """
     file_name = completion_file_name("zsh")
+    if not os.path.exists(os.path.dirname(file_name)):
+        os.mkdir(os.path.dirname(file_name))
     with open(file_name, "w") as f:
         f.write(ret_str)
         logging.debug("\n".join("{:>3}: {}".format(i, s) for (i, s) in enumerate(ret_str.split("\n"))))
@@ -755,10 +757,9 @@ def assembler(call: str):
 def cli_with_error_catching():
     try:
         cli()
-    except TypeError as err:
-        #logging.error(err.__traceback__.__repr__())
-        #exit(1)
-        raise
+    except EnvironmentError as err:
+        logging.error(err.args[0])
+        exit(1)
 
 @cli.command(short_help="Compile all needed binaries in the temci scripts folder")
 def setup():

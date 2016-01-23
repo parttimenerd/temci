@@ -88,7 +88,7 @@ class NicePlugin(AbstractRunDriverPlugin):
         self.old_io_nice = int(self._exec_command("ionice").split(" prio ")[1])
 
     def setup(self):
-        ensure_root()
+        ensure_root("The own nice value can't be lowered without")
         self._set_nice(self.misc_settings["nice"])
         self._set_io_nice(self.misc_settings["io_nice"])
 
@@ -165,13 +165,12 @@ class OtherNicePlugin(AbstractRunDriverPlugin):
     """
 
     def __init__(self, misc_settings):
-        ensure_root()
         super().__init__(misc_settings)
         self.old_nices = {}
+        ensure_root("The nice values of other processes can't be disabled without")
 
 
     def setup(self):
-        ensure_root()
         for line in self._exec_command("sudo /bin/ps --noheaders -e -o pid,nice").split("\n"):
             line = line.strip()
             arr = list(filter(lambda x: len(x) > 0, line.split(" ")))
@@ -221,7 +220,7 @@ class StopStartPlugin(AbstractRunDriverPlugin):
     """
 
     def __init__(self, misc_settings):
-        ensure_root()
+        ensure_root("other processes can't be stopped without")
         super().__init__(misc_settings)
         self.processes = {}
         self.pids = []
@@ -267,7 +266,6 @@ class StopStartPlugin(AbstractRunDriverPlugin):
         return "Process(id={pid:5d}, parent={ppid:5d}, nice={nice:2d}, name={comm})".format(**proc_dict)
 
     def setup(self):
-        ensure_root()
         self.parse_processes()
         for proc in self.processes.values():
             if proc["pid"] == os.getpid():
@@ -336,7 +334,7 @@ class DropFSCaches(AbstractRunDriverPlugin):
     """
 
     def setup(self):
-        ensure_root()
+        ensure_root("The page cache, directoy entries and inodes can't be dropped without")
 
     def setup_block_run(self, block: RunProgramBlock):
         num = self.misc_settings["free_pagecache"] + 2 * self.misc_settings["free_dentries_inodes"]
@@ -350,7 +348,7 @@ class DisableSwap(AbstractRunDriverPlugin):
     """
 
     def setup(self):
-        ensure_root()
+        ensure_root("Swapping can't be disabled without")
         self._exec_command("sudo swapoff -a")
 
     def teardown(self):
@@ -369,7 +367,7 @@ class DisableCPUCaches(AbstractRunDriverPlugin):
     """
 
     def setup(self):
-        ensure_root()
+        ensure_root("Loading kernel module to disable the cpu caches can't be done without")
         setup.exec("cpu_cache", "sudo insmod disable_cache.ko")
 
     def teardown(self):

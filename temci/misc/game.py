@@ -35,6 +35,8 @@ from temci.tester.report import HTMLReporter2, html_escape_property
 FIG_WIDTH = 15
 FIG_HEIGHT_PER_ELEMENT = 1.5
 
+
+
 class BaseObject:
 
     def __init__(self, name: str):
