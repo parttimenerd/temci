@@ -588,6 +588,7 @@ class HTMLReporter2(AbstractReporter):
         <script src="file:script.js"></script>
     </head>
     <body style="font-family: sans-serif;">
+        <a href="" id="hidden_link" style="display: none;"></a>
         <div id="toc"></div>
         <div class="container">
           <div class="row">

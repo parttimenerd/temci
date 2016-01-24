@@ -712,6 +712,7 @@ def assembler(call: str):
     input_file = os.path.abspath(call[-1])
     config = json.loads(os.environ["RANDOMIZATION"]) if "RANDOMIZATION" in os.environ else {}
     as_tool = os.environ["USED_AS"] if "USED_AS" in os.environ else "/usr/bin/as"
+    tmp_assm_file = os.path.join(os.environ["TMP_DIR"] if "TMP_DIR" in os.environ else "/tmp", "temci_assembler.s")
 
     def exec(cmd):
         proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE,
@@ -723,15 +724,15 @@ def assembler(call: str):
         return None
 
     processor = AssemblyProcessor(config)
-    shutil.copy(input_file, "/tmp/temci_assembler.s")
+    shutil.copy(input_file, tmp_assm_file)
     call[0] = as_tool
-    shutil.copy("/tmp/temci_assembler.s", input_file)
+    shutil.copy(tmp_assm_file, input_file)
     processor.process(input_file)
     ret = exec(" ".join(call))
     if ret is None:
         return
     for i in range(0, 6):
-        shutil.copy("/tmp/temci_assembler.s", input_file)
+        shutil.copy(tmp_assm_file, input_file)
         processor.process(input_file, small_changes=True)
         ret = exec(" ".join(call))
         if ret is None:
@@ -743,18 +744,19 @@ def assembler(call: str):
         config["file_structure"] = False
         for i in range(0, 6):
             processor = AssemblyProcessor(config)
-            shutil.copy("/tmp/temci_assembler.s", input_file)
+            shutil.copy(tmp_assm_file, input_file)
             processor.process(input_file)
             ret = exec(" ".join(call))
             if ret is None:
                 return
             logging.info("Another try")
     logging.error(ret)
-    shutil.copy("/tmp/temci_assembler.s", input_file)
+    shutil.copy(tmp_assm_file, input_file)
     ret = exec(" ".join(call))
     if ret is not None:
         logging.error(ret)
         exit(1)
+
 
 def cli_with_error_catching():
     try:

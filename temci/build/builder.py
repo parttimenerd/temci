@@ -125,7 +125,8 @@ class BuilderThread(threading.Thread):
                 "RANDOMIZATION": json.dumps(item.rand_conf),
                 "PATH": as_path + "/:" + os.environ["PATH"],
                 "LANG": "en_US.UTF-8",
-                "LANGUAGE": "en_US"
+                "LANGUAGE": "en_US",
+                "TMP_DIR": Settings()["tmp_dir"]
             }
             logging.info("Thread {}: Start building number {}".format(self.id, item.id))
             proc = subprocess.Popen(["/bin/sh", "-c", "export PATH={}/:$PATH; sync;".format(as_path)

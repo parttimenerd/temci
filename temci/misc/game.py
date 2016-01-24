@@ -1,5 +1,9 @@
 """
 Benchmarks game inspired comparison of different implementations for a given language.
+
+It doesn't really belong directly to the temci tool, but uses big parts of it.
+It's currently in a pre alpha state as it's a part of the evaluation for my bachelor thesis
+that I'm currently doing,
 """
 
 import logging, time
@@ -25,6 +29,7 @@ from temci.utils.typecheck import *
 import os, shutil, copy
 from pprint import pprint
 from temci.tester import report
+
 from temci.utils.util import InsertionTimeOrderedDict
 
 itod_from_list = InsertionTimeOrderedDict.from_list
@@ -150,7 +155,7 @@ class Implementation(BaseObject):
                 shutil.copy(copied_file, p)
         if self.build_cmd:
             build_cmd = self.build_cmd.format(**d)
-            pprint(build_cmd)
+            #pprint(build_cmd)
             proc = subprocess.Popen(["/bin/sh", "-c", build_cmd], stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         universal_newlines=True,
@@ -171,13 +176,70 @@ class Implementation(BaseObject):
                 "category": category.name,
                 "program": prog.name,
                 "impl": self.name,
-                "input": prog_in.input
+                "input": str(prog_in.input)
             },
             "run_config": {
                 "run_cmd": run_cmd,
                 "cwd": path
             }
         }
+
+
+class Input:
+    """
+    Input with a variable numeric part.
+    """
+
+    def __init__(self, prefix: str = None, number: t.Union[int, float] = None, appendix: str = None):
+        self.prefix = prefix or ""
+        self.number = number
+        self.appendix = appendix or ""
+
+    def __mul__(self, other: t.Union[int, float]) -> 'Input':
+        typecheck_locals(other=Int() | Float())
+        return Input(self.prefix, None if self.number is None else self.number * other, self.appendix)
+
+    def __floordiv__(self, other: t.Union[int, float]) -> 'Input':
+        typecheck_locals(other=Int() | Float())
+        return Input(self.prefix, None if self.number is None else self.number * other, self.appendix)
+
+    def __str__(self):
+        return self.prefix + (str(self.number) or "") + self.appendix
+
+    def __repr__(self):
+        return repr(str(self))
+
+    def replace(self, search: str, replacement: str) -> 'Input':
+        """
+        Returns an input object in which the search string is replaced in the prefix and the appendix.
+        """
+        return Input(self.prefix.replace(search, replacement), self.number, self.appendix.replace(search, replacement))
+
+    @classmethod
+    def from_config_dict(cls, config: dict) -> 'Input':
+        typecheck_locals(config=Dict({
+            "prefix": Str() | NonExistent(),
+            "number": Int() | Float() | NonExistent(),
+            "appendix": Str() | NonExistent()
+        }))
+        return Input(**config)
+
+    @classmethod
+    def list_from_numbers(cls, *numbers: t.List[t.Union[int, float]]) -> t.List['Input']:
+        return [Input(number=number) for number in numbers]
+
+    def to_dict(self) -> dict:
+        ret = {}
+        if self.prefix != "":
+            ret["prefix"] = self.prefix
+        if self.number is not None:
+            ret["number"] = self.number
+        if self.appendix != "":
+            ret["appendix"] = self.appendix
+        return ret
+
+    def __hash__(self, *args, **kwargs):
+        return str(self).__hash__(*args, **kwargs)
 
 
 StatisticalPropertyFunc = t.Callable[[SingleProperty], float]
@@ -187,7 +249,7 @@ rel_std_dev_func = lambda x, min: x.std_dev() / min
 
 class ProgramWithInput(BaseObject):
 
-    def __init__(self, parent: 'Program', input: str, impls: t.List[Implementation], id: int):
+    def __init__(self, parent: 'Program', input: Input, impls: t.List[Implementation], id: int):
         super().__init__(str(id))
         self.parent = parent
         self.input = input
@@ -292,7 +354,11 @@ class Program(BaseObject):
         typecheck(config, Dict({
             "program": Str(),
             "file": FileName(allow_non_existent=False),
-            "inputs": List(Str()) | NonExistent(),
+            "inputs": List(Dict({
+                    "prefix": Str() | NonExistent(),
+                    "number": Int() | Float() | NonExistent(),
+                    "appendix": Str() | NonExistent()
+                })) | NonExistent(),
             "copied_files": List(Str()) | NonExistent(),
             "impls": List(Dict(all_keys=False)) | NonExistent()
         }))
@@ -300,8 +366,9 @@ class Program(BaseObject):
                        copied_files=config["copied_files"] if "copied_files" in config else [])
         inputs = config["inputs"] if "inputs" in config else [""]
         for (i, input) in enumerate(inputs):
+            input = Input.from_config_dict(input)
             prog_input = ProgramWithInput(program, input, [], i)
-            program.prog_inputs[input] = prog_input
+            program.prog_inputs[str(input)] = prog_input
             impls = config["impls"] if "impls" in config else []
             prog_input.impls = InsertionTimeOrderedDict()
             for impl_conf in impls:
@@ -597,7 +664,8 @@ class Language(BaseObject):
             }))
             try:
                 self[attrs["category"]][attrs["program"]][attrs["input"]][attrs["impl"]].run_data = run_data["data"][property]
-            except KeyError:
+            except KeyError as err:
+                logging.warning(err)
                 pass
 
     def process_result_file(self, file: str, property: str = "task-clock"):
@@ -605,12 +673,13 @@ class Language(BaseObject):
             self.set_run_data_from_result_dict(yaml.load(f), property)
 
     def build(self, base_dir: str, multiprocess: bool = True) -> t.List[dict]:
-        path = self._create_own_dir(base_dir)
-        return self._buildup_dict(path, self.categories, multiprocess=True)
+        #path = self._create_own_dir(base_dir)
+        return self._buildup_dict(base_dir, self.categories, multiprocess=True)
 
     def create_temci_run_file(self, base_build_dir: str, file: str):
+        run_config = self.build(base_build_dir)
         with open(file, "w") as f:
-            print(yaml.dump(self.build(base_build_dir), Dumper=yaml.RoundTripDumper), file=f)
+            print(yaml.dump(run_config, Dumper=yaml.RoundTripDumper), file=f)
 
     def get_box_plot_html(self, base_file_name: str) -> str: # a box plot over the mean scores per category
         scores_per_impl = self.get_scores_per_impl()
@@ -719,7 +788,7 @@ class Language(BaseObject):
             shutil.rmtree(base_dir)
             self.store_html(base_dir, clear_dir=False)
             return
-        with open(os.path.join(base_dir, "{}_report.html".format(self.name)), "w") as f:
+        with open(os.path.join(base_dir, "report.html"), "w") as f:
             f.write(self.get_full_html(os.path.join(base_dir, "{}_fig".format(self.name))))
 
     def get_scores_per_impl(self) -> t.Dict[str, t.List[float]]:
@@ -767,57 +836,79 @@ def bench_file(category: str, ending: str, number: int = 1) -> str:
     return base + ".{ending}-{number}.{ending}".format(**locals())
 
 
-def bench_program(category: str, ending: str, number: int = 1) -> dict:
+def bench_program(category: str, ending: str, inputs: t.List[Input], number: int = 1) -> dict:
     return {
         "program": str(number),
         "file": bench_file(category, ending, number),
-        "inputs": [input.replace("$INPUT", BENCH_PATH + "/../bencher/input") for input in inputs[category]]
+        "inputs": [input.replace("$INPUT", BENCH_PATH + "/../bencher/input").to_dict() for input in inputs]
     }
 
 
-def bench_category(category: str, ending: str, numbers: t.List[int] = None) -> dict:
+def bench_category(category: str, ending: str, inputs: t.List[Input], numbers: t.List[int] = None) -> dict:
     if numbers is None:
         numbers = []
         for i in range(1, 10):
             if os.path.exists(bench_file(category, ending, i)):
                 numbers.append(i)
     #numbers = [numbers[0]]
-    programs = [bench_program(category, ending, number) for number in numbers]
+    programs = [bench_program(category, ending, inputs, number) for number in numbers]
     return {
         "category": category,
         "programs": programs
     }
 
 
-def bench_categories(ending: str) -> t.List[dict]:
+InputsPerCategory = t.Dict[str, t.List[Input]]
+
+
+def bench_categories(ending: str, inputs: InputsPerCategory) -> t.List[dict]:
     categories = []
-    for cat in sorted(inputs):
+    for cat in inputs:
         if os.path.exists(bench_file(cat, ending)):
-            categories.append(bench_category(cat, ending))
+            categories.append(bench_category(cat, ending, inputs[cat]))
     return categories
 
 
-def first_inputs(inputs: t.Dict[str, t.List[str]]) -> t.Dict[str, t.List[str]]:
+def first_inputs(inputs_per_category: InputsPerCategory) -> InputsPerCategory:
     ret = InsertionTimeOrderedDict()
-    for key in inputs:
-        if len(inputs[key]) > 0:
-            ret[key] = [inputs[key][0]]
+    for key in inputs_per_category:
+        if len(inputs_per_category[key]) > 0:
+            ret[key] = [inputs_per_category[key][0]]
     return ret
 
 
-def last_inputs(inputs: t.Dict[str, t.List[str]]) -> t.Dict[str, t.List[str]]:
+def empty_inputs(inputs_per_category: InputsPerCategory) -> InputsPerCategory:
     ret = InsertionTimeOrderedDict()
-    for key in inputs:
-        if len(inputs[key]) > 0:
-            ret[key] = [inputs[key][-1]]
+    for key in inputs_per_category:
+        if len(inputs_per_category[key]) > 0:
+            ret[key] = [Input()]
     return ret
 
 
-def prepend(item: str, array: t.List[str]) -> t.List[str]:
-    return [item + elem for elem in array]
+def last_inputs(inputs_per_category: InputsPerCategory) -> t.Dict[str, t.List[Input]]:
+    ret = InsertionTimeOrderedDict()
+    for key in inputs_per_category:
+        if len(inputs_per_category[key]) > 0:
+            ret[key] = [inputs_per_category[key][-1]]
+    return ret
 
 
-def replace_run_with_build_cmd(config_dict: t.Dict[str, t.Union[str, t.List[dict]]]):
+def divide_inputs(inputs_per_category: InputsPerCategory, divisor: t.Union[int, float]) \
+        -> t.Dict[str, t.List[Input]]:
+    ret = InsertionTimeOrderedDict()
+    for key in inputs_per_category:
+        ret[key] = [input // divisor for input in inputs_per_category[key]]
+    return ret
+
+
+def prefix_inputs(prefix: str, inputs: t.List[Input]) -> t.List[Input]:
+    return [Input(prefix + input.prefix, input.number, input.appendix) for input in inputs]
+
+
+ConfigDict = t.Dict[str, t.Union[str, dict]]
+
+
+def replace_run_with_build_cmd(config_dict: ConfigDict) -> ConfigDict:
     config_dict = copy.deepcopy(config_dict)
     for impl_dict in config_dict["impls"]:
         impl_dict["run_cmd"] = impl_dict["build_cmd"] + " &> /dev/null"
@@ -825,207 +916,250 @@ def replace_run_with_build_cmd(config_dict: t.Dict[str, t.Union[str, t.List[dict
     return config_dict
 
 
+# download the benchmarksgame source code from https://alioth.debian.org/snapshots.php?group_id=100815
 BENCH_PATH = "/home/parttimenerd/benchmarksgame/bench"
-inputs = { # type: t.Dict[str, t.List[str]]
-    "binarytrees": ["12", "16"], # game: [12, 16, 20]
-    "chameneosredux": ["60000", "600000", "6000000"], # 60000 600000 6000000
-    "fannkuchredux": ["8", "9", "10"], # game: ["10", "11", "12"]
-    "fasta": ["25000", "250000", "2500000"], # game: ["250000", "2500000", "25000000"]
-    "fastaredux": ["25000", "250000", "2500000"], # 250000 2500000 25000000
-    "knucleotide": prepend("$INPUT/knucleotide-input.txt ", ["25000", "250000", "2500000"]), # 250000 2500000 25000000
-    "mandelbrot": ["1000", "4000", "16000"],
-    "meteor": ["2098"],
-    "nbody": ["50000", "500000", "5000000"], # 500000 5000000 50000000
-    "pidigits": ["2000", "6000", "10000"],
-    "regexdna": prepend("$INPUT/regexdna-input.txt ", ["50", "50000", "500000"]), # 50000 500000 5000000
-    "revcomp": prepend("$INPUT/revcomp-input.txt ", ["250000", "2500000", "25000000"]), # 250000 2500000 25000000
-    "spectralnorm": ["500", "3000", "5500"],
-    "threadring": ["5000", "50000", "500000"] # 500000 5000000 50000000
+
+# Inputs based on the ones used in the benchmarksgame
+INPUTS_PER_CATEGORY = { # type: InputsPerCategory
+    "binarytrees": Input.list_from_numbers(12, 16, 20),
+    "binarytreesredux": Input.list_from_numbers(12, 16, 20),
+    "chameneosredux": Input.list_from_numbers(60000, 600000, 6000000),
+    "fannkuchredux": Input.list_from_numbers(10, 11, 12),
+    "fasta": ref("fasta", Input.list_from_numbers(250000, 2500000, 25000000)),
+    "fastaredux": ref("fasta"),
+    "knucleotide": prefix_inputs("$INPUT/knucleotide-input.txt ", ref("fasta")),
+    "mandelbrot": Input.list_from_numbers(1000, 4000, 16000),
+    "meteor": Input.list_from_numbers(2098),
+    "nbody": Input.list_from_numbers(500000, 5000000, 50000000),
+    "pidigits": Input.list_from_numbers(2000, 6000, 10000),
+    "regexdna": prefix_inputs("$INPUT/regexdna-input.txt ", Input.list_from_numbers(50000, 500000, 5000000)),
+    "revcomp": prefix_inputs("$INPUT/revcomp-input.txt ", Input.list_from_numbers(250000, 2500000, 25000000)),
+    "spectralnorm": Input.list_from_numbers(500, 3000, 5500),
+    "threadring": Input.list_from_numbers(500000, 5000000, 50000000)
 }
 
-#inputs = first_inputs(inputs)
 
-php_config = {
-    "language": "php",
-    "categories": [
-        bench_category("binarytrees", "php"),
-        bench_category("fannkuchredux", "php", [1, 2])#,
-        #bench_category("knucleotide", "php", [4])
-    ],
-    "impls": [
-        {
-            "name": "php",
-            "run_cmd": "php {file} {input}"
-        }, {
-            "name": "hhvm",
-            "run_cmd": "hhvm {file} {input}"
-        }
-    ]
-}
+def c_config(inputs_per_category: InputsPerCategory, optimisation: str = "-O2", clang_version = "3.7") -> ConfigDict:
+    """
+    Generates a game config that compares gcc and clang.
+    """
 
-c_config = {
-    "language": "c",
-    "categories": [
-        bench_category("binarytrees", "gcc"),
-        bench_category("chameneosredux", "gcc", [2]),
-        bench_category("fannkuchredux", "gcc", [1, 5]),
-        bench_category("fasta", "gcc", [1, 4, 5]),
-        bench_category("fastaredux", "gcc"),
-        #bench_category("knucleotide", "gcc", [9]) # doesn't compile
-        bench_category("mandelbrot", "gcc", [1, 2, 3, 4, 6, 9]),
-        bench_category("meteor", "gcc"),
-        bench_category("nbody", "gcc"),
-        bench_category("pidigits", "gcc"),
-        #bench_category("regexdna", "gcc", [1, 2]),      # runs almost infinitely
-        bench_category("revcomp", "gcc", [1]),
-        bench_category("spectralnorm", "gcc", [1]),
-        bench_category("threadring", "gcc")
-    ],
-    "impls": [
-        {
-            "name": "gcc",
-            "build_cmd": "cp {file} {bfile}.c; gcc {bfile}.c -I/usr/include/tcl8.6 -ltcl8.4 -lglib-2.0 -lgmp "
-                         "-D_GNU_SOURCE -Doff_t=__off64_t -fopenmp -D_FILE_OFFSET_BITS=64 -I/usr/include/apr-1.0 "
-                         "-lapr-1 -lgomp -lm -std=c99 -mfpmath=sse -msse3 -I/usr/include/glib-2.0 "
-                         "-I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -lpcre -o {bfile}",
-            "run_cmd": "./{bfile} {input} > /dev/null"
-        }, {
-            "name": "clang",
-            "build_cmd": "cp {file} {bfile}.c; clang-3.7 {bfile}.c -I/usr/include/tcl8.6 -ltcl8.4 -fopenmp=libgomp "
-                         "-lglib-2.0 -lgmp -D_GNU_SOURCE -Doff_t=__off64_t -D_FILE_OFFSET_BITS=64 "
-                         "-I/usr/include/apr-1.0 -lapr-1  -lm -std=c99 -mfpmath=sse -msse3 -I/usr/include/glib-2.0 "
-                         "-I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -lpcre -o {bfile}",
-            "run_cmd": "./{bfile} {input} > /dev/null"
-        }
-    ]
-}
+    def cat(category: str, numbers: t.List[int] = None):
+        return bench_category(category, "gcc", inputs_per_category[category], numbers)
 
-cparser_config = {
-    "language": "c",
-    "categories": [
-        bench_category("binarytrees", "gcc", [1, 3, 5]),
-        bench_category("chameneosredux", "gcc", [2]),
-        bench_category("fannkuchredux", "gcc", [1, 5]),
-        bench_category("fasta", "gcc", [1, 4, 5]),
-        bench_category("fastaredux", "gcc"),
-        #bench_category("knucleotide", "gcc", [9]) # doesn't compile
-        bench_category("mandelbrot", "gcc", [2, 9]),
-        bench_category("meteor", "gcc"),
-        bench_category("nbody", "gcc", [1, 2, 3, 6]),
-        bench_category("pidigits", "gcc"),
-        #bench_category("regexdna", "gcc", [1, 2]),      # runs almost infinitely
-        bench_category("revcomp", "gcc", [1]),
-        bench_category("spectralnorm", "gcc", [1]),
-        bench_category("threadring", "gcc", [1, 2, 3])
-    ],
-    "impls": [
-        {
-            "name": "gcc",
-            "build_cmd": "cp {file} {bfile}.c; gcc {bfile}.c -w -O3 -I/usr/include/tcl8.6 -ltcl8.4 -lglib-2.0 -lgmp -D_GNU_SOURCE "
-                         "-Doff_t=__off64_t -D_FILE_OFFSET_BITS=64 -I/usr/include/apr-1.0 -lapr-1 -lgomp -lm -std=c99 "
-                         " -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -lpcre "
-                         " -lpthread -o {bfile}.{impl_escaped}",
-            "run_cmd": "./{bfile} {input} > /dev/null"
-        }, {
-            "name": "clang",
-            "build_cmd": "cp {file} {bfile}.c; clang-3.7 {bfile}.c -w -O3 -I/usr/include/tcl8.6 -ltcl8.4 "
-                         "-fopenmp=libgomp -lglib-2.0 -lgmp -D_GNU_SOURCE "
-                         "-Doff_t=__off64_t -D_FILE_OFFSET_BITS=64 -I/usr/include/apr-1.0 -lapr-1  -lm -std=c99 "
-                         "-I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -lpcre "
-                         "-lpthread -o {bfile}.{impl_escaped}",
-            "run_cmd": "./{bfile}.{impl_escaped} {input} > /dev/null"
-        }, {
-            "name": "cparser",
-            "build_cmd": "cp {file} {bfile}.c; cparser {bfile}.c -w -O3 -I/usr/include/tcl8.6 -ltcl8.4 -lglib-2.0 -lgmp -D_GNU_SOURCE "
-                         "-Doff_t=__off64_t -D_FILE_OFFSET_BITS=64 -I/usr/include/apr-1.0 -lapr-1 -lgomp -lm -std=c99 "
-                         " -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -lpcre "
-                         " -lpthread -o {bfile}.{impl_escaped}",
-            "run_cmd": "./{bfile}.{impl_escaped} {input} > /dev/null"
-        }
-    ]
-}
+    config = {
+        "language": "c",
+        "categories": [
+            cat("binarytrees"),
+            cat("chameneosredux", [2]),
+            cat("fannkuchredux", [1, 5]),
+            cat("fasta", [1, 4, 5]),
+            cat("fastaredux"),
+            #cat("knucleotide", "gcc", [9]) # doesn't compile
+            cat("mandelbrot", [1, 2, 3, 4, 6, 9]),
+            cat("meteor"),
+            cat("nbody"),
+            cat("pidigits"),
+            #cat("regexdna", "gcc", [1, 2]),      # runs almost infinitely
+            cat("revcomp", [1]),
+            cat("spectralnorm", [1]),
+            cat("threadring")
+        ],
+        "impls": [
+            {
+                "name": "gcc", # todo: tcl8.6 vs 8.4???
+                "build_cmd": "cp {file} {bfile}.c; gcc {bfile}.c $O -I/usr/include/tcl8.6 -ltcl8.4 -lglib-2.0 -lgmp "
+                             "-D_GNU_SOURCE -Doff_t=__off64_t -fopenmp -D_FILE_OFFSET_BITS=64 -I/usr/include/apr-1.0 "
+                             "-lapr-1 -lgomp -lm -std=c99 -mfpmath=sse -msse3 -I/usr/include/glib-2.0 "
+                             "-I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -lpcre -o {bfile}"
+                             .replace("$O", optimisation),
+                "run_cmd": "./{bfile} {input} > /dev/null"
+            }, {
+                "name": "clang",
+                "build_cmd": "cp {file} {bfile}.c; clang-$CV {bfile}.c $O -I/usr/include/tcl8.6 -ltcl8.4 -fopenmp=libgomp "
+                             "-lglib-2.0 -lgmp -D_GNU_SOURCE -Doff_t=__off64_t -D_FILE_OFFSET_BITS=64 "
+                             "-I/usr/include/apr-1.0 -lapr-1  -lm -std=c99 -mfpmath=sse -msse3 -I/usr/include/glib-2.0 "
+                             "-I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -lpcre -o {bfile}"
+                            .replace("$CV", clang_version).replace("$O", optimisation),
+                "run_cmd": "./{bfile} {input} > /dev/null"
+            }
+        ]
+    }
+
+    return config
+
+
+def cparser_config(inputs_per_category: InputsPerCategory, optimisation: str = "-O2", clang_version = "3.7") -> ConfigDict:
+    """
+    Generates a game config that compares gcc, clang and cparser.
+    """
+
+    def cat(category: str, numbers: t.List[int] = None):
+        return bench_category(category, "gcc", inputs_per_category[category], numbers)
+
+    config = {
+        "language": "c",
+        "categories": [
+            cat("binarytrees", [1, 3, 5]),
+            cat("chameneosredux", [2]),
+            cat("fannkuchredux", [1, 5]),
+            cat("fasta", [1, 4, 5]),
+            cat("fastaredux"),
+            #cat("knucleotide", "gcc", [9]) # doesn't compile
+            cat("mandelbrot", [2, 9]),
+            cat("meteor"),
+            cat("nbody", [1, 2, 3, 6]),
+            cat("pidigits"),
+            #cat("regexdna", "gcc", [1, 2]),      # runs almost infinitely
+            cat("revcomp", [1]),
+            cat("spectralnorm", [1]),
+            cat("threadring", [1, 2, 3])
+        ],
+        "impls": [
+            {
+                "name": "gcc",
+                "build_cmd": "cp {file} {bfile}.c; gcc {bfile}.c -w $O -I/usr/include/tcl8.6 -ltcl8.4 -lglib-2.0 -lgmp -D_GNU_SOURCE "
+                             "-Doff_t=__off64_t -D_FILE_OFFSET_BITS=64 -I/usr/include/apr-1.0 -lapr-1 -lgomp -lm -std=c99 "
+                             " -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -lpcre "
+                             " -lpthread -o {bfile}.{impl_escaped}".replace("$O", optimisation),
+                "run_cmd": "./{bfile} {input} > /dev/null"
+            }, {
+                "name": "clang",
+                "build_cmd": "cp {file} {bfile}.c; clang-$CV {bfile}.c -w $O -I/usr/include/tcl8.6 -ltcl8.4 "
+                             "-fopenmp=libgomp -lglib-2.0 -lgmp -D_GNU_SOURCE "
+                             "-Doff_t=__off64_t -D_FILE_OFFSET_BITS=64 -I/usr/include/apr-1.0 -lapr-1  -lm -std=c99 "
+                             "-I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -lpcre "
+                             "-lpthread -o {bfile}.{impl_escaped}".replace("$CV", clang_version).replace("$O", optimisation),
+                "run_cmd": "./{bfile}.{impl_escaped} {input} > /dev/null"
+            }, {
+                "name": "cparser",
+                "build_cmd": "cp {file} {bfile}.c; cparser {bfile}.c -w $O -I/usr/include/tcl8.6 -ltcl8.4 -lglib-2.0 -lgmp -D_GNU_SOURCE "
+                             "-Doff_t=__off64_t -D_FILE_OFFSET_BITS=64 -I/usr/include/apr-1.0 -lapr-1 -lgomp -lm -std=c99 "
+                             " -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -lglib-2.0 -lpcre "
+                             " -lpthread -o {bfile}.{impl_escaped}".replace("$O", optimisation),
+                "run_cmd": "./{bfile}.{impl_escaped} {input} > /dev/null"
+            }
+        ]
+    }
+
+    return config
 
 AV_GHC_VERSIONS = ["7.0.1", "7.2.1", "7.4.1", "7.6.1", "7.8.1", "7.10.1", "8.0.1"]
 """ These are (currently) the versions installable via the ppa on https://launchpad.net/~hvr/+archive/ubuntu/ghc
 Older versions can't be installed due to version conflicts and missing libraries """
 
-def ghc_impl_dir(version: str = "8.0.1") -> str:
-    typecheck_locals(version=ExactEither(*AV_GHC_VERSIONS))
-    dir = "/opt/ghc/{version}/bin/".format(**locals())
-    typecheck_locals(dir=DirName())
-    return dir
+
+def haskel_config(inputs_per_category: InputsPerCategory, optimisation: str, ghc_versions: t.List[str] = None) \
+        -> ConfigDict:
+    """
+    Generate a game config comparing all available ghc versions
+    :param inputs_per_category: 
+    :param optimisation: optimisation flags, e.g. '-O -Odph' ('-O' prefix is needed) or '-O'
+    :param ghc_versions: compared ghc versions, if None, AV_GHC_VERSIONS is used
+    """
+    ghc_versions = ghc_versions or AV_GHC_VERSIONS
+
+    def cat(category: str, numbers: t.List[int] = None):
+        return bench_category(category, "ghc", inputs_per_category[category], numbers)
 
 
-def ghc_impl(version: str) -> t.Dict[str, str]:
-    return {
-        "name": "ghc-" + version,
-        "build_cmd": "cp {{file}} {{bfile}}.{{impl}}.hs; PATH={impl_dir}:$PATH ghc {O} -XBangPatterns "
-                     "{{bfile}}.{{impl}}.hs -XCPP -XGeneralizedNewtypeDeriving -XTypeSynonymInstances "
-                     "-XFlexibleContexts -XUnboxedTuples -funbox-strict-fields -XScopedTypeVariables "
-                     "-XFlexibleInstances -funfolding-use-threshold=32 -XMagicHash -threaded"
-            .format(O=GHC_O_APP, impl_dir=ghc_impl_dir(version)),
-        "run_cmd": "./{{bfile}}.{{impl}} {{input}} > /dev/null".format(ghc_impl_dir(version))
+    def ghc_impl_dir(version) -> str:
+        typecheck_locals(version=ExactEither(*AV_GHC_VERSIONS))
+        dir = "/opt/ghc/{version}/bin/".format(**locals())
+        typecheck_locals(dir=DirName())
+        return dir
+    
+    
+    def ghc_impl(version: str) -> t.Dict[str, str]:
+        return {
+            "name": "ghc-" + version,
+            "build_cmd": "cp {{file}} {{bfile}}.{{impl}}.hs; PATH={impl_dir}:$PATH ghc {O} -XBangPatterns "
+                         "{{bfile}}.{{impl}}.hs -XCPP -XGeneralizedNewtypeDeriving -XTypeSynonymInstances "
+                         "-XFlexibleContexts -XUnboxedTuples -funbox-strict-fields -XScopedTypeVariables "
+                         "-XFlexibleInstances -funfolding-use-threshold=32 -XMagicHash -threaded"
+                .format(O=optimisation, impl_dir=ghc_impl_dir(version)),
+            "run_cmd": "./{{bfile}}.{{impl}} {{input}} > /dev/null".format(ghc_impl_dir(version))
+        }
+    
+        
+    # Note to the removed programs:
+    # These either don't compile with all ghc versions properly or use additional hackage packages
+    # The latter is bad because installing the package for all ghc's isn't to costly
+    
+    config = {
+        "language": "haskell",
+        "categories": [
+            cat("binarytrees", [1]),
+            ###cat("chameneosredux", [4]),
+            cat("fannkuchredux", [1, 3]),
+            cat("fasta", [1]),
+            ###cat("knucleotide"), # seems to run forever
+            cat("mandelbrot"),
+            cat("meteor"),
+            cat("nbody", [2]),
+            cat("pidigits"),
+            ###cat("regexdna"), # uses package PCRE
+            ###cat("revcomp", [2]), # seems to runs forever
+            cat("spectralnorm", [2]),
+            ###cat("threadring")    # doesn't compile properly
+        ],
+        "impls": [
+            ghc_impl(version) for version in AV_GHC_VERSIONS
+        ]
     }
 
-GHC_O_APP = "-O -Odph " # -fmax-simplifier-iterations=1000 -fsimplifier-phases=20" # ""
+    return config
 
-# Note to the removed programs:
-# These either don't compile with all ghc versions properly or use additional hackage packages
-# The latter is bad because installing the package for all ghc's isn't to costly
 
-haskell_config = {
-    "language": "haskell",
-    "categories": [
-        bench_category("binarytrees", "ghc", [1]),
-        ###bench_category("chameneosredux", "ghc", [4]),
-        bench_category("fannkuchredux", "ghc", [1, 3]),
-        bench_category("fasta", "ghc", [1]),
-        ###bench_category("knucleotide", "ghc"), # seems to run forever
-        bench_category("mandelbrot", "ghc"),
-        bench_category("meteor", "ghc"),
-        bench_category("nbody", "ghc", [2]),
-        bench_category("pidigits", "ghc"),
-        ###bench_category("regexdna", "ghc"), # uses package PCRE
-        ###bench_category("revcomp", "ghc", [2]), # seems to runs forever
-        bench_category("spectralnorm", "ghc", [2]),
-        ###bench_category("threadring", "ghc")    # doesn't compile properly
-    ],
-    "impls": [
-        ghc_impl(version) for version in AV_GHC_VERSIONS
-    ]
-}
+def process(config: ConfigDict, name: str = None, build_dir: str = None, build: bool = True, benchmark: bool = True,
+            report: bool = True, temci_runs: int = 15, temci_options: str = "--discarded_blocks 1",
+            temci_stop_start: bool = True, report_dir: str = None):
+    """
+    Process a config dict. Simplifies the build, benchmarking and report generating.
+    :param config: processed config dict
+    :param name: the name of the whole configuration (used to generate the file names), default "{config['language]}"
+    :param build_dir: build dir that is used to build the programs, default is "/tmp/{name}"
+    :param build: make a new build of all programs? (results in a "{name}.exec.yaml" file for temci)
+    :param benchmark: benchmark the "{name}.exec.yaml" file (from a built)? (results in a "{name}.yaml" result file)
+    :param report: generate a game report? (results in a report placed into the report_dir)
+    :param temci_runs: number of benchmarking runs (if benchmark=True)
+    :param temci_options: used options for temci
+    :param temci_stop_start: does temci use the StopStart plugin for decreasing the variance while benchmarking?
+    :param report_dir: the directory to place the report in, default is "{name}_report"
+    """
+    lang = Language.from_config_dict(config)
+    name = name or config["language"]
+    temci_run_file = name + ".exec.yaml"
+    temci_result_file = name + ".yaml"
+    build_dir = build_dir or "/tmp/" + name
+    report_dir = report_dir or name + "_report"
+    if build:
+        lang.create_temci_run_file(build_dir, temci_run_file)
+    if benchmark:
+        stop_start_str = "--stop_start" if temci_stop_start else ""
+        os.system("temci exec {temci_run_file} --runs {temci_runs} {temci_options} {stop_start_str} "
+                  "--out {temci_result_file}"
+                  .format(**locals()))
+    if report:
+        lang.process_result_file(temci_result_file)
+        lang.store_html(report_dir, clear_dir=True)
 
-#cparser_config = replace_run_with_build_cmd(cparser_config)
-#pprint(Language.from_config_dict(haskell_config).build("/tmp/"))
-php = Language.from_config_dict(haskell_config)
-#php.create_temci_run_file("/tmp/", "abc")
-logging.info("run temci")
-#os.system("temci exec abc --discarded_blocks 1 --stop_start --drop_fs_caches --runs 15 --out haskell.yaml")
-php.process_result_file("haskell.yaml")
-php.store_html("haskell", clear_dir=True)
 
-php = Language.from_config_dict(cparser_config)
-#php.create_temci_run_file("/tmp/", "abc")
-logging.info("run temci")
-#os.system("temci exec abc --discarded_blocks 1 --stop_start --drop_fs_caches --nice --other_nice --runs 15 --out cparser.yaml")
-php.process_result_file("cparser.yaml")
-php.store_html("cparser", clear_dir=True)
+MODE = "haskell_full"
 
-inputs = first_inputs(inputs)
+#process(haskel_config(INPUTS_PER_CATEGORY, ""), benchmark=False, report=False)
 
-php = Language.from_config_dict(replace_run_with_build_cmd(haskell_config))
-#php.create_temci_run_file("/tmp/", "abc")
-#logging.info("run temci")
-#os.system("temci exec abc --discarded_blocks 1 --stop_start --drop_fs_caches --nice --other_nice --runs 15 --out haskell_c_time.yaml")
-php.process_result_file("haskell_c_time.yaml")
-php.store_html("haskell_c_time", clear_dir=True)
+if MODE == "haskell_full":
+    for opti in ["", "O", "O Odph"]:
+        config = replace_run_with_build_cmd(haskel_config(empty_inputs(INPUTS_PER_CATEGORY), "-" + opti))
+        process(config, "haskell_" + opti, temci_runs=30)
+        shutil.rmtree("/tmp/haskell_" + opti)
+        os.sync()
+        time.sleep(60)
 
-php = Language.from_config_dict(replace_run_with_build_cmd(cparser_config))
-#php.create_temci_run_file("/tmp/", "abc")
-#logging.info("run temci")
-#os.system("temci exec abc --discarded_blocks 1 --stop_start --drop_fs_caches --nice --other_nice --runs 15 --out cparser_c_time.yaml")
-php.process_result_file("cparser_c_time.yaml")
-php.store_html("cparser_c_time", clear_dir=True)
-
-#php.process_result_file("cparser.yaml")
-#php.store_html("cparser", clear_dir=True)
+    for opti in ["", "O", "O Odph"]:
+        config = haskel_config(INPUTS_PER_CATEGORY, "-" + opti)
+        process(config, "compile_time_haskell_" + opti, temci_options=" --discarded_blocks 1 ")
+        shutil.rmtree("/tmp/compile_time_haskell_" + opti)
+        os.sync()
+        time.sleep(60)

@@ -19,10 +19,10 @@ function download(th) {
     if(!contentType) {
         contentType = 'application/octet-stream';
     }
-    var a = document.createElement('a');
     var blob = new Blob([content], {'type':contentType});
-    $('a').attr("href", window.URL.createObjectURL(blob));
-    $('a').attr("download", filename);
+    $('#hidden_link').attr("href", window.URL.createObjectURL(blob));
+    $('#hidden_link').attr("download", filename);
+    document.getElementById("hidden_link").click()
 }
 
 function scrollTo(link, selector){

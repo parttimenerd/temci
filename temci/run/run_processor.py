@@ -90,7 +90,7 @@ class RunProcessor:
                             .format(humanfriendly.format_timespan(time.time() + estimated_time - self.start_time),
                                     to_bench_count))
             return False
-        if self.block_run_count >= self.max_runs and self.block_run_count + self.run_block_size > self.min_runs:
+        if self.block_run_count >= self.max_runs and self.block_run_count > self.min_runs:
             #print("benchmarked too often, block run count ", self.block_run_count, self.block_run_count + self.run_block_size > self.min_runs)
             logging.warning("Benchmarked program blocks to often and aborted therefore now.")
             return False
@@ -124,7 +124,7 @@ class RunProcessor:
                             title = "Estimated time till maximum runs completed"
                         estimate = min(estimate, self.end_time - time.time())
                         estimate_str = humanfriendly.format_timespan(math.floor(estimate))
-                        logging.info("[{nr:>3}] {title}: {time:>20}"
+                        logging.info("[Finished {nr:>3}] {title}: {time:>20}"
                                      .format(nr=nr, title=title, time=estimate_str))
                 except:
                     logging.warning("Error in estimating and printing the needed time.")
