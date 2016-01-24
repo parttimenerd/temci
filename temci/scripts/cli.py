@@ -46,12 +46,14 @@ def cli():
 
 
 command_docs = {
+    "assembler": "Wrapper around the gnu assembler to allow assembler randomization",
     "build": "Build program blocks",
     "report": "Generate a report from benchmarking result",
     "init": "Helper commands to initialize files (like settings)",
     "completion": "Creates completion files for several shells.",
     "short": "Utility commands to ease working directly on the command line",
     "clean": "Clean up the temporary files",
+    "setup": "Compile all needed binaries in the temci scripts folder",
     "version": "Print the current version ({})".format(temci.scripts.version.version)
 }
 for driver in run_driver.RunDriverRegistry.registry:
@@ -316,7 +318,7 @@ def zsh(**kwargs):
 
 #compdef temci
 _temci(){{
-    printf '%s\n' "${{words[@]}}" > /tmp/out
+    # printf '%s ' "${{words[@]}}" > /tmp/out
     local ret=11 state
 
     local -a common_opts
@@ -482,7 +484,7 @@ _temci(){{
     for misc_cmd in misc_cmds_wo_subcmds:
         ret_str += """
         {misc_cmd})
-            echo "{misc_cmd}" $words[@] >> tmp_file
+            # echo "{misc_cmd}" $words[@] >> tmp_file
             args+=(
                 {opts}
             )
@@ -491,7 +493,7 @@ _temci(){{
                     _arguments "1:: :echo 3" $args && ret=0
                     ;;
                 *)
-                    echo "Hi" >> tmp_file
+                    # echo "Hi" >> tmp_file
                     _arguments $args && ret=0
                     ;;
             esac
@@ -553,8 +555,8 @@ def bash(**kwargs):
                                 {common_opts}
                                 {cmd_ops}
                             )
-                            printf '   _%s\n' "${{args[@]}}" >> /tmp/out
-                            printf '   __%s\n' "${{args[*]}}" >> /tmp/out
+                            # printf '   _%s ' "${{args[@]}}" >> /tmp/out
+                            # printf '   __%s ' "${{args[*]}}" >> /tmp/out
                             COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
                         ;;
                 """.format(sub_cmd=sub_cmd,
@@ -703,7 +705,7 @@ def bash(**kwargs):
     print(file_name)
 
 
-@cli.command(short_help="Wrapper around the gnu assembler")
+@cli.command(short_help=command_docs["assembler"])
 @click.argument("call", type=str)
 def assembler(call: str):
     call = call.split(" ")
@@ -758,10 +760,10 @@ def cli_with_error_catching():
     try:
         cli()
     except EnvironmentError as err:
-        logging.error(err.args[0])
+        logging.error(err)
         exit(1)
 
-@cli.command(short_help="Compile all needed binaries in the temci scripts folder")
+@cli.command(short_help=command_docs["setup"])
 def setup():
     from temci.setup.setup import make_scripts
     make_scripts()

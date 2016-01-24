@@ -23,7 +23,7 @@ class Settings(metaclass=Singleton):
         "settings_file": Str() // Description("Additional settings file") // Default("")
                     // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
         "tmp_dir": Str() // Default("/tmp/temci") // Description("Used temporary directory"),
-        "log_level": ExactEither("info", "warn", "error", "quiet") // Default("info")
+        "log_level": ExactEither("debug", "info", "warn", "error", "quiet") // Default("info")
                      // Description("Logging level"),
         "stats": Dict({
             "properties": ListOrTuple(Str()) // Default(["all"])
@@ -125,12 +125,14 @@ class Settings(metaclass=Singleton):
         log_level = self["log_level"]
         logging.Logger.disabled = log_level == "quiet"
         logger = logging.getLogger()
-        if log_level == "info":
-            logger.setLevel(level=logging.INFO)
-        elif log_level == "warn":
-            logger.setLevel(level=logging.WARNING)
-        elif log_level == "error":
-            logger.setLevel(level=logging.ERROR)
+        mapping = {
+            "debug": logging.DEBUG,
+            "info": logging.INFO,
+            "warn": logging.WARNING,
+            "error": logging.ERROR,
+            "quiet": logging.ERROR
+        }
+        logger.setLevel(mapping[log_level])
 
     def reset(self):
         """

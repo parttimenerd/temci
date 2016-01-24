@@ -61,7 +61,9 @@ def join_strs(strs: t.List[str], last_word: str = "and") -> str:
     elif len(strs) > 1:
         return " {} ".format(last_word).join([", ".join(strs[0:-1]), strs[-1]])
 
+
 allow_all_imports = False
+
 
 def can_import(module: str) -> bool:
     """
@@ -72,7 +74,7 @@ def can_import(module: str) -> bool:
         return True
     if module not in ["scipy", "numpy"]:
         return True
-    if len(sys.argv) == 1 or sys.argv[1] in ["completion", "version"]:
+    if len(sys.argv) == 1 or sys.argv[1] in ["completion", "version", "assembler"]:
         return False
     return True
 
