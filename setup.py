@@ -28,6 +28,10 @@ setup(
         'cgroupspy',
         'prompt_toolkit', 'ptpython',
         'cpuset-py3',
+        'docopt',
+        'jedi',
+        'pygments',
+        'wcwidth'
     ],
     license='GPLv3',
     platforms='linux',

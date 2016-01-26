@@ -10,7 +10,6 @@ from enum import Enum
 import itertools
 
 import math
-import path
 from temci.tester.rundata import RunData
 from temci.tester.testers import Tester, TesterRegistry
 from temci.utils.settings import Settings
@@ -279,7 +278,7 @@ class BaseStatObject:
 
     def _get_new_file_name(self, dir: str) -> str:
         self._filename_counter += 1
-        return os.path.join(path.abspath(dir), str(self._filename_counter))
+        return os.path.join(os.path.abspath(dir), str(self._filename_counter))
 
     def _fig_size_cm_to_inch(self, fig_width: float, fig_height: float) -> t.Tuple[float, float]:
         return fig_width * 0.39370079, fig_height * 0.39370079

@@ -8,6 +8,7 @@ Requirements
 ------------
 - python3
     - numpy and scipy
+    - perf (e.g. from the ubuntu package `linux-tools-generics`
 - super user rights (for benchmarking, although it's possible without)
 - linux (other oses aren't supported)
     - tested with Fedora 23 and Ubuntu 15.10 (most distros with a kernel version >= 3.0 should work)
