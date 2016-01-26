@@ -1196,17 +1196,12 @@ def process(config: ConfigDict, name: str = None, build_dir: str = None, build: 
 
 MODE = "haskell_full"
 
-#process(haskel_config(INPUTS_PER_CATEGORY, ""), benchmark=False, report=False)
-a = empty_inputs(INPUTS_PER_CATEGORY)
-lang = Language.from_config_dict(haskel_config(first_inputs(INPUTS_PER_CATEGORY), ""))
-lang.process_result_file("haskell.yaml")
-lang.store_html("testst")
 
 if MODE == "haskell_full":
     for opti in ["", "O", "O Odph"]:
         try:
             config = replace_run_with_build_cmd(haskel_config(empty_inputs(INPUTS_PER_CATEGORY), "-" + opti))
-            process(config, "haskell_" + opti, temci_runs=30, temci_options="--send_mail me@mostlynerdless.de")
+            process(config, "haskell_" + opti, temci_runs=30)
             shutil.rmtree("/tmp/haskell_" + opti)
         except BaseException as ex:
             logging.error(ex)
@@ -1217,7 +1212,7 @@ if MODE == "haskell_full":
     for opti in ["", "O", "O Odph"]:
         try:
             config = haskel_config(INPUTS_PER_CATEGORY, "-" + opti)
-            process(config, "compile_time_haskell_" + opti, temci_options=" --discarded_blocks 1 --send_mail me@mostlynerdless.de")
+            process(config, "compile_time_haskell_" + opti, temci_options=" --discarded_blocks 1")
             shutil.rmtree("/tmp/compile_time_haskell_" + opti)
         except BaseException as ex:
             logging.error(ex)
