@@ -7,9 +7,9 @@ from temci.utils.settings import Settings, SettingsError
 from temci.utils.registry import AbstractRegistry
 import typing as t
 
-
 def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = False,
-                       callback = None, short: str = None):
+                       callback = None, short: str = None, with_default: bool = True,
+                       default = None):
     """
     Is essentially a wrapper around click.option that works with type schemes.
     :param option_name: name of the option
@@ -17,16 +17,20 @@ def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = Fals
     :param is_flag: is this option a "--ABC/--no-ABC" like flag
     :param callback: callback that is called with the parameter and the argument and has to return its argument
     :param short: short name of the option (ignored if flag=True)
+    :param with_default: set a default value for the option if possible?
+    :param default: default value (if with_default is true), default: default value of the type scheme
     """
     __type_scheme = type_scheme
     __short = short
     help_text = type_scheme.description
-    has_default = True
-    default_value = None
-    try:
-        default_value = type_scheme.get_default()
-    except ValueError:
-        has_default = False
+    has_default = with_default
+    default_value = default
+    if with_default and not default_value:
+        try:
+            default_value = type_scheme.get_default()
+        except ValueError:
+            has_default = False
+
     def raw_type(_type):
         while isinstance(_type, Constraint) or isinstance(_type, NonErrorConstraint):
             _type = _type.constrained_type
@@ -79,6 +83,8 @@ def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = Fals
         if has_default:
             option_args["default"] = default_value
             option_args["show_default"] = True
+        #else:
+        #    option_args["show_default"] = False
         if not isinstance(option_args["type"], click.ParamType):
             option_args["callback"] = validate(_type_scheme)
             if not isinstance(option_args["type"], Either(T(tuple), T(str))):
@@ -93,16 +99,18 @@ def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = Fals
             option_args["is_flag"] = True
 
         #print(type(option_args["callback"]), option_name, type_scheme)
+        opt = None
         if help_text is not None:
             typecheck(help_text, Str())
             option_args["help"] = help_text
         if is_flag:
             del(option_args["type"])
-            return click.option("--{name}/--no-{name}".format(name=option_name), **option_args)(decorated_func)
+            opt = click.option("--{name}/--no-{name}".format(name=option_name), **option_args)(decorated_func)
         if __short is not None:
-            return click.option("--{}".format(option_name), "-" + __short, **option_args)(decorated_func)
+            opt = click.option("--{}".format(option_name), "-" + __short, **option_args)(decorated_func)
         else:
-            return click.option("--{}".format(option_name), **option_args)(decorated_func)
+            opt = click.option("--{}".format(option_name), **option_args)(decorated_func)
+        return opt
         #print(type(f()))
     return func
 
@@ -147,7 +155,7 @@ class CmdOption:
         """
         typecheck(option_name, Str())
         self.option_name = option_name
-        typecheck([settings_key, short], List(Str() | E(None)))
+        #typecheck([settings_key, short], List(Str() | E(None)))
         self.settings_key = settings_key
         self.short = short
         self.completion_hints = completion_hints
@@ -157,7 +165,7 @@ class CmdOption:
         if type_scheme is not None and not isinstance(type_scheme, click.ParamType):
             self.callback = lambda x: None
         if settings_key is not None and not isinstance(self.type_scheme, click.ParamType):
-            def callback(param, val):
+            def callback(param: click.Option, val):
                 try:
                     Settings()[settings_key] = val
                 except SettingsError as err:
@@ -175,10 +183,13 @@ class CmdOption:
         if not self.has_description:
             warnings.warn("Option {} is without documentation.".format(option_name))
         self.has_default = True
+        self.default = None
         try:
             self.default = self.type_scheme.get_default()
         except ValueError:
             self.has_default = False
+        if settings_key:
+            self.default = Settings()[settings_key]
         if hasattr(self.type_scheme, "completion_hints") and self.completion_hints is None:
             self.completion_hints = self.type_scheme.completion_hints
         self.is_flag = is_flag is True or (is_flag is None and type(self.type_scheme) in [Bool, BoolOrNone])
@@ -356,7 +367,9 @@ def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = Non
                                   type_scheme=option.type_scheme,
                                   short=option.short,
                                   is_flag=option.is_flag,
-                                  callback=option.callback
+                                  callback=option.callback,
+                                  with_default=option.has_default,
+                                  default=option.default
                                   )
 
     def func(f):

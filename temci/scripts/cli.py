@@ -765,6 +765,7 @@ def cli_with_error_catching():
         logging.error(err)
         exit(1)
 
+
 @cli.command(short_help=command_docs["setup"])
 def setup():
     from temci.setup.setup import make_scripts
