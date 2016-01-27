@@ -33,6 +33,17 @@ def ensure_root(reason: str):
         raise EnvironmentError("This program needs to be run with super user privileges: " + reason)
 
 
+def has_root_privileges() -> bool:
+    """
+    Has the current user root privileges?
+    """
+    try:
+        ensure_root("")
+        return True
+    except:
+        return False
+
+
 def get_cache_line_size(cache_level: int = None) -> t.Optional[int]:
     """
     Returns the cache line size of the cache on the given level.

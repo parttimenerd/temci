@@ -12,6 +12,7 @@ import collections
 from temci.setup import setup
 from temci.utils.settings import Settings
 from temci.utils.typecheck import NoInfo
+from temci.utils.util import has_root_privileges, join_strs
 from temci.utils.vcs import VCSDriver
 from ..utils.typecheck import *
 from ..utils.registry import AbstractRegistry, register
@@ -172,7 +173,18 @@ class AbstractRunDriver(AbstractRegistry):
         :return:
         """
         self.misc_settings = misc_settings
-        self.used_plugins = [self.get_for_name(name) for name in self.get_used()]
+        self.used_plugins = []
+        miss_root_plugins = []
+        is_root = has_root_privileges()
+        for used in self.get_used():
+            klass = self.get_class(used)
+            if klass.needs_root_privileges and not is_root:
+                miss_root_plugins.append(used)
+            else:
+                self.used_plugins.append(self.get_for_name(used))
+        if miss_root_plugins:
+            logging.warning("The following plugins are disabled because they need root privileges: " +
+                            join_strs(miss_root_plugins))
         self.setup()
 
     def setup(self):
@@ -496,7 +508,7 @@ class PerfStatExecRunner(ExecRunner):
             return "perf stat {repeat} -x ';' -e {props} -- {cmd}".format(
                 props=",".join(self.misc["properties"]),
                 cmd=cmd,
-                repeat="--repeat {}".format(self.misc["properties"]) if do_repeat else ""
+                repeat="--repeat {}".format(self.misc["repeat"]) if do_repeat else ""
             )
         block["run_cmds"] = [modify_cmd(cmd) for cmd in block["run_cmds"]]
 
@@ -505,12 +517,18 @@ class PerfStatExecRunner(ExecRunner):
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         res = res or BenchmarkingResultBlock()
         m = {"ov-time": exec_res.time}
-        for line in exec_res.stderr.strip().split("\n"):
+        props = self.misc["properties"]
+        missing_props = len(props)
+        for line in reversed(exec_res.stderr.strip().split("\n")):
+            if missing_props == 0:
+                break
             if ';' in line:
-                var, empty, descr = line.split(";")[0:3]
                 try:
+                    var, empty, descr = line.strip().split(";")[0:3]
                     m[descr] = float(var)
-                except:
+                    missing_props -= 1
+                except BaseException as ex:
+                    #logging.error(ex)
                     pass
         res.add_run_data(m)
         return res

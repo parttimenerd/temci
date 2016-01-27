@@ -3,7 +3,7 @@ import re
 import shutil
 import subprocess, os, time
 from temci.utils.settings import Settings, SettingsError
-from temci.utils.util import ensure_root
+from temci.utils.util import has_root_privileges
 from temci.utils.typecheck import *
 import cgroupspy
 
@@ -17,6 +17,7 @@ class CPUSet:
     """
     This class allows the usage of cpusets (see `man cpuset`) and therefore requires root privileges.
     It uses the program cset to modify the cpusets.
+    This class needs root privileges to operate properly. Warns if not.
     """
 
     def __init__(self, base_core_number: int = None, parallel: int = None, sub_core_number: int = None):
@@ -30,8 +31,10 @@ class CPUSet:
         :raises EnvironmentError if the environment can't be setup properly (e.g. no root privileges)
         """
         #self.bench_set = "bench.set"
+        if not has_root_privileges():
+            logging.warning("CPUSet functionality is disabled because root privileges are missing.")
+            return
         logging.info("Initialize CPUSet")
-        ensure_root("CPU sets can't be created and managed without root privileges")
         self.own_set = ''
         self.base_core_number = Settings().default(base_core_number, "run/cpuset/base_core_number")
         self.parallel = Settings().default(parallel, "run/cpuset/parallel")
@@ -69,6 +72,8 @@ class CPUSet:
         :param pid: passed process id
         :param set_id: passed parallel sub cpuset id
         """
+        if not has_root_privileges():
+            return
         try:
             typecheck(pid, Int())
             typecheck(set_id, Int(range=range(0, self.parallel_number)))
@@ -79,13 +84,16 @@ class CPUSet:
             raise
 
     def get_sub_set(self, set_id: int) -> str:
-        typecheck(set_id, Int(range=range(0, self.parallel_number)))
+        if has_root_privileges():
+            typecheck(set_id, Int(range=range(0, self.parallel_number)))
         return SUB_BENCH_SET.format(set_id)
 
     def teardown(self):
         """
         Tears the created cpusets down and makes the system usable again.
         """
+        if not has_root_privileges():
+            return
         for set in self.own_sets:
             try:
                 self._delete_set(set)

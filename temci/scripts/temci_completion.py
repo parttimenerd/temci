@@ -56,7 +56,7 @@ def cli():
     else:
         import subprocess
         try:
-            subprocess.check_output(["/bin/sh", "-c", "temci completion" + shell])
+            subprocess.check_output(["/bin/sh", "-c", "temci completion " + shell])
         except subprocess.CalledProcessError as ex:
             print("While executing {!r} and error occured: {}".format(ex.cmd, ex.output))
             exit(1)

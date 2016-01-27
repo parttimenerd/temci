@@ -13,11 +13,12 @@ setup(
     author_email="me@mostlynerdless.de",
     description='Advanced benchmarking tool',
     long_description=long_description,
+    url="https://github.com/parttimenerd/temci",
     version=version.version,
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'Click',
+        'click',
         'humanfriendly',
         'fn',
         'pyaml',
@@ -30,7 +31,7 @@ setup(
         'cpuset-py3',
         'docopt',
         'jedi',
-        'pygments',
+        'Pygments',
         'wcwidth'
     ],
     license='GPLv3',

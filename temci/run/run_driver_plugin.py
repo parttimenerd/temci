@@ -3,7 +3,6 @@ This module consists of run driver plugin implementations.
 """
 
 from .run_driver import RunProgramBlock
-from ..utils.util import ensure_root
 from .run_driver import ExecRunDriver
 from ..utils.registry import register
 from ..utils.typecheck import *
@@ -17,6 +16,9 @@ class AbstractRunDriverPlugin:
     The object is instantiated before the benchmarking starts and
     used for the whole benchmarking runs.
     """
+
+    needs_root_privileges = False
+    """ Does this plugin work only with root privileges? """
 
     def __init__(self, misc_settings):
         self.misc_settings = misc_settings
@@ -82,13 +84,14 @@ class NicePlugin(AbstractRunDriverPlugin):
     Allows the setting of the nice and ionice values of the benchmarking process.
     """
 
+    needs_root_privileges = True
+
     def __init__(self, misc_settings):
         super().__init__(misc_settings)
         self.old_nice = int(self._exec_command("nice"))
         self.old_io_nice = int(self._exec_command("ionice").split(" prio ")[1])
 
     def setup(self):
-        ensure_root("The own nice value can't be lowered without")
         self._set_nice(self.misc_settings["nice"])
         self._set_io_nice(self.misc_settings["io_nice"])
 
@@ -141,7 +144,7 @@ class PreheatPlugin(AbstractRunDriverPlugin):
               "print(list(map(lambda x: len(np.linalg.eig(m)), range(10000))))' > /dev/null".format(heat_time)
         procs = []
         for i in range(0, multiprocessing.cpu_count()):
-            proc = subprocess.Popen(["bash", "-c", cmd], stdout=subprocess.PIPE,
+            proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
                                     universal_newlines=True)
             procs.append(proc)
@@ -161,17 +164,15 @@ class PreheatPlugin(AbstractRunDriverPlugin):
 }))
 class OtherNicePlugin(AbstractRunDriverPlugin):
     """
-    Allows the setting of the nice value of all other processes (tha have nice > -10).
+    Allows the setting of the nice value of most other processes (as far as possible).
     """
 
     def __init__(self, misc_settings):
         super().__init__(misc_settings)
         self.old_nices = {}
-        ensure_root("The nice values of other processes can't be disabled without")
-
 
     def setup(self):
-        for line in self._exec_command("sudo /bin/ps --noheaders -e -o pid,nice").split("\n"):
+        for line in self._exec_command("/bin/ps --noheaders -e -o pid,nice").split("\n"):
             line = line.strip()
             arr = list(filter(lambda x: len(x) > 0, line.split(" ")))
             if len(arr) == 0:
@@ -187,7 +188,7 @@ class OtherNicePlugin(AbstractRunDriverPlugin):
                     pass
 
     def _set_nice(self, pid: int, nice: int):
-        self._exec_command("sudo renice -n {} -p {}".format(nice, pid))
+        self._exec_command("renice -n {} -p {}".format(nice, pid))
 
     def teardown(self):
         for pid in self.old_nices:
@@ -203,24 +204,23 @@ class OtherNicePlugin(AbstractRunDriverPlugin):
                 // Description("Processes with lower nice values are ignored."),
     "min_id": PositiveInt() // Default(1500)
                 // Description("Processes with lower id are ignored."),
-    "comm_prefixes": ListOrTuple(Str()) // Default(["ssh", "xorg"])
+    "comm_prefixes": ListOrTuple(Str()) // Default(["ssh", "xorg", "bluetoothd"])
                 // Description("Each process which name (lower cased) starts with one of the prefixes is not ignored. "
                                "Overrides the decision based on the min_id."),
     "comm_prefixes_ignored": ListOrTuple(Str()) // Default(["dbus", "kworker"])
                 // Description("Each process which name (lower cased) starts with one of the prefixes is ignored. "
                                "It overrides the decisions based on comm_prefixes and min_id."),
-    "subtree_suffixes": ListOrTuple(Str()) // Default(["dm"])
+    "subtree_suffixes": ListOrTuple(Str()) // Default(["dm", "apache"])
                         // Description("Suffixes of processes names which are stopped."),
     "dry_run": Bool() // Default(False)
                // Description("Just output the to be stopped processes but don't actually stop them?")
 }))
 class StopStartPlugin(AbstractRunDriverPlugin):
     """
-    Stop almost all other processes.
+    Stop almost all other processes (as far as possible).
     """
 
     def __init__(self, misc_settings):
-        ensure_root("other processes can't be stopped without")
         super().__init__(misc_settings)
         self.processes = {}
         self.pids = []
@@ -291,7 +291,7 @@ class StopStartPlugin(AbstractRunDriverPlugin):
             try:
                 os.kill(pid, signal)
             except BaseException as ex:
-                logging.info(ex)
+                #logging.info(ex)
                 pass
 
     def teardown(self):
@@ -333,8 +333,7 @@ class DropFSCaches(AbstractRunDriverPlugin):
     Drop page cache, directoy entries and inodes before every benchmarking run.
     """
 
-    def setup(self):
-        ensure_root("The page cache, directoy entries and inodes can't be dropped without")
+    needs_root_privileges = True
 
     def setup_block_run(self, block: RunProgramBlock):
         num = self.misc_settings["free_pagecache"] + 2 * self.misc_settings["free_dentries_inodes"]
@@ -347,8 +346,9 @@ class DisableSwap(AbstractRunDriverPlugin):
     Disables swapping on the system before the benchmarking and enables it after.
     """
 
+    needs_root_privileges = True
+
     def setup(self):
-        ensure_root("Swapping can't be disabled without")
         self._exec_command("sudo swapoff -a")
 
     def teardown(self):
@@ -366,8 +366,9 @@ class DisableCPUCaches(AbstractRunDriverPlugin):
     :warning a linux-forum user declared: Disabling cpu caches gives you a pentium I like processor!!!
     """
 
+    needs_root_privileges = True
+
     def setup(self):
-        ensure_root("Loading kernel module to disable the cpu caches can't be done without")
         setup.exec("cpu_cache", "sudo insmod disable_cache.ko")
 
     def teardown(self):
@@ -381,6 +382,8 @@ class CPUGovernor(AbstractRunDriverPlugin):
     """
     Allows the setting of the scaling governor of all cpu cores, to ensure that all use the same.
     """
+
+    needs_root_privileges = True
 
     def setup(self):
         cpu_dir_temp = "/sys/devices/system/cpu/cpu{}/cpufreq/"
@@ -409,5 +412,5 @@ class CPUGovernor(AbstractRunDriverPlugin):
             raise ValueError("No such governor {} for cpu {}, expected one of these: ".
                              format(cpu, governor, ", ".join(self.av_governors)))
         with open(self.cpu_paths[cpu] + "scaling_governor", "w") as f:
-            self._exec_command("sudo bash -c 'echo {gov} >  {p}scaling_governor'"
+            self._exec_command("sudo /bin/sh -c 'echo {gov} >  {p}scaling_governor'"
                                .format(gov=governor, p=self.cpu_paths[cpu]))

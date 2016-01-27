@@ -803,6 +803,7 @@ class Language(BaseObject):
             self.store_html(base_dir, clear_dir=False)
             return
         with open(os.path.join(base_dir, "report.html"), "w") as f:
+            #print(self.get_full_html(os.path.join(base_dir)))
             f.write(self.get_full_html(os.path.join(base_dir)))
 
     def get_scores_per_impl(self) -> t.Dict[str, t.List[float]]:
@@ -1097,7 +1098,7 @@ def haskel_config(inputs_per_category: InputsPerCategory, optimisation: str, ghc
     """
     Generate a game config comparing all available ghc versions
     :param inputs_per_category: 
-    :param optimisation: optimisation flags, e.g. '-O -Odph' ('-O' prefix is needed) or '-O'
+    :param optimisation: optimisation flags, e.g. '-Odph' or '-O'
     :param ghc_versions: compared ghc versions, if None, AV_GHC_VERSIONS is used
     """
     ghc_versions = ghc_versions or AV_GHC_VERSIONS
@@ -1156,7 +1157,7 @@ def haskel_config(inputs_per_category: InputsPerCategory, optimisation: str, ghc
 
 def process(config: ConfigDict, name: str = None, build_dir: str = None, build: bool = True, benchmark: bool = True,
             report: bool = True, temci_runs: int = 15, temci_options: str = "--discarded_blocks 1",
-            temci_stop_start: bool = True, report_dir: str = None, property: str = None):
+            temci_stop_start: bool = True, report_dir: str = None, property: str = "task-clock"):
     """
     Process a config dict. Simplifies the build, benchmarking and report generating.
     :param config: processed config dict
@@ -1183,11 +1184,10 @@ def process(config: ConfigDict, name: str = None, build_dir: str = None, build: 
     if build:
         lang.create_temci_run_file(build_dir, temci_run_file)
     if benchmark:
-        print("Hi")
         stop_start_str = "--stop_start" if temci_stop_start else ""
         cmd = "temci exec {temci_run_file} --runs {temci_runs} {temci_options} {stop_start_str} --out {temci_result_file}"\
             .format(**locals())
-        print(cmd)
+        #print(cmd)
         os.system(cmd)
     if report:
         lang.process_result_file(temci_result_file, property)
@@ -1198,24 +1198,25 @@ MODE = "haskell_full"
 
 
 if MODE == "haskell_full":
-    for opti in ["", "O", "O Odph"]:
+    for opti in ["", "-O", "-O2", "-Odph"]:
         try:
-            config = replace_run_with_build_cmd(haskel_config(empty_inputs(INPUTS_PER_CATEGORY), "-" + opti))
-            process(config, "haskell_" + opti, temci_runs=30)
-            shutil.rmtree("/tmp/haskell_" + opti)
+            config = replace_run_with_build_cmd(haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
+            process(config, "compile_time_haskell_" + opti, temci_runs=30, build=False, benchmark=False)
+            #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
+        except OSError as ex:
+            logging.error(ex)
+            pass
+        os.sync()
+        #time.sleep(60)
+    """
+    for opti in reversed(["", "-O", "-O2", "-Odph"]):
+        try:
+            config = haskel_config(INPUTS_PER_CATEGORY, opti)
+            process(config, "haskell" + opti, temci_options=" --discarded_blocks 1 --nice --other_nice")
+            shutil.rmtree("/tmp/haskell" + opti)
         except BaseException as ex:
             logging.error(ex)
             pass
         os.sync()
         time.sleep(60)
-
-    for opti in ["", "O", "O Odph"]:
-        try:
-            config = haskel_config(INPUTS_PER_CATEGORY, "-" + opti)
-            process(config, "compile_time_haskell_" + opti, temci_options=" --discarded_blocks 1")
-            shutil.rmtree("/tmp/compile_time_haskell_" + opti)
-        except BaseException as ex:
-            logging.error(ex)
-            pass
-        os.sync()
-        time.sleep(60)
+    """

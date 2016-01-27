@@ -38,7 +38,7 @@ class AbstractRegistry:
     def get_used(cls):
         """
         Get the list of name of the used plugins (use_list=True)
-        or the name of the used plugin (use_list=False).
+        or the names of the used plugin (use_list=False).
         """
         key = "/".join([cls.settings_key_path, cls.use_key])
         if not Settings().has_key(key):

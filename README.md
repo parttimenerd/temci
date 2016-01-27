@@ -77,7 +77,9 @@ It's a variant of `temci_completion` that rebuilds the completion files every ti
 
 Usage
 -----
-*Side note: This tool needs root privileges for most benchmarking features.*
+*Side note: This tool needs root privileges for some benchmarking features.*
+*If you're not root, it will not fail, but only warn you and disable the*
+*features.*
 
 There are currently two good ways to explore the features of temci:
     1. Play around with temci using the provided tab completion for zsh (preferred) and bash
