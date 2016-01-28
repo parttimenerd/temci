@@ -121,7 +121,8 @@ class RunDataStatsHelper(object):
             return []
         props = set(self.runs[0].properties)
         for rd in self.runs[1:]:
-            props = props.intersection(rd.properties)
+            if rd:
+                props = props.intersection(rd.properties)
         return list(sorted(props))
 
     @classmethod
@@ -207,10 +208,10 @@ class RunDataStatsHelper(object):
         """
         to_bench = set()
         for (i, run) in enumerate(self.runs):
-            if i in to_bench:
+            if i in to_bench or not run:
                 continue
             for j in range(i):
-                if j in to_bench:
+                if j in to_bench or not self.runs[j]:
                     continue
                 run2 = self.runs[j]
                 if any(self._is_uncertain(prop, run, run2) for prop in set(run.properties)
@@ -266,6 +267,12 @@ class RunDataStatsHelper(object):
         self.runs.append(RunData(self.properties, data, attributes))
         return len(self.runs) - 1
 
+    def disable_run_data(self, id: int):
+        """
+        Disable that run data object with the given id.
+        """
+        self.runs[id] = None
+
     def add_data_block(self, program_id: int, data_block: t.Dict[str, t.List[t.Union[int, float]]]):
         """
         Add block of data for the program block with the given id.
@@ -301,6 +308,8 @@ class RunDataStatsHelper(object):
         arr = []
         for i in range(0, len(self.runs) - 1):
             for j in range(i + 1, len(self.runs)):
+                if not self.runs[i] or not self.runs[j]:
+                    continue
                 data = (self.runs[i], self.runs[j])
                 props = {}
                 for prop in self.properties():
@@ -321,4 +330,9 @@ class RunDataStatsHelper(object):
         return arr
 
     def serialize(self) -> t.List:
-        return list(x.to_dict() for x in self.runs)
+        return list(x.to_dict() for x in self.runs if x)
+
+    def valid_runs(self) -> t.List[RunData]:
+        res = [x for x in self.runs if x is not None]
+        #print(res)
+        return res

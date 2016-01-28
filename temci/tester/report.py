@@ -49,7 +49,7 @@ class AbstractReporter:
             self.stats_helper = RunDataStatsHelper.init_from_dicts(runs)
         else:
             self.stats_helper = stats_helper
-        self.stats = TestedPairsAndSingles(self.stats_helper.runs, distinct_descriptions=True)
+        self.stats = TestedPairsAndSingles(self.stats_helper.valid_runs(), distinct_descriptions=True)
 
     def report(self):
         raise NotImplementedError()
@@ -68,7 +68,7 @@ class ConsoleReporter(AbstractReporter):
             output[0] += str(line) + "\n"
         print_func = string_printer if to_string else print
         with click.open_file(self.misc["out"], mode='w') as f:
-            for block in self.stats_helper.runs:
+            for block in self.stats_helper.valid_runs():
                 assert isinstance(block, RunData)
                 print_func("{descr:<20} ({num:>5} single benchmarkings)"
                       .format(descr=block.description(), num=len(block.data[block.properties[0]])), file=f)
@@ -143,7 +143,7 @@ class HTMLReporter(AbstractReporter):
             shutil.rmtree(self.misc["out"])
         resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
         shutil.copytree(resources_path, self.misc["out"])
-        runs = self.stats_helper.runs
+        runs = self.stats_helper.valid_runs()
         html = """
 <html>
     <head>
@@ -179,7 +179,7 @@ class HTMLReporter(AbstractReporter):
     </body>
 </html>
         """
-        descriptions = [run.description() for run in self.stats_helper.runs]
+        descriptions = [run.description() for run in self.stats_helper.valid_runs()]
         comparing_str = ""
         if len(descriptions) == 1:
             comparing_str = descriptions[0]
@@ -188,7 +188,7 @@ class HTMLReporter(AbstractReporter):
         inner_html = ""
         self.big_size = self.misc["plot_size"]
         self.small_size = max(2, math.floor(self.big_size * 2 / len(runs[0].properties)))
-        if len(self.stats_helper.runs) > 1:
+        if len(self.stats_helper.valid_runs()) > 1:
             logging.info("Generate comparison tables")
             inner_html += "<h2>Comparison tables</h2>" + self._comparison_tables()
             self._write(html.format(**locals()))
@@ -201,7 +201,7 @@ class HTMLReporter(AbstractReporter):
             logging.info("Plot program block {}".format(i))
             inner_html += self._report_single(runs[i])
             self._write(html.format(**locals()))
-        if len(self.stats_helper.runs) > 1:
+        if len(self.stats_helper.valid_runs()) > 1:
             for i in range(0, len(runs)):
                 for j in range(0, i):
                     logging.info("Plot pair ({}, {})".format(i, j))
@@ -403,7 +403,7 @@ class HTMLReporter(AbstractReporter):
 
     def _comparison_tables(self, runs: list = None, properties: list = None, compare_against: int = None,
                            heading_no: int = 3) -> str:
-        runs = runs or self.stats_helper.runs
+        runs = runs or self.stats_helper.valid_runs()
         p = properties or self.misc["compared_props"]
         properties = list(p)
         compare_against = compare_against or self.misc["compare_against"]
@@ -572,7 +572,7 @@ class HTMLReporter2(AbstractReporter):
             shutil.rmtree(self.misc["out"])
         resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
         shutil.copytree(resources_path, self.misc["out"])
-        runs = self.stats_helper.runs
+        runs = self.stats_helper.valid_runs()
         self.app_html = ""
         html = """<html lang="en">
     <head>

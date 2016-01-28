@@ -12,6 +12,7 @@ from temci.tester.rundata import RunDataStatsHelper, RunData
 from temci.utils.settings import Settings
 from temci.tester.report_processor import ReporterRegistry
 import time, logging, humanfriendly, yaml, sys, math, pytimeparse, os
+import typing as t
 
 class RunProcessor:
     """
@@ -35,6 +36,7 @@ class RunProcessor:
             "attributes": Dict(all_keys=False, key_type=Str()),
             "run_config": Dict(all_keys=False)
         })))
+        self.runs = runs
         self.run_blocks = []
         for (id, run) in enumerate(runs):
             self.run_blocks.append(RunProgramBlock.from_dict(id, copy.deepcopy(run)))
@@ -55,7 +57,7 @@ class RunProcessor:
                 self.teardown()
                 raise
         else:
-            self.stats_helper = RunDataStatsHelper.init_from_dicts(runs)
+            self.stats_helper = RunDataStatsHelper.init_from_dicts(copy.deepcopy(runs))
         if Settings()["run/cpuset/parallel"] == 0:
             self.pool = RunWorkerPool()
         else:
@@ -75,6 +77,7 @@ class RunProcessor:
             self.teardown()
             raise
         self.block_run_count = 0
+        self.erroneous_run_blocks = [] # type: t.List[t.Tuple[int, BenchmarkingResultBlock]]
 
     def _finished(self):
         return (len(self.stats_helper.get_program_ids_to_bench()) == 0 \
@@ -100,6 +103,9 @@ class RunProcessor:
         try:
             last_round_time = time.time()
             while self.block_run_count <= self.pre_runs or not self._finished():
+                if len(self.stats_helper.valid_runs()) == 0:
+                    logging.warning("Finished benchmarking as there a now valid program block to benchmark")
+                    break
                 last_round_span = time.time() - last_round_time
                 last_round_time = time.time()
                 try:
@@ -150,14 +156,19 @@ class RunProcessor:
                 to_bench = list(enumerate(self.run_blocks))
             else:
                 to_bench = [(i, self.run_blocks[i]) for i in self.stats_helper.get_program_ids_to_bench()]
+            to_bench = [(i, b) for (i, b) in to_bench if self.stats_helper.runs[i] is not None]
             if self.shuffle:
                 random.shuffle(to_bench)
             for (id, run_block) in to_bench:
                 self.pool.submit(run_block, id, self.run_block_size)
             for (block, result, id) in self.pool.results():
-                if self.block_run_count > self.pre_runs:
+                if result.error:
+                    self.erroneous_run_blocks.append((id, self.runs[id]))
+                    self.stats_helper.disable_run_data(id)
+                    logging.error("Program block no. {} failed: {}".format(id, result.error))
+                    self.store_erroneous()
+                elif self.block_run_count > self.pre_runs:
                     self.stats_helper.add_data_block(id, result.data)
-
         except BaseException:
             self.store_and_teardown()
             logging.error("Forced teardown of RunProcessor")
@@ -170,17 +181,35 @@ class RunProcessor:
     def store_and_teardown(self):
         self.teardown()
         self.store()
-        if len(self.stats_helper.runs) > 0 and all(x.benchmarkings() > 0 for x in self.stats_helper.runs):
+        if len(self.stats_helper.valid_runs()) > 0 \
+                and all(x.benchmarkings() > 0 for x in self.stats_helper.valid_runs()):
             report = ReporterRegistry.get_for_name("console", self.stats_helper)\
                 .report(with_tester_results=False, to_string = True)
-            self.stats_helper.runs[0].description()
-            subject = "Finished " + join_strs([repr(run.description()) for run in self.stats_helper.runs])
+            self.stats_helper.valid_runs()[0].description()
+            subject = "Finished " + join_strs([repr(run.description()) for run in self.stats_helper.valid_runs()])
             send_mail(Settings()["run/send_mail"], subject, report, [Settings()["run/out"]])
+        if len(self.erroneous_run_blocks) > 0:
+            subject = "Errors while benchmarking " \
+                      + join_strs([repr(RunData(attributes=self.runs[i]).description()) for (i, b) in self.erroneous_run_blocks])
+            send_mail(Settings()["run/send_mail"], subject, "", [Settings()["run/in"]  + ".erroneous.yaml"])
 
     def store(self):
         with open(Settings()["run/out"], "w") as f:
             f.write(yaml.dump(self.stats_helper.serialize()))
 
+    def store_erroneous(self):
+        if len(self.erroneous_run_blocks) == 0:
+            return
+        file_name = Settings()["run/in"] + ".erroneous.yaml"
+        try:
+            blocks = [x[1] for x in self.erroneous_run_blocks]
+            with open(file_name, "w") as f:
+                f.write(yaml.dump(blocks))
+        except IOError as err:
+            logging.error("Can't write erroneous program blocks to " + file_name)
+
+
     def print_report(self) -> str:
-        if len(self.stats_helper.runs) > 0 and all(x.benchmarkings() > 0 for x in self.stats_helper.runs):
+        if len(self.stats_helper.valid_runs()) > 0 and \
+                all(x.benchmarkings() > 0 for x in self.stats_helper.valid_runs()):
             ReporterRegistry.get_for_name("console", self.stats_helper).report(with_tester_results=False)

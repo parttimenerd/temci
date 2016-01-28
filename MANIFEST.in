@@ -1,0 +1,2 @@
+recursive-include temci *.md *.rst Makefile *.c *.cpp *.C *.sh
+recursive-include temci/tester/report_resources *

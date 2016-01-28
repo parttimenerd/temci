@@ -326,6 +326,10 @@ class ProgramWithInput(BaseObject):
                 "func": lambda x, sp: sp.std_dev_per_mean(),
                 "format": "{:5.2%}"
             }, {
+                "name": "std / best mean",
+                "func": lambda x, sp: sp.std_dev() * scores[x.name] / sp.mean(),
+                "format": "{:5.2%}"
+            }, {
                 "name": "median",
                 "func": lambda x, sp: sp.median(),
                 "format": "{:5.5f}"
@@ -420,15 +424,10 @@ class Program(BaseObject):
         html = """
             <h{}>Program: {!r}</h{}>
         """.format(h_level, self.name, h_level)
-        html += """
-            Measured values per implementation and input
-            <p>
-        """
-        html += self.get_box_plot_html(base_file_name)
+        #html += self.get_box_plot_html(base_file_name)
         scores = self.get_impl_mean_scores()
         std_devs = self.get_statistical_property_scores(rel_std_dev_func)
         html += """
-            </p>
             <table class="table">
                 <tr><th>implementation</th><th>geom mean over means relative to best (per input) aka mean score</th>
                     <th>... std dev rel. to the best mean</th>

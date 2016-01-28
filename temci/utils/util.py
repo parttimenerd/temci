@@ -3,6 +3,8 @@ import subprocess
 import typing as t
 
 import sys
+import logging
+from rainbow_logging_handler import RainbowLoggingHandler
 
 
 def recursive_exec_for_leafs(data: dict, func, _path_prep=[]):
@@ -20,25 +22,14 @@ def recursive_exec_for_leafs(data: dict, func, _path_prep=[]):
             func(subkey, _path_prep + [subkey], data[subkey])
 
 
-def ensure_root(reason: str):
-    """
-    Throws an error if the user has no root privileges.
-    :param reason: why do you need root privileges? To improve the error message.
-    :raises EnvironmentError if the current user has no root privileges.
-    """
-    proc = subprocess.Popen(["/usr/bin/sudo", "-n", "/usr/bin/id"],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    proc.communicate()
-    if proc.poll() > 0:
-        raise EnvironmentError("This program needs to be run with super user privileges: " + reason)
-
-
 def has_root_privileges() -> bool:
     """
     Has the current user root privileges?
     """
     try:
-        ensure_root("")
+        subprocess.check_call(["/bin/sh", "-c", "cat /proc/1/stack"],
+                              stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL)
         return True
     except:
         return False
@@ -149,3 +140,11 @@ class InsertionTimeOrderedDict:
         for item in items:
             ret[key_func(item)] = item
         return ret
+
+logger = logging.getLogger()
+#formatter = logging.Formatter("[%(asctime)s] %(name)s %(levelname)s \t%(message)s")  # same as default
+formatter = logging.Formatter("[%(asctime)s] %(message)s")  # same as default
+# setup `RainbowLoggingHandler`
+handler = RainbowLoggingHandler(sys.stderr, color_funcName=('black', 'yellow', True))
+handler.setFormatter(formatter)
+logger.addHandler(handler)

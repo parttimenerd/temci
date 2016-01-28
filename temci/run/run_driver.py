@@ -123,12 +123,18 @@ class RunProgramBlock:
             "run_config": self.data
         }
 
-class BenchmarkingResultBlock:
 
-    def __init__(self, data: dict = None):
+class BenchmarkingResultBlock:
+    """
+    Result of the benchmarking of one block.
+    It includes the error object if an error occurred.
+    """
+
+    def __init__(self, data: dict = None, error: BaseException = None):
         self.data = collections.defaultdict(lambda: [])
         if data:
             self.add_run_data(data)
+        self.error = error
 
     def properties(self) -> t.List[str]:
         return list(self.data.keys())
@@ -172,6 +178,7 @@ class AbstractRunDriver(AbstractRegistry):
         :param misc_settings: further settings
         :return:
         """
+        self.logger = logging.getLogger(type(self).__name__)
         self.misc_settings = misc_settings
         self.used_plugins = []
         miss_root_plugins = []
@@ -183,7 +190,7 @@ class AbstractRunDriver(AbstractRegistry):
             else:
                 self.used_plugins.append(self.get_for_name(used))
         if miss_root_plugins:
-            logging.warning("The following plugins are disabled because they need root privileges: " +
+            self.logger.warning("The following plugins are disabled because they need root privileges: " +
                             join_strs(miss_root_plugins))
         self.setup()
 
@@ -229,7 +236,6 @@ class AbstractRunDriver(AbstractRegistry):
         :param block: run program block to benchmark
         :param runs: number of benchmarking runs
         :return: object that contains a dictionary of properties with associated raw run data
-        :raises BenchmarkingError if the benchmarking of the passed block fails
         """
         raise NotImplementedError()
 
@@ -276,7 +282,7 @@ class ExecRunDriver(AbstractRunDriver):
         "base_dir": ".",
         "runner": "perf_stat"
     }
-    registry = {}
+    registry = { }
 
     def __init__(self, misc_settings: dict = None):
         super().__init__(misc_settings)
@@ -314,18 +320,22 @@ class ExecRunDriver(AbstractRunDriver):
                   cpuset: CPUSet = None, set_id: int = 0) -> BenchmarkingResultBlock:
         t = time.time()
         block = block.copy()
-        self._setup_block(block)
-        gc.collect()
-        gc.disable()
+        try:
+            self._setup_block(block)
+            gc.collect()
+            gc.disable()
+        except IOError as err:
+            return BenchmarkingResultBlock(error=err)
         try:
             res = self._benchmark(block, runs, cpuset, set_id)
-        except BaseException:
-            self.teardown()
-            logging.error("Forced teardown of RunProcessor")
-            raise
+        except BaseException as ex:
+            return BenchmarkingResultBlock(error=ex)
         finally:
             gc.enable()
-        self._teardown_block(block)
+        try:
+            self._teardown_block(block)
+        except BaseException as err:
+            return BenchmarkingResultBlock(error=err)
         t = time.time() - t
         assert isinstance(res, BenchmarkingResultBlock)
         res.data["ov-time"] = [t / runs] * runs
@@ -379,7 +389,7 @@ class ExecRunDriver(AbstractRunDriver):
         t = time.time() - t
         if proc.poll() > 0:
             msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
-            logging.error(msg)
+           # logging.error(msg)
             raise BenchmarkingError(msg)
         return self.ExecResult(time=t, stderr=str(err), stdout=str(out))
 
@@ -689,7 +699,7 @@ class SpecExecRunner(ExecRunner):
                 return props[prop][sub_path]
             data[prop] = eval(self.misc["code"])
         if len(data) == 0:
-            logging.error("No properties in the result file matched begin with {!r} "
+            raise BenchmarkingError("No properties in the result file matched begin with {!r} "
                           "and match the passed regular expression {!r}"
                           .format(self.misc["base_path"], self.path_regexp))
 

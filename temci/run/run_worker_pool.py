@@ -3,12 +3,14 @@ This module consists of the abstract run worker pool class and several implement
 """
 import re
 
+from temci.utils.util import has_root_privileges
 from ..utils.typecheck import *
 from ..utils.settings import Settings
 from .run_driver import RunProgramBlock, BenchmarkingResultBlock, AbstractRunDriver, RunDriverRegistry
 from queue import Queue, Empty
 from .cpuset import CPUSet
 import logging, threading, subprocess, shlex, os, tempfile, yaml
+import typing as t
 
 
 class AbstractRunWorkerPool:
@@ -18,6 +20,9 @@ class AbstractRunWorkerPool:
 
     def __init__(self, run_driver_name: str = None):
         if Settings()["run/disable_hyper_threading"]:
+            if not has_root_privileges():
+                logging.warning("Can't disable hyper threading as root privileges are missing")
+                return
             self._disable_hyper_threading()
 
     def submit(self, block: RunProgramBlock, id: int, runs: int):
@@ -27,6 +32,8 @@ class AbstractRunWorkerPool:
         pass
 
     def teardown(self):
+        if not has_root_privileges():
+            return
         if Settings()["run/disable_hyper_threading"]:
             self._enable_hyper_threading()
 
@@ -233,7 +240,7 @@ class ParallelRunWorkerPool(AbstractRunWorkerPool):
             for thread in self.threads:
                 thread.stop = True
                 thread.teardown()
-        except BaseException as err:
+        except:
             pass
 
 
