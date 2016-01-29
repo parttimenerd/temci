@@ -45,9 +45,13 @@ FIG_HEIGHT_PER_ELEMENT = 1.5
 
 
 class BaseObject:
+    """
+    A base class for all other classes that provides helper methods.
+    """
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, children: t.Union[t.Dict[str, 'BaseObject'], InsertionTimeOrderedDict] = None):
         self.name = name
+        self.children = children or InsertionTimeOrderedDict()  # type: t.Dict[str, 'BaseObject']
 
     def _create_dir(self, dir: str):
         """
@@ -119,6 +123,9 @@ class BaseObject:
 
 
 class Implementation(BaseObject):
+    """
+    Represents an implementation of a program.
+    """
 
     def __init__(self, parent: 'ProgramWithInput', name: str, run_cmd: str, build_cmd: str = None,
                  run_data: t.List[t.Union[int, float]] = None):
@@ -253,18 +260,28 @@ class Input:
 
 StatisticalPropertyFunc = t.Callable[[SingleProperty], float]
 """ Get's passed the SingleProperty object to process and min mean """
+ReduceFunc = t.Callable[[t.List[float]], Any]
+""" Get's passed a list of values and returns a single value, e.g. stats.gmean """
+
 rel_mean_func = lambda x, min: x.mean() / min
 
 def rel_std_dev_func(x: SingleProperty, min: float) -> float:
+    return x.std_dev_per_mean()
+
+def rel_std_dev_to_min_func(x: SingleProperty, min: float) -> float:
     return x.std_dev() / min
 
+
 class ProgramWithInput(BaseObject):
+    """
+    This represents the program with a specific input. It has several program implementations.
+    """
 
     def __init__(self, parent: 'Program', input: Input, impls: t.List[Implementation], id: int):
-        super().__init__(str(id))
+        super().__init__(str(id), itod_from_list(impls, lambda x: x.name))
         self.parent = parent
         self.input = input
-        self.impls = itod_from_list(impls, lambda x: x.name) # type: t.Dict[str, Implementation]
+        self.impls = self.children # type: t.Dict[str, Implementation]
 
     def build(self, base_dir: str) -> t.List[dict]:
         path = self._create_own_dir(base_dir)
@@ -320,7 +337,7 @@ class ProgramWithInput(BaseObject):
             }, {
                 "name": "mean / best mean",
                 "func": lambda x, sp: scores[x.name],
-                "format": "{:5.5f}"
+                "format": "{:5.2%}"
             }, {
                 "name": "std / mean",
                 "func": lambda x, sp: sp.std_dev_per_mean(),
@@ -337,6 +354,7 @@ class ProgramWithInput(BaseObject):
         ]
         html = """
         <h{h}>Input: {input}</h{h}>
+        The following plot shows the actual distribution of the measurements for each implementation.
         {box_plot}
         <table class="table">
             <tr>{header}</tr>
@@ -355,13 +373,16 @@ class ProgramWithInput(BaseObject):
 
 
 class Program(BaseObject):
+    """
+    A program with several different inputs.
+    """
 
     def __init__(self, parent: 'ProgramCategory', name: str, file: str,
                  prog_inputs: t.List[ProgramWithInput] = None, copied_files: t.List[str] = None):
-        super().__init__(name)
+        super().__init__(name, itod_from_list(prog_inputs, lambda x: x.name))
         self.parent = parent
         self.file = file
-        self.prog_inputs = itod_from_list(prog_inputs, lambda x: x.name) # type: t.Dict[str, ProgramWithInput]
+        self.prog_inputs = self.children # type: t.Dict[str, ProgramWithInput]
         self.copied_files = copied_files or [] # type: t.List[str]
 
     @classmethod
@@ -399,14 +420,8 @@ class Program(BaseObject):
         return self.prog_inputs[input]
 
     def get_box_plot_html(self, base_file_name: str) -> str:
-        singles = []
-        for input in self.prog_inputs:
-            prog_in = self.prog_inputs[input]
-            for impl in prog_in.impls:
-                impl_val = prog_in.impls[impl]
-                data = RunData({self.name: impl_val.run_data}, {"description": "{!r}|{}".format(input, impl)})
-                singles.append(SingleProperty(Single(data), data, self.name))
-        return self.boxplot_html(base_file_name, singles)
+        return self.boxplot_html_for_data("mean score", base_file_name + "_program" + html_escape_property(self.name),
+                                          self.get_statistical_property_scores(rel_mean_func))
 
     def get_box_plot_per_input_per_impl_html(self, base_file_name: str, input: str) -> str:
         """
@@ -423,8 +438,9 @@ class Program(BaseObject):
     def get_html(self, base_file_name: str, h_level: int) -> str:
         html = """
             <h{}>Program: {!r}</h{}>
+            The following plot shows the mean score per input distribution for every implementation.
         """.format(h_level, self.name, h_level)
-        #html += self.get_box_plot_html(base_file_name)
+        html += self.get_box_plot_html(base_file_name)
         scores = self.get_impl_mean_scores()
         std_devs = self.get_statistical_property_scores(rel_std_dev_func)
         html += """
@@ -435,8 +451,8 @@ class Program(BaseObject):
         """
         for impl in scores.keys():
             html += """
-                <tr><td>{}</td><td>{:5.5f}</td><td>{:5.2%}</td></tr>
-            """.format(impl, scores[impl], std_devs[impl])
+                <tr><td>{}</td><td>{:5.2%}</td><td>{:5.2%}</td></tr>
+            """.format(impl, stats.gmean(scores[impl]), stats.gmean(std_devs[impl]))
         html += "</table>"
         impl_names = list(scores.keys())
         for (i, input) in enumerate(self.prog_inputs.keys()):
@@ -446,13 +462,13 @@ class Program(BaseObject):
             html += self.prog_inputs[input].get_html(base_file_name + "_" + app, h_level + 1)
         return html
 
-    def get_impl_mean_scores(self) -> t.Dict[str, float]:
+    def get_impl_mean_scores(self) -> t.Dict[str, t.List[float]]:
         """
         Geometric mean over the means relative to best per implementation (per input).
         """
         return self.get_statistical_property_scores(rel_mean_func)
 
-    def get_statistical_property_scores(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
+    def get_statistical_property_scores(self, func: StatisticalPropertyFunc) -> t.Dict[str, t.List[float]]:
         d = InsertionTimeOrderedDict()  # type: t.Dict[str, t.List[float]]
         for input in self.prog_inputs:
             rel_vals = self.prog_inputs[input].get_statistical_properties_for_each(func)
@@ -460,10 +476,7 @@ class Program(BaseObject):
                 if impl not in d:
                     d[impl] = []
                 d[impl].append(rel_vals[impl])
-        scores = InsertionTimeOrderedDict()
-        for impl in d:
-            scores[impl] = stats.gmean(d[impl])
-        return scores
+        return d
 
     def _get_inputs_that_contain_impl(self, impl: str) -> t.List[ProgramWithInput]:
         return list(filter(lambda x: impl in x.impls, self.prog_inputs.values()))
@@ -530,33 +543,34 @@ class ProgramCategory(BaseObject):
             """
             for impl in scores.keys():
                 html += """
-                    <tr><td>{}</td><td>{:5.5f}</td><td>{:5.2%}</td></tr>
+                    <tr><td>{}</td><td>{:5.2%}</td><td>{:5.2%}</td></tr>
                 """.format(impl, scores[impl], std_devs[impl])
             html += "</table>"
-        if len(self.get_input_strs()) > 1:
-            html += """
-            <h{h}> Mean scores per input</h{h}>
-            """.format(h=h_level + 1)
-            for input in self.get_input_strs():
-                mean_scores = self.get_statistical_property_scores_per_input_per_impl(rel_mean_func, input)
-                std_scores = self.get_statistical_property_scores_per_input_per_impl(rel_std_dev_func, input)
+            if len(self.get_input_strs()) > 1:
                 html += """
-                    <p>Mean scores for input {!r}</p>
-                    <p>
-                """.format(input)
-                html += self.get_box_plot_per_input_per_impl_html(base_file_name, input)
-                html += """
-                    </p>
-                    <table class="table">
-                        <tr><th>impl</th><th>geom mean over means relative to best (per input and program) aka mean score</th>
-                        <th>... std devs relative to the best means </th>
-                        </tr>
-                """
-                for impl in mean_scores.keys():
+                <h{h}> Mean scores per input</h{h}>
+                """.format(h=h_level + 1)
+                for input in self.get_input_strs():
+                    mean_scores = self.get_statistical_property_scores_per_input_per_impl(rel_mean_func, input)
+                    std_scores = self.get_statistical_property_scores_per_input_per_impl(rel_std_dev_func, input)
                     html += """
-                        <tr><td>{}</td><td>{:5.5f}</td><td>{:5.2%}</td></tr>
-                    """.format(impl, stats.gmean(mean_scores[impl]), stats.gmean(std_scores[impl]))
-                html += "</table>"
+                        <h{h}>Mean scores for input {!r}</h{h}>
+                        The plot shows the distribution of mean scores per program for each implementation.
+                        <p>
+                    """.format(input, h=h_level + 2)
+                    html += self.get_box_plot_per_input_per_impl_html(base_file_name, input)
+                    html += """
+                        </p>
+                        <table class="table">
+                            <tr><th>impl</th><th>geom mean over means relative to best (per program) aka mean score</th>
+                            <th>... std devs relative to the best means </th>
+                            </tr>
+                    """
+                    for impl in mean_scores.keys():
+                        html += """
+                            <tr><td>{}</td><td>{:5.2%}</td><td>{:5.2%}</td></tr>
+                        """.format(impl, stats.gmean(mean_scores[impl]), stats.gmean(std_scores[impl]))
+                    html += "</table>"
         impl_names = list(scores.keys())
         for (i, prog) in enumerate(self.programs):
             html += self.programs[prog].get_html(base_file_name + "_" + html_escape_property(prog), h_level + 1)
@@ -565,24 +579,26 @@ class ProgramCategory(BaseObject):
     def get_scores_per_impl(self) -> t.Dict[str, t.List[float]]:
         return self.get_statistical_property_scores_per_impl(rel_mean_func)
 
-    def get_statistical_property_scores_per_impl(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
+    def get_statistical_property_scores_per_impl(self, func: StatisticalPropertyFunc,
+                                                 reduce: ReduceFunc = stats.gmean) -> t.Dict[str, float]:
         impl_scores = InsertionTimeOrderedDict()
         for prog in self.programs:
             scores = self.programs[prog].get_statistical_property_scores(func)
             for impl in scores:
                 if impl not in impl_scores:
                     impl_scores[impl] = []
-                impl_scores[impl].append(scores[impl])
+                impl_scores[impl].append(reduce(scores[impl]))
         return impl_scores
 
     def get_impl_mean_scores(self) -> t.Dict[str, float]:
         return self.get_statistical_property_scores(rel_mean_func)
 
-    def get_statistical_property_scores(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
+    def get_statistical_property_scores(self, func: StatisticalPropertyFunc,
+                                        reduce: ReduceFunc = stats.gmean) -> t.Dict[str, float]:
         ret = InsertionTimeOrderedDict()
         scores_per_impl = self.get_statistical_property_scores_per_impl(func)
         for impl in scores_per_impl:
-            ret[impl] = stats.gmean(scores_per_impl[impl])
+            ret[impl] = reduce(scores_per_impl[impl])
         return ret
 
     def get_box_plot_per_input_per_impl_html(self, base_file_name: str, input: str) -> str:
@@ -606,6 +622,7 @@ class ProgramCategory(BaseObject):
 
     def get_input_strs(self) -> t.List[str]:
         return list(self.programs.values())[0].prog_inputs.keys()
+
 
 class Language(BaseObject):
 
@@ -706,7 +723,7 @@ class Language(BaseObject):
         """
         for impl in scores:
             html += """
-                <tr><td>{}</td><td>{:5.5f}</td><td>{:5.2%}</td></tr>
+                <tr><td>{}</td><td>{:5.2%}</td><td>{:5.2%}</td></tr>
             """.format(impl, scores[impl], std_devs[impl])
         html += "</table>"
         if self.get_max_input_num() > 1:
@@ -716,6 +733,8 @@ class Language(BaseObject):
                 html += """
                     <h{h}>Summary for input no. {n} </h{h}>
                     Mean score per implementation. Excludes all categories with less than {m} inputs.
+                    The plot shows the distribution of mean scores per category per implementation for
+                    input no. {n}.
                     <p>
                 """.format(h=h_level + 1, n=n, m=self.get_max_input_num())
                 html += self.get_box_plot_per_input_per_impl_html(base_file_name, n)
@@ -723,13 +742,13 @@ class Language(BaseObject):
                     </p>
                     <table class="table">
                         <tr><th>impl</th><th>geom mean over means relative to best (per input and program) aka mean score</th>
-                        <th>... std devs relative to the best means </th>
+                        <th>... std devs relative to the best means </th><th>std devs over the categories mean scores</th>
                         </tr>
                 """
                 for impl in mean_scores.keys():
                     html += """
-                        <tr><td>{}</td><td>{:5.5f}</td><td>{:5.2%}</td></tr>
-                    """.format(impl, stats.gmean(mean_scores[impl]), stats.gmean(std_scores[impl]))
+                        <tr><td>{}</td><td>{:5.2%}</td><td>{:5.2%}</td><td>{:5.2%}</td></tr>
+                    """.format(impl, stats.gmean(mean_scores[impl]), stats.gmean(std_scores[impl]), stats.nanstd(mean_scores[impl]))
                 html += "</table>"
         objs = []
         for (i, cat) in enumerate(self.categories):
@@ -778,7 +797,9 @@ class Language(BaseObject):
                   </div>
                 {inner_html}
                 <footer class="footer">
-                    Generated by <a href="https://github.com/parttimenerd/temci">temci<a/>'s game.py in {timespan}
+                    Generated by <a href="https://github.com/parttimenerd/temci">temci</a>'s game.py in {timespan}<br/>
+                    The benchmarked algorithms and their inputs come from the
+                    <a href="http://benchmarksgame.alioth.debian.org/">benchmarksgame</a>
                 </footer>
              </div>
           </div>
@@ -821,11 +842,12 @@ class Language(BaseObject):
     def get_impl_mean_scores(self) -> t.Dict[str, float]:
         return self.get_statistical_property_scores(rel_mean_func)
 
-    def get_statistical_property_scores(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
+    def get_statistical_property_scores(self, func: StatisticalPropertyFunc,
+                                        reduce: ReduceFunc = stats.gmean) -> t.Dict[str, float]:
         ret = InsertionTimeOrderedDict()
         scores_per_impl = self.get_statistical_property_scores_per_impl(func)
         for impl in scores_per_impl:
-            ret[impl] = stats.gmean(scores_per_impl[impl])
+            ret[impl] = reduce(scores_per_impl[impl])
         return ret
 
     def get_max_input_num(self) -> int:
@@ -834,7 +856,8 @@ class Language(BaseObject):
     def _get_categories_for_number_of_inputs(self, number_of_inputs: int) -> t.List[ProgramCategory]:
         return [cat for cat in self.categories.values() if len(cat.get_input_strs()) == number_of_inputs]
 
-    def get_statistical_property_scores_per_input_per_impl(self, func: StatisticalPropertyFunc, input_num: int) -> t.Dict[str, t.List[float]]:
+    def get_statistical_property_scores_per_input_per_impl(self, func: StatisticalPropertyFunc, input_num: int,
+                                                           reduce: ReduceFunc = stats.gmean) -> t.Dict[str, t.List[float]]:
         """
         Assumptions:
             - Most programs have the same number of input (known as max input number)
@@ -847,7 +870,7 @@ class Language(BaseObject):
             for impl in scores:
                 if impl not in scores_per_impl:
                     scores_per_impl[impl] = []
-                scores_per_impl[impl].append(stats.gmean(scores[impl]))
+                scores_per_impl[impl].append(reduce(scores[impl]))
         return scores_per_impl
 
     def get_box_plot_per_input_per_impl_html(self, base_file_name: str, input_num: int) -> str:
@@ -1197,6 +1220,7 @@ MODE = "haskell_full"
 
 
 if MODE == "haskell_full":
+    """
     for opti in ["", "-O", "-O2", "-Odph"]:
         try:
             config = replace_run_with_build_cmd(haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
@@ -1208,14 +1232,13 @@ if MODE == "haskell_full":
         os.sync()
         #time.sleep(60)
     """
-    for opti in reversed(["", "-O", "-O2", "-Odph"]):
+    for opti in  ["-Odph"]:#reversed(["", "-O", "-O2", "-Odph"]):
         try:
             config = haskel_config(INPUTS_PER_CATEGORY, opti)
-            process(config, "haskell" + opti, temci_options=" --discarded_blocks 1 --nice --other_nice")
+            process(config, "haskell" + opti, temci_options=" --discarded_blocks 1 --nice --other_nice", build=False, benchmark=False, property="task-clock")
             shutil.rmtree("/tmp/haskell" + opti)
         except BaseException as ex:
-            logging.error(ex)
+            logging.exception(ex)
             pass
         os.sync()
         time.sleep(60)
-    """

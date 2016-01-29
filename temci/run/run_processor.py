@@ -163,7 +163,7 @@ class RunProcessor:
                 self.pool.submit(run_block, id, self.run_block_size)
             for (block, result, id) in self.pool.results():
                 if result.error:
-                    self.erroneous_run_blocks.append((id, self.runs[id]))
+                    self.erroneous_run_blocks.append((id, result))
                     self.stats_helper.disable_run_data(id)
                     logging.error("Program block no. {} failed: {}".format(id, result.error))
                     self.store_erroneous()
@@ -189,9 +189,15 @@ class RunProcessor:
             subject = "Finished " + join_strs([repr(run.description()) for run in self.stats_helper.valid_runs()])
             send_mail(Settings()["run/send_mail"], subject, report, [Settings()["run/out"]])
         if len(self.erroneous_run_blocks) > 0:
-            subject = "Errors while benchmarking " \
-                      + join_strs([repr(RunData(attributes=self.runs[i]).description()) for (i, b) in self.erroneous_run_blocks])
-            send_mail(Settings()["run/send_mail"], subject, "", [Settings()["run/in"]  + ".erroneous.yaml"])
+            descrs = []
+            msgs = []
+            for (i, result) in self.erroneous_run_blocks:
+                descr = repr(RunData(attributes=self.runs[i]["attributes"]).description())
+                descrs.append(descr)
+                msg = descr + ":\n\t" + "\n\t".join(str(result.error).split("\n"))
+                msgs.append(msg)
+            subject = "Errors while benchmarking " + join_strs(descrs)
+            send_mail(Settings()["run/send_mail"], subject, "\n\n".join(msgs), [Settings()["run/in"]  + ".erroneous.yaml"])
 
     def store(self):
         with open(Settings()["run/out"], "w") as f:
@@ -202,7 +208,7 @@ class RunProcessor:
             return
         file_name = Settings()["run/in"] + ".erroneous.yaml"
         try:
-            blocks = [x[1] for x in self.erroneous_run_blocks]
+            blocks = [self.runs[x[0]] for x in self.erroneous_run_blocks]
             with open(file_name, "w") as f:
                 f.write(yaml.dump(blocks))
         except IOError as err:

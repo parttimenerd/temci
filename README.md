@@ -173,7 +173,9 @@ Now you have a report on the performance of `ls`.
         the SPEC benchmark with temci.
 - Append `--send_mail [you're email adress]` to get a mail after the benchmarking finished. This mail has the benchmarking
   result file in it's appendix
-
+- Try to benchmark a failing program (e.g. "lsabc"). temci will create a new run config file (with the ending
+".erroneous.yaml" that contains all failing run program blocks. Try to append the benchmarking
+result via "--append" to the original benchmarking result file.
 
 
 temci build usage
