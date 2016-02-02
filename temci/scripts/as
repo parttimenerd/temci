@@ -1,0 +1,10 @@
+#! /usr/bin/python3
+
+import os, sys
+
+from temci.scripts.cli import process_assembler
+
+process_assembler(" ".join(sys.argv))
+#with open("/tmp/sdf", "w") as f:
+#    f.write(" ".join(sys.argv) + repr(os.environ))
+#os.system("temci assembler \"{}\"".format(" ".join(sys.argv)))

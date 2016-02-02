@@ -17,6 +17,7 @@ import temci.setup.setup as setup
 from ..utils.typecheck import *
 from ..utils.vcs import VCSDriver
 from ..utils.settings import Settings
+import typing as t
 
 class Builder:
 
@@ -101,6 +102,24 @@ class BuilderKeyboardInterrupt(KeyboardInterrupt):
 BuilderQueueItem = namedtuple("BuilderQueueItem", ["id", "tmp_build_dir", "tmp_dir", "rand_conf", "build_cmd"])
 
 
+def env_variables_for_rand_conf(rand_conf: t.Dict) -> t.Dict[str, str]:
+    """
+    Creates a dictionary of environment variables to use the assembler randomisation.
+    :param rand_conf: configuration (see Builder.rand_conf_type)
+    """
+    typecheck_locals(rand_conf=Builder.rand_conf_type)
+    _rand_conf = Settings()["build/rand"]
+    _rand_conf.update(rand_conf)
+    as_path = os.path.abspath(os.path.abspath(__file__) + "../../../scripts")
+    return {
+        "RANDOMIZATION": json.dumps(_rand_conf),
+        "PATH": as_path + "/:" + os.environ["PATH"],
+        "LANG": "en_US.UTF-8",
+        "LANGUAGE": "en_US",
+        "TMP_DIR": Settings()["tmp_dir"]
+    }
+
+
 class BuilderThread(threading.Thread):
 
     def __init__(self, id: int, submit_queue: queue.Queue):
@@ -120,7 +139,7 @@ class BuilderThread(threading.Thread):
             if os.path.exists(tmp_build_dir):
                 shutil.rmtree(tmp_build_dir)
             shutil.copytree(item.tmp_dir, tmp_build_dir)
-            as_path = os.path.realpath(dirname(dirname(os.path.abspath(__file__)))) + "/scripts"
+            as_path = os.path.abspath(os.path.abspath(__file__) + "../../../scripts")
             env = {
                 "RANDOMIZATION": json.dumps(item.rand_conf),
                 "PATH": as_path + "/:" + os.environ["PATH"],

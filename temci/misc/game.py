@@ -29,6 +29,7 @@ from temci.utils.typecheck import *
 import os, shutil, copy
 from pprint import pprint
 from temci.tester import report
+import scipy as sp
 
 from temci.utils.util import InsertionTimeOrderedDict
 
@@ -42,6 +43,55 @@ from temci.tester.report import HTMLReporter2, html_escape_property
 
 FIG_WIDTH = 15
 FIG_HEIGHT_PER_ELEMENT = 1.5
+
+
+def geom_std(values: t.List[float]) -> float:
+    """
+    Calculates the geometric standard deviation for the values.
+    Source: https://en.wikipedia.org/wiki/Geometric_standard_deviation
+    """
+    gmean = stats.gmean(values)
+    return sp.exp(sp.sqrt(sp.sum([sp.log(x / gmean) ** 2 for x in values]) / len(values)))
+
+
+StatProperty = t.Callable[[SingleProperty, t.List[float]], float]
+""" Gets passed a SingleProperty object and the list of means (containing the object's mean) and returns a float. """
+ReduceFunc = t.Callable[[t.List[float]], Any]
+""" Gets passed a list of values and returns a single value, e.g. stats.gmean """
+
+def first(values: t.List[float]) -> float:
+    return values[0]
+
+def rel_mean_property(single: SingleProperty, means: t.List[float]) -> float:
+    """
+    A property function that returns the relative mean (the mean of the single / minimum of means)
+    """
+    return single.mean() / min(means)
+
+def rel_std_property(single: SingleProperty, means: t.List[float]) -> float:
+    """
+    A property function that returns the relative standard deviation (relative to single's mean)
+    """
+    return single.std_dev_per_mean()
+
+
+class BOTableColumn:
+    """ Column for BaseObject table_html_for_vals_per_impl  """
+
+    def __init__(self, title: str, format_str: str, property: StatProperty, reduce: ReduceFunc):
+        self.title = title
+        self.format_str = format_str
+        self.property = property
+        self.reduce = reduce
+
+mean_score_column = BOTableColumn("mean score (gmean(mean / best mean))", "{:5.5%}", rel_mean_property, stats.gmean)
+mean_score_std_column = BOTableColumn("mean score std (gmean std(mean / best mean))", "{:5.5%}", rel_mean_property, geom_std)
+mean_rel_std = BOTableColumn("mean rel std (gmean(std / mean))", "{:5.5%}", rel_std_property, stats.gmean)
+
+common_columns = [mean_score_column, mean_score_std_column, mean_rel_std]
+
+#MeanBOTableColumn = BOTableColumn("")
+
 
 
 class BaseObject:
@@ -121,6 +171,81 @@ class BaseObject:
             singles.append(SingleProperty(Single(run_data), run_data, name))
         return self.boxplot_html(base_file_name, singles)
 
+    def get_x_per_impl(self, property: StatProperty) -> t.Dict[str, t.List[float]]:
+        """
+        Returns a list of [property] for each implementation.
+        :param property: property function that gets a SingleProperty object and a list of all means and returns a float
+        """
+        assert len(self.children) != 0
+        means = InsertionTimeOrderedDict()  # type: t.Dict[str, t.List[float]]
+        for c in self.children:
+            child = self.children[c]  # type: BaseObject
+            child_means = child.get_x_per_impl(property)
+            for impl in child_means:
+                if impl not in means:
+                    means[impl] = []
+                means[impl].extend(child_means[impl])
+        typecheck(means._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), all_keys=False))
+        return means
+
+    def get_reduced_x_per_impl(self, property: StatProperty, reduce: ReduceFunc,
+                               x_per_impl_func: t.Callable[[StatProperty], t.Dict[str, t.List[float]]] = None) \
+            -> t.Dict[str, float]:
+        """
+        Returns the reduced [property] for each implementation. To reduce the list of [property] it uses
+        the passed reduce function.
+        The returned implementations doesn't depend on one of the parameters.
+        """
+        ret = InsertionTimeOrderedDict()
+        x_per_impl_func = x_per_impl_func or self.get_x_per_impl
+        rel_means = x_per_impl_func(property)
+        for impl in rel_means:
+            ret[impl] = reduce(rel_means[impl])
+        typecheck(ret._dict, Dict(key_type=Str(), value_type=Int()|Float(), all_keys=False))
+        return ret
+
+    def get_gsd_for_x_per_impl(self, property: StatProperty) -> t.Dict[str, float]:
+        """
+        Calculates the geometric standard deviation for the property for each implementation.
+        """
+        return self.get_reduced_x_per_impl(property, geom_std)
+
+    def get_geom_over_rel_means(self) -> t.Dict[str, float]:
+        return self.get_reduced_x_per_impl(rel_mean_property, stats.gmean)
+
+    def get_geom_std_over_rel_means(self) -> t.Dict[str, float]:
+        return self.get_gsd_for_x_per_impl(rel_mean_property)
+
+    def get_geom_over_rel_stds(self) -> t.Dict[str, float]:
+        return self.get_reduced_x_per_impl(rel_std_property, stats.gmean)
+
+    def table_html_for_vals_per_impl(self, columns: t.List[BOTableColumn],
+                                     x_per_impl_func: t.Callable[[StatProperty], t.Dict[str, t.List[float]]] = None) \
+            -> str:
+        """
+        Returns the html for a table that has a row for each implementation and several columns (the first is the
+        implementation column).
+        """
+        html = """
+        <table class="table">
+            <tr><th></th>{header}</tr>
+        """.format(header="".join("<th>{}</th>".format(col.title) for col in columns))
+        values = InsertionTimeOrderedDict() # t.Dict[t.List[str]]
+        for col in columns:
+            xes = self.get_reduced_x_per_impl(col.property, col.reduce, x_per_impl_func)
+            for impl in xes:
+                if impl not in values:
+                    values[impl] = []
+                values[impl].append(col.format_str.format(xes[impl]))
+        for impl in values:
+            html += """
+                <tr><td scope="row">{}</td>{}</tr>
+            """.format(impl, "".join("<td>{}</td>".format(val) for val in values[impl]))
+        html += """
+        </table>
+        """
+        return html
+
 
 class Implementation(BaseObject):
     """
@@ -134,7 +259,7 @@ class Implementation(BaseObject):
         self.parent = parent
         self.run_cmd = run_cmd
         self.build_cmd = build_cmd
-        self.run_data = run_data
+        self.run_data = run_data # t.List[float]
 
     def get_single_property(self) -> SingleProperty:
         assert self.run_data is not None
@@ -200,6 +325,11 @@ class Implementation(BaseObject):
             }
         }
 
+    def get_x_per_impl(self, property: StatProperty):
+        raise NotImplementedError()
+
+    def mean(self) -> float:
+        return sp.mean(self.run_data)
 
 class Input:
     """
@@ -260,8 +390,6 @@ class Input:
 
 StatisticalPropertyFunc = t.Callable[[SingleProperty], float]
 """ Get's passed the SingleProperty object to process and min mean """
-ReduceFunc = t.Callable[[t.List[float]], Any]
-""" Get's passed a list of values and returns a single value, e.g. stats.gmean """
 
 rel_mean_func = lambda x, min: x.mean() / min
 
@@ -318,58 +446,40 @@ class ProgramWithInput(BaseObject):
             singles.append(SingleProperty(Single(data), data, self.name))
         return self.boxplot_html(base_file_name, singles)
 
+    def get_html2(self, base_file_name: str, h_level: int) -> str:
+        return self.get_html(base_file_name, h_level)
+
     def get_html(self, base_file_name: str, h_level: int) -> str:
         sp = None # type: SingleProperty
         scores = self.get_means_rel_to_best()
         columns = [
-            {
-                "name": "implementation",
-                "func": lambda x, sp: x.name,
-                "format": "{}"
-            }, {
-                "name": "n",
-                "func": lambda x, sp: sp.observations(),
-                "format": "{:5d}"
-            }, {
-                "name": "mean",
-                "func": lambda x, sp: sp.mean(),
-                "format": "{:5.5f}"
-            }, {
-                "name": "mean / best mean",
-                "func": lambda x, sp: scores[x.name],
-                "format": "{:5.2%}"
-            }, {
-                "name": "std / mean",
-                "func": lambda x, sp: sp.std_dev_per_mean(),
-                "format": "{:5.2%}"
-            }, {
-                "name": "std / best mean",
-                "func": lambda x, sp: sp.std_dev() * scores[x.name] / sp.mean(),
-                "format": "{:5.2%}"
-            }, {
-                "name": "median",
-                "func": lambda x, sp: sp.median(),
-                "format": "{:5.5f}"
-            }
+            BOTableColumn("n", "{:5d}", lambda sp, _: sp.observations(), first),
+            BOTableColumn("mean", "{:10.5f}", lambda sp, _: sp.mean(), first),
+            BOTableColumn("mean / best mean", "{:5.5%}", lambda sp, means: sp.mean() / min(means), first),
+            BOTableColumn("std / mean", "{:5.5%}", lambda sp, _: sp.std_dev_per_mean(), first),
+            BOTableColumn("std / best mean", "{:5.5%}", lambda sp, means: sp.std_dev() / min(means), first),
+            BOTableColumn("median", "{:5.5f}", lambda sp, _: sp.median(), first)
         ]
         html = """
         <h{h}>Input: {input}</h{h}>
         The following plot shows the actual distribution of the measurements for each implementation.
         {box_plot}
-        <table class="table">
-            <tr>{header}</tr>
-        """.format(h=h_level, input=repr(self.input), box_plot=self.get_box_plot_html(base_file_name),
-                   header="".join("<th>{}</th>".format(elem["name"]) for elem in columns))
+        """.format(h=h_level, input=repr(self.input), box_plot=self.get_box_plot_html(base_file_name))
+        html += self.table_html_for_vals_per_impl(columns)
+        return html
+
+    def get_x_per_impl(self, property: StatProperty) -> t.Dict[str, t.List[float]]:
+        """
+        Returns a list of [property] for each implementation.
+        :param property: property function that gets a SingleProperty object and a list of all means and returns a float
+        """
+        means = [x.mean() for x in self.impls.values()]  # type: t.List[float]
+        ret = InsertionTimeOrderedDict() # t.Dict[str, t.List[float]]
         for impl in self.impls:
-            impl_val = self.impls[impl]
-            sp = impl_val.get_single_property()
-            col_vals = []
-            for elem in columns:
-                col_vals.append(elem["format"].format(elem["func"](impl_val, sp)))
-            html += """
-                <tr>{}</tr>
-            """.format("".join("<td>{}</td>".format(col_val) for col_val in col_vals))
-        return html + "</table>"
+            ret[impl] = [property(self.impls[impl].get_single_property(), means)]
+        #pprint(ret._dict)
+        typecheck(ret._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), all_keys=False))
+        return ret
 
 
 class Program(BaseObject):
@@ -434,6 +544,20 @@ class Program(BaseObject):
                                                            input: str) -> t.Dict[str, float]:
         return self.prog_inputs[input].get_statistical_properties_for_each(func)
 
+    def get_html2(self, base_file_name: str, h_level: int):
+        base_file_name += "__program_" + html_escape_property(self.name)
+        html = """
+            <h{}>Program: {!r}</h{}>
+            The following plot shows the rel means (means / min means) per input distribution for every implementation.
+        """.format(h_level, self.name, h_level)
+        html += self.boxplot_html_for_data("mean score", base_file_name, self.get_x_per_impl(rel_mean_property))
+        html += self.table_html_for_vals_per_impl(common_columns)
+        for (i, input) in enumerate(self.prog_inputs.keys()):
+            app = html_escape_property(input)
+            if len(app) > 20:
+                app = str(i)
+            html += self.prog_inputs[input].get_html2(base_file_name + "_" + app, h_level + 1)
+        return html
 
     def get_html(self, base_file_name: str, h_level: int) -> str:
         html = """
@@ -488,9 +612,9 @@ class ProgramCategory(BaseObject):
     """
 
     def __init__(self, parent: 'Language', name: str, programs: t.List[Program]):
-        super().__init__(name)
+        super().__init__(name, itod_from_list(programs, lambda x: x.name))
         self.parent = parent
-        self.programs = itod_from_list(programs, lambda x: x.name) # type: t.Dict[str, Program]
+        self.programs = self.children # type: t.Dict[str, Program]
 
     @classmethod
     def from_config_dict(cls, parent: 'Language', config: dict) -> 'ProgramCategory':
@@ -503,6 +627,7 @@ class ProgramCategory(BaseObject):
         for prog_conf in config["programs"]:
             prog = Program.from_config_dict(cat, prog_conf)
             cat.programs[prog.name] = prog
+            cat.children[prog.name] = prog
         return cat
 
     def build(self, base_dir: str) -> t.List[dict]:
@@ -521,6 +646,33 @@ class ProgramCategory(BaseObject):
             data = RunData({name: scores}, {"description": impl})
             singles.append(SingleProperty(Single(data), data, name))
         return self.boxplot_html(base_file_name, singles)
+
+    def get_html2(self, base_file_name: str, h_level: int):
+        base_file_name += "__program_category_" + html_escape_property(self.name)
+        html = """
+            <h{}>{}</h{}>
+        """.format(h_level, self.name, h_level)
+        if len(self.children) > 1:
+            html += self.boxplot_html_for_data("mean score", base_file_name, self.get_x_per_impl(rel_mean_property))
+            html += self.table_html_for_vals_per_impl(common_columns)
+            if len(self.get_input_strs()) > 1:
+                html += """
+                <h{h}> Mean scores per input</h{h}>
+                """.format(h=h_level + 1)
+                for input in self.get_input_strs():
+                    html += """
+                        <h{h}>Mean scores for input {!r}</h{h}>
+                        The plot shows the distribution of mean scores per program for each implementation.
+                        <p>
+                    """.format(input, h=h_level + 2)
+                    html += self.boxplot_html_for_data("mean score", base_file_name + "__input_"
+                                                       + html_escape_property(input),
+                                          self.get_x_per_impl_and_input(rel_mean_property, input))
+                    html += self.table_html_for_vals_per_impl(common_columns,
+                                                              lambda property: self.get_x_per_impl_and_input(property,                                                                                       input))
+        for (i, prog) in enumerate(self.programs):
+            html += self.programs[prog].get_html2(base_file_name + "_" + html_escape_property(prog), h_level + 1)
+        return html
 
     def get_html(self, base_file_name: str, h_level: int) -> str:
         html = """
@@ -620,6 +772,19 @@ class ProgramCategory(BaseObject):
                 scores_per_impl[impl].append(scores[impl])
         return scores_per_impl
 
+    def get_x_per_impl_and_input(self, property: StatProperty, input: str) -> t.Dict[str, t.List[float]]:
+        scores_per_impl = InsertionTimeOrderedDict()
+        for prog in self.programs:
+            prog_val = self.programs[prog]
+            scores = prog_val.prog_inputs[input].get_x_per_impl(property)
+            #pprint(scores._dict)
+            for impl in scores:
+                if impl not in scores_per_impl:
+                    scores_per_impl[impl] = []
+                scores_per_impl[impl].extend(scores[impl])
+        typecheck(scores_per_impl._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), all_keys=False))
+        return scores_per_impl
+
     def get_input_strs(self) -> t.List[str]:
         return list(self.programs.values())[0].prog_inputs.keys()
 
@@ -627,8 +792,8 @@ class ProgramCategory(BaseObject):
 class Language(BaseObject):
 
     def __init__(self, name: str, categories: t.List[ProgramCategory]):
-        super().__init__(name)
-        self.categories = itod_from_list(categories, lambda x: x.name) # type: t.Dict[str, ProgramCategory]
+        super().__init__(name, itod_from_list(categories, lambda x: x.name))
+        self.categories = self.children  # type: t.Dict[str, ProgramCategory]
 
     @classmethod
     def from_config_dict(cls, config: dict) -> 'Language':
@@ -642,6 +807,7 @@ class Language(BaseObject):
         for cat_conf in config["categories"]:
             cat = ProgramCategory.from_config_dict(lang, cat_conf)
             lang.categories[cat.name] = cat
+            lang.children[cat.name] = cat
         if "impls" in config:
             for cat in lang.categories:
                 cat_val = lang.categories[cat]
@@ -696,6 +862,44 @@ class Language(BaseObject):
             data = RunData({name: scores}, {"description": impl})
             singles.append(SingleProperty(Single(data), data, name))
         return self.boxplot_html(base_file_name, singles)
+
+    def get_html2(self, base_file_name: str, h_level: int, with_header: bool = True, multiprocess: bool = False):
+        base_file_name += "__program_category_" + html_escape_property(self.name)
+        html = ""
+        if with_header:
+            html += """
+            <h{}>Language: {}</h{}>
+            """.format(h_level, self.name, h_level)
+        else:
+            h_level -= 1
+        if len(self.children) > 1:
+            html += self.boxplot_html_for_data("mean score", base_file_name, self.get_x_per_impl(rel_mean_property))
+            html += self.table_html_for_vals_per_impl(common_columns)
+        if self.get_max_input_num() > 1:
+            for n in range(0, self.get_max_input_num()):
+                mean_scores = self.get_statistical_property_scores_per_input_per_impl(rel_mean_func, n)
+                std_scores = self.get_statistical_property_scores_per_input_per_impl(rel_std_dev_func, n)
+                html += """
+                    <h{h}>Summary for input no. {n} </h{h}>
+                    Mean score per implementation. Excludes all categories with less than {m} inputs.
+                    The plot shows the distribution of mean scores per category per implementation for
+                    input no. {n}.
+                    <p>
+                """.format(h=h_level + 1, n=n, m=self.get_max_input_num())
+                html += self.boxplot_html_for_data("mean score", base_file_name + "__input_" + str(n),
+                                          self.get_x_per_impl_and_input(rel_mean_property, n))
+                html += self.table_html_for_vals_per_impl(common_columns,
+                                                          lambda property: self.get_x_per_impl_and_input(property, n))
+
+        objs = []
+        for (i, cat) in enumerate(self.categories):
+            objs.append((i, cat, base_file_name + "_" + html_escape_property(cat), h_level + 1))
+        map_func = map
+        if multiprocess: # doesn't work (fix warning issue of seaborn)
+            pool = multiprocessing.Pool(2)
+            map_func = pool.map
+        html += "\n".join(map_func(self._get_html2_for_category, objs))
+        return html
 
     def get_html(self, base_file_name: str, h_level: int, with_header: bool = True, multiprocess: bool = False) -> str:
         html = ""
@@ -764,7 +968,11 @@ class Language(BaseObject):
         i, cat, base_name, h_level = arg
         return self.categories[cat].get_html(base_name, h_level)
 
-    def get_full_html(self, base_dir: str) -> str:
+    def _get_html2_for_category(self, arg: t.Tuple[int, str, str, int]) -> str:
+        i, cat, base_name, h_level = arg
+        return self.categories[cat].get_html2(base_name, h_level)
+
+    def get_full_html(self, base_dir: str, html_func: t.Callable[[str, int, bool], str] = None) -> str:
         resources_path = os.path.abspath(os.path.join(os.path.dirname(report.__file__), "report_resources"))
         shutil.copytree(resources_path, os.path.join(base_dir, "resources"))
         html = """<html lang="en">
@@ -809,22 +1017,23 @@ class Language(BaseObject):
         """
         lang = self.name
         comparing_str = util.join_strs(self.get_scores_per_impl().keys())
-        inner_html = self.get_html(base_dir + "/fig", 2, with_header=False)
+        html_func = html_func or self.get_html
+        inner_html = html_func(base_dir + "/fig", 2, with_header=False)
         import humanfriendly
         timespan = humanfriendly.format_timespan(time.time() - START_TIME)
         return html.format(**locals())
 
-    def store_html(self, base_dir: str, clear_dir: bool = True):
+    def store_html(self, base_dir: str, clear_dir: bool = True, html_func: t.Callable[[str, int, bool], str] = None):
         typecheck_locals(base_dir=DirName())
         if not os.path.exists(base_dir):
             os.mkdir(base_dir)
-        elif clear_dir:
+        if clear_dir:
             shutil.rmtree(base_dir)
-            self.store_html(base_dir, clear_dir=False)
+            self.store_html(base_dir, clear_dir=False, html_func=html_func)
             return
         with open(os.path.join(base_dir, "report.html"), "w") as f:
             #print(self.get_full_html(os.path.join(base_dir)))
-            f.write(self.get_full_html(os.path.join(base_dir)))
+            f.write(self.get_full_html(os.path.join(base_dir), html_func))
 
     def get_scores_per_impl(self) -> t.Dict[str, t.List[float]]:
         return self.get_statistical_property_scores_per_impl(rel_mean_func)
@@ -879,6 +1088,20 @@ class Language(BaseObject):
         """
         return self.boxplot_html_for_data("mean score", base_file_name + "__input_" + str(input_num),
                                           self.get_statistical_property_scores_per_input_per_impl(rel_mean_func, input_num))
+
+    def get_x_per_impl_and_input(self, property: StatProperty, input_num: int) -> t.Dict[str, t.List[float]]:
+        means = InsertionTimeOrderedDict()  # type: t.Dict[str, t.List[float]]
+        for child in self.categories.values():
+            inputs = child.get_input_strs()
+            if len(inputs) <= input_num:
+                continue
+            child_means = child.get_x_per_impl_and_input(property, inputs[input_num])
+            for impl in child_means:
+                if impl not in means:
+                    means[impl] = []
+                means[impl].extend(child_means[impl])
+        typecheck(means._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), all_keys=False))
+        return means
 
 
 def ref(name: str, value = None, _store={}):
@@ -1213,14 +1436,14 @@ def process(config: ConfigDict, name: str = None, build_dir: str = None, build: 
         os.system(cmd)
     if report:
         lang.process_result_file(temci_result_file, property)
-        lang.store_html(report_dir, clear_dir=True)
+        lang.store_html(report_dir, clear_dir=True, html_func=lang.get_html2)
 
 
 MODE = "haskell_full"
 
 
 if MODE == "haskell_full":
-    """
+
     for opti in ["", "-O", "-O2", "-Odph"]:
         try:
             config = replace_run_with_build_cmd(haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
@@ -1231,14 +1454,15 @@ if MODE == "haskell_full":
             pass
         os.sync()
         #time.sleep(60)
-    """
-    for opti in  ["-Odph"]:#reversed(["", "-O", "-O2", "-Odph"]):
+
+    for opti in  reversed(["", "-O", "-O2", "-Odph", "-Odph"]):
         try:
             config = haskel_config(INPUTS_PER_CATEGORY, opti)
             process(config, "haskell" + opti, temci_options=" --discarded_blocks 1 --nice --other_nice", build=False, benchmark=False, property="task-clock")
+            logging.info("processed")
             shutil.rmtree("/tmp/haskell" + opti)
         except BaseException as ex:
             logging.exception(ex)
             pass
         os.sync()
-        time.sleep(60)
+        #time.sleep(60)

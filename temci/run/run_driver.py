@@ -8,7 +8,10 @@ import re
 import shutil
 
 import collections
+import signal
+from pprint import pprint
 
+from temci.build.builder import Builder, env_variables_for_rand_conf
 from temci.setup import setup
 from temci.utils.settings import Settings
 from temci.utils.typecheck import NoInfo
@@ -139,10 +142,13 @@ class BenchmarkingResultBlock:
     def properties(self) -> t.List[str]:
         return list(self.data.keys())
 
-    def add_run_data(self, data: dict):
-        typecheck(data, Dict(all_keys=False, key_type=Str(), value_type=Int()|Float()))
+    def add_run_data(self, data: t.Dict[str, t.Union[float, t.List[float]]]):
+        typecheck(data, Dict(all_keys=False, key_type=Str(), value_type=Int()|Float()|List(Int()|Float())))
         for prop in data:
-            self.data[prop].append(data[prop])
+            if isinstance(data[prop], list):
+                self.data[prop].extend(data[prop])
+            else:
+                self.data[prop].append(data[prop])
 
     def to_dict(self):
         return {
@@ -378,20 +384,32 @@ class ExecRunDriver(AbstractRunDriver):
         env = os.environ.copy()
         env.update(block["env"])
         env.update({'LC_NUMERIC': 'en_US.ASCII'})
+        #print(env["PATH"])
         t = time.time()
         executed_cmd = "; ".join(executed_cmd)
-        proc = subprocess.Popen(["/bin/sh", "-c", executed_cmd], stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                universal_newlines=True,
-                                cwd=cwd,
-                                env=env)
-        out, err = proc.communicate()
-        t = time.time() - t
-        if proc.poll() > 0:
-            msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
-           # logging.error(msg)
-            raise BenchmarkingError(msg)
-        return self.ExecResult(time=t, stderr=str(err), stdout=str(out))
+        proc = None
+        try:
+            proc = subprocess.Popen(["/bin/sh", "-c", executed_cmd], stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    universal_newlines=True,
+                                    cwd=cwd,
+                                    env=env,)
+                                    #preexec_fn=os.setsid)
+            out, err = proc.communicate()
+            t = time.time() - t
+            if proc.poll() > 0:
+                msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
+               # logging.error(msg)
+                raise BenchmarkingError(msg)
+            return self.ExecResult(time=t, stderr=str(err), stdout=str(out))
+        except:
+            if proc is not None:
+                try:
+                    proc.terminate()
+                    #os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                except BaseException as err:
+                    pass
+            raise
 
     def teardown(self):
         super().teardown()
@@ -643,7 +661,7 @@ class RusageExecRunner(ExecRunner):
 class SpecExecRunner(ExecRunner):
     """
     Runner for SPEC like single benchmarking suites.
-    It works with resulting property files, in which the properties are collon
+    It works with resulting property files, in which the properties are colon
     separated from their values.
     """
 
@@ -669,7 +687,7 @@ class SpecExecRunner(ExecRunner):
         self.path_regexp = re.compile(self.misc["path_regexp"])
 
     def setup_block(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
-        block["run_cmds"] = ["{}; cat {}".format(cmd, self.misc["file"]) for cmd in block["run_cmds"]]
+        block["run_cmds"] = ["{} > /dev/null; cat {}".format(cmd, self.misc["file"]) for cmd in block["run_cmds"]]
 
     def parse_result(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
@@ -697,12 +715,85 @@ class SpecExecRunner(ExecRunner):
         for prop in props:
             def get(sub_path: str = ""):
                 return props[prop][sub_path]
-            data[prop] = eval(self.misc["code"])
+            if prop not in data:
+                data[prop] = data
+            data[prop].append(eval(self.misc["code"]))
         if len(data) == 0:
             raise BenchmarkingError("No properties in the result file matched begin with {!r} "
                           "and match the passed regular expression {!r}"
                           .format(self.misc["base_path"], self.path_regexp))
 
+        res = res or BenchmarkingResultBlock()
+        res.add_run_data(data)
+        return res
+
+
+@ExecRunDriver.register_runner()
+class CPUSpecExecRunner(ExecRunner):
+
+    name = "spec.py"
+    misc_options = Dict({
+        "files": ListOrTuple(Str()) // Default(["result/CINT2000.*.raw",
+                                                "result/CFP2000.*.raw"])
+                 // Description("File patterns (the newest file will be used)"),
+        "rand_conf": Builder.rand_conf_type // Default(Settings()["build/rand"])
+                 // Description("Randomisation ")
+    })
+
+    def setup_block(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
+        file_cmds = []
+        for file in self.misc["files"]:
+            file_cmds.append("realpath `ls --sort=time {} | head -n 1`".format(file))
+        block["env"].update(env_variables_for_rand_conf(self.misc["rand_conf"]))
+        block["run_cmds"] = ["PATH='{}' ".format(block["env"]["PATH"]) + cmd + " > /dev/null; " + "; ".join(file_cmds) for cmd in block["run_cmds"]]
+        #print(block["run_cmds"])
+
+    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+                     res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
+        data = {}  # type: t.Dict[str, t.List[float]]
+        pre_data = {}  # type: t.Dict[str, t.Dict[int, float]]
+        prop_pattern = re.compile("spec\.cpu[0-9]{4}\.results\.")
+        lines = exec_res.stdout.strip().split("\n")
+        file_lines = []
+        n = len(self.misc["files"])
+        for l in reversed(lines):
+            if n == 0:
+                break
+            l = l.strip()
+            if os.path.exists(l):
+                n -= 1
+                with open(l, "r") as f:
+                    file_lines.extend(f.read().split("\n"))
+        for line in file_lines:
+            try:
+                line = line.strip()
+                if line.count(":") != 1:
+                    continue
+                prop, val = [part.strip() for part in line.split(":")]
+                if not prop_pattern.match(prop):
+                    continue
+                prop = prop_pattern.sub("", prop, count=1)
+                if prop.count(".") != 3:
+                    continue
+                name, *parts, number, subprop = prop.split(".")
+                number = int(number)
+                if subprop == "reported_time":
+                    val = float(val)
+                    if name not in pre_data:
+                        pre_data[name] = {}
+                    if number not in pre_data[name]:
+                        pre_data[name][number] = val
+                elif subprop == "valid":
+                    if int(val) != 1:  # => ${name} is invalid
+                        pre_data[name][number] = -1
+            except BaseException as ex:
+                logging.info("Can't parse the following line properly: " + line)
+                logging.info("Error message: " + str(ex))
+
+        for prop in pre_data:
+            valids = [x for x in pre_data[prop].values() if x > -1]
+            if len(valids) > 0:
+                data[prop] = valids
         res = res or BenchmarkingResultBlock()
         res.add_run_data(data)
         return res

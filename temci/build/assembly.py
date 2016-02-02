@@ -293,8 +293,9 @@ class AssemblyFile:
                     cur = Section()
                 cur.append(line)
             self.sections.append(cur)
-        else:
-            raise ValueError("Unknown assembler")
+        #else:
+        #    logging.error("\n".join(line.content for line in self._lines))
+        #    raise ValueError("Unknown assembler")
 
     def add_lines(self, lines: list):
         """
@@ -315,6 +316,8 @@ class AssemblyFile:
         """
         Randomizes the sections relative positions but doesn't change the first section.
         """
+        if len(self.sections) == 0:
+            return
         _sections = self.sections[1:-1]
         if small_changes:
             i = 0
@@ -346,7 +349,9 @@ class AssemblyFile:
             section.randomize_malloc_calls(padding)
 
     def __str__(self):
-        return "\n/****/\n".join(map(str, self.sections)) + "\n"
+        if len(self.sections) > 0:
+            return "\n/****/\n".join(map(str, self.sections)) + "\n"
+        return "\n".join(line.content for line in self._lines)
 
     @classmethod
     def from_file(cls, file: str):

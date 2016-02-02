@@ -708,12 +708,14 @@ def bash(**kwargs):
 @cli.command(short_help=command_docs["assembler"])
 @click.argument("call", type=str)
 def assembler(call: str):
+    process_assembler(call)
+
+def process_assembler(call: str):
     call = call.split(" ")
     input_file = os.path.abspath(call[-1])
     config = json.loads(os.environ["RANDOMIZATION"]) if "RANDOMIZATION" in os.environ else {}
     as_tool = os.environ["USED_AS"] if "USED_AS" in os.environ else "/usr/bin/as"
     tmp_assm_file = os.path.join(os.environ["TMP_DIR"] if "TMP_DIR" in os.environ else "/tmp", "temci_assembler.s")
-
     def exec(cmd):
         proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,

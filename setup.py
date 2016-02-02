@@ -32,7 +32,8 @@ setup(
         'docopt',
         'jedi',
         'Pygments',
-        'wcwidth'
+        'wcwidth',
+        'rainbow_logging_handler'
     ],
     license='GPLv3',
     platforms='linux',
