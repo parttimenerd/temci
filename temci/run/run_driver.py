@@ -15,7 +15,7 @@ from temci.build.builder import Builder, env_variables_for_rand_conf
 from temci.setup import setup
 from temci.utils.settings import Settings
 from temci.utils.typecheck import NoInfo
-from temci.utils.util import has_root_privileges, join_strs
+from temci.utils.util import has_root_privileges, join_strs, does_command_succeed
 from temci.utils.vcs import VCSDriver
 from ..utils.typecheck import *
 from ..utils.registry import AbstractRegistry, register
@@ -286,7 +286,7 @@ class ExecRunDriver(AbstractRunDriver):
         "revision": -1,
         "cwd": ".",
         "base_dir": ".",
-        "runner": "perf_stat"
+        "runner": "time"
     }
     registry = { }
 
@@ -350,7 +350,7 @@ class ExecRunDriver(AbstractRunDriver):
             return BenchmarkingResultBlock(error=err)
         t = time.time() - t
         assert isinstance(res, BenchmarkingResultBlock)
-        res.data["ov-time"] = [t / runs] * runs
+        res.data["__ov-time"] = [t / runs] * runs
         #print(res.data)
         return res
 
@@ -447,9 +447,6 @@ class ExecRunDriver(AbstractRunDriver):
 
     @classmethod
     def get_runner(cls, block: RunProgramBlock) -> 'ExecRunner':
-        if block["runner"] == "perf_stat" and not is_perf_available():
-            logging.warning("perf tool not available therefore using rusage instead of perf_stat runner")
-            block["runner"] = "rusage"
         return cls.runners[block["runner"]](block)
 
 
@@ -553,6 +550,12 @@ class PerfStatExecRunner(ExecRunner):
                                               "instructions", "branch-misses", "cache-references"])
     })
 
+    def __init__(self, block: RunProgramBlock):
+        super().__init__(block)
+        if not is_perf_available():
+            raise KeyboardInterrupt("The perf tool needed for the perf stat runner isn't installed. You can install it "
+                                    "via the linux-tools (or so) package of your distribution.")
+
     def setup_block(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
         do_repeat = self.misc["repeat"] > 1
 
@@ -568,7 +571,7 @@ class PerfStatExecRunner(ExecRunner):
     def parse_result(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         res = res or BenchmarkingResultBlock()
-        m = {"ov-time": exec_res.time}
+        m = {"__ov-time": exec_res.time}
         props = self.misc["properties"]
         missing_props = len(props)
         for line in reversed(exec_res.stderr.strip().split("\n")):
@@ -610,14 +613,15 @@ def get_av_rusage_properties() -> t.Dict[str, str]:
     }
 
 
-class ValidRusagePropertyList(Type):
+
+class ValidPropertyList(Type):
     """
-    Checks for the value to be a valid rusage runner measurement property list.
+    Checks for the value to be a valid property list that contains only elements from a given list.
     """
 
-    def __init__(self):
+    def __init__(self, av_properties: t.Iterable[str]):
         super().__init__()
-        self.av = list(get_av_rusage_properties().keys())
+        self.av = av_properties
         self.completion_hints = {
             "zsh": "({})".format(" ".join(self.av)),
             "fish": {
@@ -630,8 +634,23 @@ class ValidRusagePropertyList(Type):
             return info.errormsg(self)
         for elem in value:
             if elem not in self.av:
-                return info.errormsg(self, "No such rusage property " + repr(elem))
+                return info.errormsg(self, "No such property " + repr(elem))
         return info.wrap(True)
+
+    def __str__(self) -> str:
+        return "ValidPropertyList()"
+
+    def _eq_impl(self, other):
+        return True
+
+
+class ValidRusagePropertyList(ValidPropertyList):
+    """
+    Checks for the value to be a valid rusage runner measurement property list.
+    """
+
+    def __init__(self):
+        super().__init__(get_av_rusage_properties().keys())
 
     def __str__(self) -> str:
         return "ValidRusagePropertyList()"
@@ -653,6 +672,9 @@ class RusageExecRunner(ExecRunner):
 
     def __init__(self, block: RunProgramBlock):
         super().__init__(block)
+        if not does_command_succeed(setup.script_relative("rusage/rusage") + " true"):
+            raise KeyboardInterrupt("The needed c code for rusage seems to be not compiled properly. "
+                                    "Please run temci setup.")
 
     def setup_block(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
 
@@ -667,7 +689,7 @@ class RusageExecRunner(ExecRunner):
     def parse_result(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         res = res or BenchmarkingResultBlock()
-        m = {"ov-time": exec_res.time}
+        m = {"__ov-time": exec_res.time}
         for line in reversed(exec_res.stdout.strip().split("\n")):
             if '#' in line:
                 break
@@ -680,6 +702,7 @@ class RusageExecRunner(ExecRunner):
                         pass
         res.add_run_data(m)
         return res
+
 
 @ExecRunDriver.register_runner()
 class SpecExecRunner(ExecRunner):
@@ -820,6 +843,114 @@ class CPUSpecExecRunner(ExecRunner):
                 data[prop] = valids
         res = res or BenchmarkingResultBlock()
         res.add_run_data(data)
+        return res
+
+
+def time_file(_tmp = []) -> str:
+    if len(_tmp) == 0:
+        try:
+            _tmp.append(subprocess.check_output(["/bin/which", "time"]).decode().strip())
+        except subprocess.CalledProcessError:
+            return "false && "
+    return _tmp[0]
+
+
+
+def get_av_time_properties_with_format_specifiers() -> t.Dict[str, t.Tuple[str, str]]:
+    """
+    Returns the available properties for the TimeExecRunner mapped to their descriptions and time format specifiers.
+    """
+    return {
+        "utime": ("user CPU time used (in seconds)", "U"),
+        "stime": ("system (kernel) CPU time used (in seconds)", "S"),
+        "avg_unshared_data": ("average unshared data size in K", "D"),
+        "etime": ("elapsed real (wall clock) time (in seconds)", "e"),
+        "major_page_faults": ("major page faults (required physical I/O)", "F"),
+        "file_system_inputs": ("blocks wrote in the file system", "I"),
+        "avg_mem_usage": ("average total mem usage (in K)", "K"),
+        "max_res_set": ("maximum resident set (not swapped out) size in K", "M"),
+        "avg_res_set": ("average resident set (not swapped out) size in K", "K"),
+        "file_system_output": ("blocks read from the file system", "O"),
+        "cpu_perc": ("percent of CPU this job got (total cpu time / elapsed time)", "P"),
+        "minor_page_faults": ("minor page faults (reclaims; no physical I/O involved)", "R"),
+        "times_swapped_out": ("times swapped out", "W"),
+        "avg_shared_text": ("average amount of shared text in K", "X"),
+        "page_size": ("page size", "Z"),
+        "invol_context_switches": ("involuntary context switches", "c"),
+        "vol_context_switches": ("voluntary context switches", "w"),
+        "signals_delivered": ("signals delivered", "k"),
+        "avg_unshared_stack": ("average unshared stack size in K", "p"),
+        "socket_msg_rec": ("socket messages received", "s"),
+        "socket_msg_sent": ("socket messages sent", "s")
+    }
+
+
+def get_av_time_properties() -> t.Dict[str, str]:
+    """
+    Returns the available properties for the TimeExecRunner mapped to their descriptions.
+    """
+    d = {}
+    t = get_av_time_properties_with_format_specifiers()
+    for key in t:
+        d[key] = t[key][0]
+    return d
+
+
+class ValidTimePropertyList(ValidPropertyList):
+    """
+    Checks for the value to be a valid time runner measurement property list.
+    """
+
+    def __init__(self):
+        super().__init__(get_av_time_properties().keys())
+
+    def __str__(self) -> str:
+        return "ValidTimePropertyList()"
+
+    def _eq_impl(self, other):
+        return True
+
+
+@ExecRunDriver.register_runner()
+class TimeExecRunner(ExecRunner):
+    """
+    Uses gnu time and is mostly equivalent to the rusage runner but more user friendly.
+    """
+
+    name = "time"
+    misc_options = Dict({
+        "properties": ValidTimePropertyList() // Default(["utime", "stime", "etime", "avg_mem_usage",
+                                                          "max_res_set", "avg_res_set"])
+                    // Description("Measured properties")
+    })
+
+    def __init__(self, block: RunProgramBlock):
+        super().__init__(block)
+        if not does_command_succeed(time_file() + " -v true"):
+            raise KeyboardInterrupt("gnu time seems to be not installed and the time runner can therefore not be used")
+        fmts = get_av_time_properties_with_format_specifiers()
+        self.time_format_spec = "### " + " ".join(["%" + fmts[prop][1] for prop in self.misc["properties"]])
+
+    def setup_block(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
+
+        def modify_cmd(cmd):
+            return "{} -f {!r} /bin/sh -c {!r}".format(time_file(), self.time_format_spec, cmd)
+        block["run_cmds"] = [modify_cmd(cmd) for cmd in block["run_cmds"]]
+
+    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+                     res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
+        res = res or BenchmarkingResultBlock()
+        m = {"__ov-time": exec_res.time}
+        for line in reversed(exec_res.stderr.strip().split("\n")):
+            if line.startswith("### "):
+                _, *parts = line.strip().split(" ")
+                if len(parts) == len(self.misc["properties"]):
+                    for (i, part) in enumerate(parts):
+                        try:
+                            m[self.misc["properties"][i]] = float(part)
+                        except:
+                            pass
+        res.add_run_data(m)
         return res
 
 

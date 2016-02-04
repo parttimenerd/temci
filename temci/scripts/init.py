@@ -17,7 +17,8 @@ from prompt_toolkit.contrib.completers import WordCompleter, SystemCompleter, Pa
 import prompt_toolkit as pt
 
 from temci.run.run_driver import ExecRunDriver, PerfStatExecRunner, SpecExecRunner, get_av_perf_stat_properties, \
-    ValidPerfStatPropertyList, RusageExecRunner, ValidRusagePropertyList, get_av_rusage_properties
+    ValidPerfStatPropertyList, RusageExecRunner, ValidRusagePropertyList, get_av_rusage_properties, TimeExecRunner, \
+    ValidTimePropertyList, get_av_time_properties
 from temci.utils.typecheck import *
 import typing as t
 
@@ -472,6 +473,10 @@ def prompt_exec_driver_dict(choose_revision: bool, working_dir: str = None, bina
         "spec": {
             "func": prompt_spec_exec_dict,
             "description": SpecExecRunner.__description__
+        },
+        "time": {
+            "func": prompt_time_exec_dict,
+            "description": TimeExecRunner.__description__
         }
     }
 
@@ -540,6 +545,31 @@ def prompt_rusage_exec_dict(run_dict: dict) -> dict:
     props = prompt("Which properties should be obtained from getrusage(1)? ",
                    validator=RusagePropertiesValidator(), default=default_props,
                    completer=WordCompleter(sorted(list(set(get_av_rusage_properties().keys()))),
+                                           meta_dict=get_av_rusage_properties(), ignore_case=False, WORD=True))
+    runner_dict["properties"] = [prop.strip() for prop in props.split(",")]
+    return runner_dict
+
+
+def prompt_time_exec_dict(run_dict: dict) -> dict:
+    """
+    Prompt for the config of the time exec runner.
+    :param run_dict: run config dict (without the runner part)
+    :return: runner config
+    """
+    runner_dict = {}
+    default_props = ", ".join(TimeExecRunner.misc_options["properties"].get_default())
+
+    class TimePropertiesValidator(Validator):
+
+        def validate(self, document: Document):
+            vals = [elem.strip() for elem in document.text.split(",")]
+            ret = verbose_isinstance(vals, ValidTimePropertyList())
+            if not ret:
+                raise ValidationError(message=str(ret), cursor_position=len(document.text))
+
+    props = prompt("Which properties should be obtained from gnu time? ",
+                   validator=TimePropertiesValidator(), default=default_props,
+                   completer=WordCompleter(sorted(list(set(get_av_time_properties().keys()))),
                                            meta_dict=get_av_rusage_properties(), ignore_case=False, WORD=True))
     runner_dict["properties"] = [prop.strip() for prop in props.split(",")]
     return runner_dict

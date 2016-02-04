@@ -15,7 +15,7 @@ Requirements
 - python3
     - numpy and scipy
     - perf (e.g. from the ubuntu package `linux-tools-generics` only required if you want to use it to benchmark)
-- super user rights (for benchmarking, although it's possible without)
+- super user rights (for benchmarking, only required if you want to use some advanced functionality)
 - linux (other oses aren't supported)
     - tested with Fedora 23 and Ubuntu 15.10 (most distros with a kernel version >= 3.0 should work)
 - gcc (for compiling a needed tool for `temci build`)
@@ -127,6 +127,7 @@ Explanation:
 
 - `exec` is the sub program that takes a run config an benchmarks all the included program blocks
 - `--out out.yaml` tells temci where to store the YAML file containing the benchmarking results
+- the measured `__ov-time` property is just a time information used by temci internally
 
 Now you have a YAML result file that has the following structure:
 
@@ -165,11 +166,14 @@ Now you have a report on the performance of `ls`.
         short for `--with_description`
 - If using `temci init run_config`:
     - Choose another set of measured properties (e.g. to measure the LL1 cache misses)
-    - Change the used runner. The default runner is `perf_stat` and uses `perf stat` to actually measure the program
-      Other possible runners are currently `rusage` and `spec`:
+    - Change the used runner. The default runner is `time` and uses `time` (gnu time, not shell builtin)
+      to actually measure the program.
+      Other possible runners are for example `perf_stat`, `rusage` and `spec`:
+        - The `perf_stat` runner that uses the `perf` tool (especially `perf stat`) to measure the performance and read
+        performance counters.
         - The `rusage` runner uses a small C wrapper around the `getrusage(2)` system call to measure things like the
-        maximum resource usage (i.e. most thing you get by using `time` or `/usr/bin/time -v`)
-        - The `spec` runner gets its measurement by parsing a SPEC benchmark like result file. This allows using
+        maximum resource usage (it's comparable to `time`)
+        - The `spec` runner gets its measurements by parsing a SPEC benchmark like result file. This allows using
         the SPEC benchmark with temci.
 - Append `--send_mail [you're email adress]` to get a mail after the benchmarking finished. This mail has the benchmarking
   result file in it's appendix

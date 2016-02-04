@@ -140,7 +140,7 @@ class RunDataStatsHelper(object):
 
             "runs": [
                 {"attributes": {"attr1": ..., ...},
-                 "data": {"ov-time": [...], ...}},
+                 "data": {"__ov-time": [...], ...}},
                  ...
             ]
 
@@ -191,14 +191,14 @@ class RunDataStatsHelper(object):
 
     def _estimate_time_for_run_datas(self, run_bin_size: int, data1: RunData, data2: RunData,
                                      min_runs: int, max_runs: int) -> float:
-        if min(len(data1), len(data2)) == 0 or "ov-time" not in data1.properties or "ov-time" not in data2.properties:
+        if min(len(data1), len(data2)) == 0 or "__ov-time" not in data1.properties or "__ov-time" not in data2.properties:
             return max_runs
         needed_runs = []
         for prop in set(data1.properties).intersection(data2.properties):
             estimate = self.tester.estimate_needed_runs(data1[prop], data2[prop],
                                                                 run_bin_size, min_runs, max_runs)
             needed_runs.append(estimate)
-        avg_time = max(scipy.mean(data1["ov-time"]), scipy.mean(data2["ov-time"]))
+        avg_time = max(scipy.mean(data1["__ov-time"]), scipy.mean(data2["__ov-time"]))
         return max(needed_runs) * avg_time
 
     def get_program_ids_to_bench(self) -> t.List[int]:
@@ -249,12 +249,12 @@ class RunDataStatsHelper(object):
         :param all: expect all program block to be benchmarked
         :return estimated time in seconds
         """
-        if "ov-time" not in self.properties():
+        if "__ov-time" not in self.properties():
             return -1
         summed = 0
         to_bench = range(0, len(self.runs)) if all else self.get_program_ids_to_bench()
         for i in to_bench:
-            summed += scipy.mean(self.runs[i]["ov-time"]) * run_bin_size
+            summed += scipy.mean(self.runs[i]["__ov-time"]) * run_bin_size
         return summed
 
     def add_run_data(self, data: list = None, attributes: dict = None) -> int:

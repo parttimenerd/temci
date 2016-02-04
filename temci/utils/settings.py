@@ -27,7 +27,7 @@ class Settings(metaclass=Singleton):
                      // Description("Logging level"),
         "stats": Dict({
             "properties": ListOrTuple(Str()) // Default(["all"])
-                        // CompletionHint(zsh="(" + " ".join(["ov-time", "cache-misses", "cycles", "task-clock",
+                        // CompletionHint(zsh="(" + " ".join(["__ov-time", "cache-misses", "cycles", "task-clock",
                                                               "instructions", "branch-misses", "cache-references",
                                                               "all"])
                                               + ")")

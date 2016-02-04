@@ -27,22 +27,21 @@ def has_root_privileges() -> bool:
     """
     Has the current user root privileges?
     """
-    try:
-        subprocess.check_call(["/bin/sh", "-c", "cat /proc/1/stack"],
-                              stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL)
-        return True
-    except:
-        return False
+    return does_command_succeed("head /proc/1/stack")
 
 
 def has_pdflatex() -> bool:
     """
     Is pdflatex installed?
     """
+    return does_command_succeed("pdflatex --version")
+
+
+def does_command_succeed(cmd: str) -> str:
     try:
-        subprocess.check_call(["pdflatex", "--version"])
-    except BaseException:
+        subprocess.check_call(["/bin/sh", "-c", cmd], stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL)
+    except:
         return False
     return True
 
