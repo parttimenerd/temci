@@ -63,7 +63,7 @@ class RunData(object):
         """
         return min(map(len, self.data.values())) if len(self) > 0 else 0
 
-    def benchmarkings(self) -> int:
+    def benchmarks(self) -> int:
         """
         Returns the maximum number of measured values for the associated program block
         over all properties. This number should be equivalent to the number of measured

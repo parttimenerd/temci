@@ -1,12 +1,15 @@
 import copy
 import random
 
+from pyaml import pprint
+
 from temci.utils.util import join_strs
 
 from temci.utils.mail import send_mail
 from temci.utils.typecheck import *
 from temci.run.run_worker_pool import RunWorkerPool, ParallelRunWorkerPool
-from temci.run.run_driver import RunProgramBlock, BenchmarkingResultBlock, RunDriverRegistry, ExecRunDriver
+from temci.run.run_driver import RunProgramBlock, BenchmarkingResultBlock, RunDriverRegistry, ExecRunDriver, \
+    is_perf_available
 import temci.run.run_driver_plugin
 from temci.tester.rundata import RunDataStatsHelper, RunData
 from temci.utils.settings import Settings
@@ -182,7 +185,7 @@ class RunProcessor:
         self.teardown()
         self.store()
         if len(self.stats_helper.valid_runs()) > 0 \
-                and all(x.benchmarkings() > 0 for x in self.stats_helper.valid_runs()):
+                and all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
             report = ReporterRegistry.get_for_name("console", self.stats_helper)\
                 .report(with_tester_results=False, to_string = True)
             self.stats_helper.valid_runs()[0].description()
@@ -217,5 +220,5 @@ class RunProcessor:
 
     def print_report(self) -> str:
         if len(self.stats_helper.valid_runs()) > 0 and \
-                all(x.benchmarkings() > 0 for x in self.stats_helper.valid_runs()):
+                all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
             ReporterRegistry.get_for_name("console", self.stats_helper).report(with_tester_results=False)

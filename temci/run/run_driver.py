@@ -293,6 +293,7 @@ class ExecRunDriver(AbstractRunDriver):
     def __init__(self, misc_settings: dict = None):
         super().__init__(misc_settings)
         self.dirs = {}
+        self.showed_perf_stat_warning = False
 
     def _setup_block(self, block: RunProgramBlock):
         if isinstance(block["run_cmd"], List(Str())):
@@ -320,6 +321,11 @@ class ExecRunDriver(AbstractRunDriver):
             block["working_dir"] = self.dirs[block.id]
         if self.misc_settings["runner"] != "":
             block["runner"] = self.misc_settings["runner"]
+        if block["runner"] and not is_perf_available():
+            if not self.showed_perf_stat_warning:
+                logging.warning("perf tool not available therefore using rusage instead of perf_stat runner")
+                self.showed_perf_stat_warning = True
+            block["runner"] = "rusage"
         super()._setup_block(block)
 
     def benchmark(self, block: RunProgramBlock, runs: int,
@@ -441,6 +447,9 @@ class ExecRunDriver(AbstractRunDriver):
 
     @classmethod
     def get_runner(cls, block: RunProgramBlock) -> 'ExecRunner':
+        if block["runner"] == "perf_stat" and not is_perf_available():
+            logging.warning("perf tool not available therefore using rusage instead of perf_stat runner")
+            block["runner"] = "rusage"
         return cls.runners[block["runner"]](block)
 
 
@@ -465,7 +474,20 @@ class ExecRunner:
         raise NotImplementedError()
 
 
+def is_perf_available() -> bool:
+    """
+    Is the perf tool available.
+    """
+    try:
+        subprocess.check_call(["perf", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError:
+        return False
+    return True
+
+
 def get_av_perf_stat_properties() -> t.List[str]:
+    if not is_perf_available():
+        return []
     proc = subprocess.Popen(["/bin/sh", "-c", "perf list"], stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, universal_newlines=True)
     out, err = proc.communicate()
@@ -485,7 +507,7 @@ def get_av_perf_stat_properties() -> t.List[str]:
 
 class ValidPerfStatPropertyList(Type):
     """
-    Checks for the value to be a valid perf stat measurement property list.
+    Checks for the value to be a valid perf stat measurement property list or the perf tool to be missing.
     """
 
     def __init__(self):
@@ -501,6 +523,8 @@ class ValidPerfStatPropertyList(Type):
     def _instancecheck_impl(self, value, info: Info = NoInfo()):
         if not isinstance(value, List(Str())):
             return info.errormsg(self)
+        if not is_perf_available():
+            return info.wrap(True)
         cmd = "perf stat -x ';' -e {props} -- /bin/echo".format(props=",".join(value))
         proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.DEVNULL,
                                 stderr=subprocess.PIPE, universal_newlines=True)

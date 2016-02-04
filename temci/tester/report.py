@@ -70,7 +70,7 @@ class ConsoleReporter(AbstractReporter):
         with click.open_file(self.misc["out"], mode='w') as f:
             for block in self.stats_helper.valid_runs():
                 assert isinstance(block, RunData)
-                print_func("{descr:<20} ({num:>5} single benchmarkings)"
+                print_func("{descr:<20} ({num:>5} single benchmarks)"
                       .format(descr=block.description(), num=len(block.data[block.properties[0]])), file=f)
                 for prop in sorted(block.properties):
                     mean = np.mean(block[prop])
@@ -224,7 +224,7 @@ class HTMLReporter(AbstractReporter):
         import matplotlib.pyplot as plt
         import seaborn as sns
         ret_str = """
-        <h2>{}</h2><small>{} benchmarkings<br/></small>
+        <h2>{}</h2><small>{} benchmarks<br/></small>
         """.format(data.description(), len(data[data.properties[0]]))
         ret_str += """
             <table class="table"><tr>
@@ -251,7 +251,7 @@ class HTMLReporter(AbstractReporter):
         """
         for prop in sorted(self.stats_helper.properties()):
             ret_str += """
-            <h3>{prop}</h3><small>{benchs} benchmarkings<br/></small>
+            <h3>{prop}</h3><small>{benchs} benchmarks<br/></small>
             """.format(prop=prop, benchs=len(data[prop]))
             x = pd.Series(data[prop], name=prop)
             self._set_fig_size(self.big_size)
@@ -303,7 +303,7 @@ class HTMLReporter(AbstractReporter):
             first_prop = first[prop][0:length]
             second_prop = second[prop][0:length]
             ret_str += """
-                <h3>{prop}</h3><small>{benchs} benchmarkings<br/></small><br/>
+                <h3>{prop}</h3><small>{benchs} benchmarks<br/></small><br/>
                 <table class="table">
                     <tr>
                         <td><img src="file://{filename}"/></td>

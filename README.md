@@ -210,7 +210,7 @@ SSH and X11 are stopped too.
 The advantages of this plugin (which is used via the command line flag `--stop_start`):
     - No one can start other programs on the system (via ssh or the user interface) => less other processes interfere with the benchmarking
     - Processes like firefox don't interfere with the benchmarking as they are stopped
-    - It reduces the variance of benchmarkings significantly
+    - It reduces the variance of benchmarks significantly
 
 Disadvantages:
     - You can't interact with the system (therefore use the send_mail option to get mails after the benchmarking finished)
