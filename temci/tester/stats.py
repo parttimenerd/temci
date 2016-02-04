@@ -307,7 +307,10 @@ class BaseStatObject:
         if tex:
             ret_dict["tex"] = self._store_as_tex(filename + ".tex", fig_width, fig_height, standalone=False)
         if pdf:
-            ret_dict["pdf"] = self._store_as_pdf(filename + ".pdf", fig_width, fig_height)
+            if util.has_pdflatex():
+                ret_dict["pdf"] = self._store_as_pdf(filename + ".pdf", fig_width, fig_height)
+            else:
+                util.warn_for_pdflatex_non_existence_once()
         if tex_standalone:
             ret_dict["tex_standalone"] = self._store_as_tex(filename + "____standalone.tex", fig_width, fig_height, standalone=True)
         if self.fig is not None:

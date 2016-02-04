@@ -627,6 +627,9 @@ class HTMLReporter2(AbstractReporter):
     </body>
 </html>
         """
+        if self.misc["gen_pdf"] and not util.has_pdflatex():
+            util.warn_for_pdflatex_non_existence_once()
+            self.misc["gen_pdf"] = False
         comparing_str = join_strs([single.description() for single in self.stats.singles])
         inner_html = """
             <h2>Summary</h2>

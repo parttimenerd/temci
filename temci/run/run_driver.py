@@ -480,7 +480,7 @@ def is_perf_available() -> bool:
     """
     try:
         subprocess.check_call(["perf", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except subprocess.CalledProcessError:
+    except BaseException:
         return False
     return True
 

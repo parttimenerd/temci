@@ -11,14 +11,15 @@ Usage:
 ```
 This returns the location of the completion file.
 """
+import os
+
+import click
 
 from temci.scripts.version import version
 from sys import argv
 from os.path import realpath, dirname, exists, join
 
 SUPPORTED_SHELLS = ["zsh", "bash"]
-
-COMPLETION_FILES_DIR = realpath(dirname(__file__) + "/completion_files")
 
 
 def print_help():
@@ -39,8 +40,7 @@ This will return the completion file name.
 
 def completion_file_name(shell: str) -> str:
     assert shell in SUPPORTED_SHELLS
-    file = "{shell}.{version}.sh".format(shell=shell, version=version)
-    return realpath(join(COMPLETION_FILES_DIR, file))
+    return os.path.join(click.get_app_dir("temci"), "{shell}.{version}.sh".format(shell=shell, version=version))
 
 
 def cli():

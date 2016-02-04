@@ -14,7 +14,7 @@ Requirements
 ------------
 - python3
     - numpy and scipy
-    - perf (e.g. from the ubuntu package `linux-tools-generics`
+    - perf (e.g. from the ubuntu package `linux-tools-generics` only required if you want to use it to benchmark)
 - super user rights (for benchmarking, although it's possible without)
 - linux (other oses aren't supported)
     - tested with Fedora 23 and Ubuntu 15.10 (most distros with a kernel version >= 3.0 should work)
@@ -34,7 +34,7 @@ Installing
 First you have to install
 
 - numpy and scipy (python packages)
-- latex (most linux distros use texlive) if you want to output plots as pdfs
+- latex (most linux distros use texlive) only required if you want to output plots as pdfs
 
 If they aren't installed already.
 

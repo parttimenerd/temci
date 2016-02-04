@@ -4,6 +4,7 @@ import typing as t
 
 import sys
 import logging
+
 from rainbow_logging_handler import RainbowLoggingHandler
 
 
@@ -33,6 +34,23 @@ def has_root_privileges() -> bool:
         return True
     except:
         return False
+
+
+def has_pdflatex() -> bool:
+    """
+    Is pdflatex installed?
+    """
+    try:
+        subprocess.check_call(["pdflatex", "--version"])
+    except BaseException:
+        return False
+    return True
+
+
+def warn_for_pdflatex_non_existence_once(warned = [False]):
+    if not has_pdflatex() and not warned[0]:
+        logging.warning("pdflatex is not installed therefore no pdf plots are produced")
+        warned[0] = True
 
 
 def get_cache_line_size(cache_level: int = None) -> t.Optional[int]:
