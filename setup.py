@@ -23,7 +23,6 @@ setup(
         'fn',
         'pyaml',
         'typing', 'seaborn', 'pytimeparse',
-        'ruamel.yaml',
         'cairocffi',
         'matplotlib',
         'cgroupspy',

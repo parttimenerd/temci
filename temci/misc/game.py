@@ -40,7 +40,8 @@ itod_from_list = InsertionTimeOrderedDict.from_list
 
 if util.can_import("scipy"):
     import scipy.stats as stats
-    import ruamel.yaml as yaml
+    #import ruamel.yaml as yaml
+    import yaml
 
 from temci.tester.report import HTMLReporter2, html_escape_property
 
@@ -954,7 +955,7 @@ class Language(BaseObject):
     def create_temci_run_file(self, base_build_dir: str, file: str):
         run_config = self.build(base_build_dir)
         with open(file, "w") as f:
-            print(yaml.dump(run_config, Dumper=yaml.RoundTripDumper), file=f)
+            print(yaml.dump(run_config), file=f)
 
     def get_box_plot_html(self, base_file_name: str) -> str: # a box plot over the mean scores per category
         scores_per_impl = self.get_scores_per_impl()
