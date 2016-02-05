@@ -14,6 +14,7 @@ This returns the location of the completion file.
 import os
 
 import click
+import subprocess
 
 from temci.scripts.version import version
 from sys import argv
@@ -38,9 +39,17 @@ This will return the completion file name.
     """.format(version, "|".join(SUPPORTED_SHELLS)))
 
 
+def create_completion_dir() -> str:
+    subprocess.check_output(["/bin/mkdir", "-p", completion_dir()])
+
+
+def completion_dir() -> str:
+    return click.get_app_dir("temci")
+
+
 def completion_file_name(shell: str) -> str:
     assert shell in SUPPORTED_SHELLS
-    return os.path.join(click.get_app_dir("temci"), "{shell}.{version}.sh".format(shell=shell, version=version))
+    return os.path.join(completion_dir(), "{shell}.{version}.sh".format(shell=shell, version=version))
 
 
 def cli():

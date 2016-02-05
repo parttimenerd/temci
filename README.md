@@ -10,14 +10,25 @@ resulting in a pretty HTML5 based report.
 Furthermore it set's up the environment to ensure benchmarking results with a low variance and use some kind of assembly
 randomisation to reduce the effect of caching.
 
+System Requirements
+-------------------
+- at least 2 CPU cores
+- x86 (other architectures aren't tested yet)
+
 Requirements
 ------------
 - python3
     - numpy and scipy
-    - perf (e.g. from the ubuntu package `linux-tools-generics` only required if you want to use it to benchmark)
-- super user rights (for benchmarking, only required if you want to use some advanced functionality)
+    Installation via `sudo apt-get install python3-numpy python3-scipy`
 - linux (other oses aren't supported)
-    - tested with Fedora 23 and Ubuntu 15.10 (most distros with a kernel version >= 3.0 should work)
+    - tested with Fedora 23 and Ubuntu 15.10
+    - most distros with a kernel version >= 3.0 should work
+
+Optional Requirements
+---------------------
+Requirements not needed to run simple benchmarks.
+- perf (e.g. from the ubuntu package `linux-tools-generics` only required if you want to use it to benchmark)
+- super user rights (for benchmarking, only required if you want to use some advanced functionality)
 - gcc (for compiling a needed tool for `temci build`)
 - kernel-devel packages (for compiling the kernel module to disable caches, not required, see below)
 - (pdf)latex (for pdf report generation)

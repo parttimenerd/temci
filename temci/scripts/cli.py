@@ -1,6 +1,6 @@
 import warnings
 
-from temci.scripts.temci_completion import completion_file_name
+from temci.scripts.temci_completion import completion_file_name, create_completion_dir
 from temci.utils import util
 if __name__ == "__main__":
     util.allow_all_imports = True
@@ -510,6 +510,7 @@ _temci(){{
 
     compdef _temci temci=temci
     """
+    create_completion_dir()
     file_name = completion_file_name("zsh")
     if not os.path.exists(os.path.dirname(file_name)):
         os.mkdir(os.path.dirname(file_name))
@@ -696,6 +697,7 @@ def bash(**kwargs):
                run_cmd_file_code=run_cmd_file_code,
                version=temci.scripts.version.version
                )
+    create_completion_dir()
     file_name = completion_file_name("bash")
     with open(file_name, "w") as f:
         f.write(file_structure)
