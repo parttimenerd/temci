@@ -5,7 +5,6 @@ import subprocess, os, time
 from temci.utils.settings import Settings, SettingsError
 from temci.utils.util import has_root_privileges
 from temci.utils.typecheck import *
-import cgroupspy
 
 CPUSET_DIR = '/cpuset'
 NEW_ROOT_SET = 'bench.root'

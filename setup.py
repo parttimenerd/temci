@@ -25,7 +25,6 @@ setup(
         'typing', 'seaborn', 'pytimeparse',
         'cairocffi',
         'matplotlib',
-        'cgroupspy',
         'prompt_toolkit', 'ptpython',
         'cpuset-py3',
         'docopt',
