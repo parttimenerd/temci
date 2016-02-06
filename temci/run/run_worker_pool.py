@@ -3,6 +3,8 @@ This module consists of the abstract run worker pool class and several implement
 """
 import re
 
+import time
+
 from temci.utils.util import has_root_privileges
 from ..utils.typecheck import *
 from ..utils.settings import Settings
@@ -28,7 +30,7 @@ class AbstractRunWorkerPool:
     def submit(self, block: RunProgramBlock, id: int, runs: int):
         pass
 
-    def results(self):
+    def results(self, expected_num: int):
         pass
 
     def teardown(self):
@@ -141,7 +143,7 @@ class RunWorkerPool(AbstractRunWorkerPool):
         self.result_queue.put((block, self.run_driver.benchmark(block, runs), id))
         block.is_enqueued = False
 
-    def results(self):
+    def results(self, expected_num: int):
         """
         An iterator over all available benchmarking results.
         The items of this iterator are tuples consisting of
@@ -149,8 +151,9 @@ class RunWorkerPool(AbstractRunWorkerPool):
         blocks id.
         The benchmarking results are simple
         ..run_driver.BenchmarkingResultBlock objects.
+        :param expected_num: expected number of results
         """
-        while not self.result_queue.empty():
+        for i in range(expected_num):#while not self.result_queue.empty():
             yield self.result_queue.get()
 
     def teardown(self):
@@ -177,7 +180,6 @@ class ParallelRunWorkerPool(AbstractRunWorkerPool):
         """
         super().__init__(run_driver_name)
         self.submit_queue = Queue()
-        self.intermediate_queue = Queue()
         self.result_queue = Queue()
         if run_driver_name is None:
             run_driver_name = RunDriverRegistry().get_used()
@@ -214,7 +216,7 @@ class ParallelRunWorkerPool(AbstractRunWorkerPool):
         block.is_enqueued = True
         self.submit_queue.put((block, id, runs))
 
-    def results(self):
+    def results(self, expected_num: int):
         """
         An iterator over all available benchmarking results.
         The items of this iterator are tuples consisting of
@@ -222,11 +224,12 @@ class ParallelRunWorkerPool(AbstractRunWorkerPool):
         blocks id.
         The benchmarking results are simple
         ..run_driver.BenchmarkingResultBlock objects.
+
+        :param expected_num: expected number of results
         """
-        while not self.intermediate_queue.empty() or not self.submit_queue.empty() or not self.result_queue.empty():
+        #while not self.intermediate_queue.empty() or not self.submit_queue.empty() or not self.result_queue.empty():
+        for i in range(expected_num):#while not self.submit_queue.empty() or not self.result_queue.empty() or not self.submit_queue.all_tasks_done:
             yield self.result_queue.get()
-            #print("++intermediate size", self.intermediate_queue.qsize())
-            #rint("++submit queue size", self.submit_queue.qsize())
 
     def teardown(self):
         """
@@ -257,18 +260,18 @@ class BenchmarkingThread(threading.Thread):
     def run(self):
         while True:
             try:
+                #time.sleep(1)
                 (block, block_id, runs) = self.pool.submit_queue.get(timeout=1)
             except Empty:
                 if self.stop:
                     return
                 else:
                     continue
-            self.pool.intermediate_queue.put(block_id)
             try:
                 self.pool.result_queue.put((block, self._process_block(block, runs), block_id))
-                logging.info("Thread {set_id}: Benchmarked block {id}".format(set_id=self.id, id=block_id))
+                logging.debug("Thread {set_id}: Benchmarked block {id}".format(set_id=self.id, id=block_id))
                 block.is_enqueued = False
-                self.pool.intermediate_queue.get()
+                self.pool.submit_queue.task_done()
             except BaseException:
                 logging.error("Forced teardown of BenchmarkingThread")
                 self.teardown()

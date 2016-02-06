@@ -138,7 +138,6 @@ class RunProcessor:
                 except:
                     logging.warning("Error in estimating and printing the needed time.")
                 self._benchmarking_block_run()
-                #print(not self._finished(), len(self.stats_helper.get_program_ids_to_bench()), self._can_run_next_block())
             print()
         except BaseException as ex:
             logging.error("Forced teardown of RunProcessor")
@@ -148,8 +147,6 @@ class RunProcessor:
                 self.print_report()
             raise
         self.store_and_teardown()
-        if Settings().has_log_level("info") and self.show_report:
-            self.print_report()
 
     def _benchmarking_block_run(self):
         try:
@@ -162,9 +159,11 @@ class RunProcessor:
             to_bench = [(i, b) for (i, b) in to_bench if self.stats_helper.runs[i] is not None]
             if self.shuffle:
                 random.shuffle(to_bench)
+            if len(to_bench) == 0 or self.block_run_count > self.max_runs:
+                return
             for (id, run_block) in to_bench:
                 self.pool.submit(run_block, id, self.run_block_size)
-            for (block, result, id) in self.pool.results():
+            for (block, result, id) in self.pool.results(len(to_bench)):
                 if result.error:
                     self.erroneous_run_blocks.append((id, result))
                     self.stats_helper.disable_run_data(id)
@@ -182,6 +181,8 @@ class RunProcessor:
         self.pool.teardown()
 
     def store_and_teardown(self):
+        if Settings().has_log_level("info") and self.show_report:
+            self.print_report()
         self.teardown()
         self.store()
         if len(self.stats_helper.valid_runs()) > 0 \
@@ -217,8 +218,10 @@ class RunProcessor:
         except IOError as err:
             logging.error("Can't write erroneous program blocks to " + file_name)
 
-
     def print_report(self) -> str:
-        if len(self.stats_helper.valid_runs()) > 0 and \
-                all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
-            ReporterRegistry.get_for_name("console", self.stats_helper).report(with_tester_results=False)
+        try:
+            if len(self.stats_helper.valid_runs()) > 0 and \
+                    all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
+                ReporterRegistry.get_for_name("console", self.stats_helper).report(with_tester_results=False)
+        except:
+            pass

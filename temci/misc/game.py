@@ -12,6 +12,7 @@ import typing as t
 import multiprocessing
 
 import zlib
+from collections import defaultdict
 from enum import Enum
 
 START_TIME = time.time()
@@ -115,7 +116,6 @@ def used_rel_mean_property(single: SingleProperty, means: t.List[float]) -> floa
         return single.mean() / min(means)
     elif CALC_MODE == Mode.mean_rel_to_first:
         return single.mean() / means[0]
-    print(repr(CALC_MODE))
     assert False
 
 
@@ -134,9 +134,18 @@ class BOTableColumn:
         self.property = property
         self.reduce = reduce
 
-mean_score_column = BOTableColumn("mean score (gmean(mean / best mean))", "{:5.5%}", used_rel_mean_property, used_summarize_mean)
-mean_score_std_column = BOTableColumn("mean score std (gmean std(mean / best mean))", "{:5.5%}", used_rel_mean_property, used_summarize_mean_std)
-mean_rel_std = BOTableColumn("mean rel std (gmean(std / mean))", "{:5.5%}", used_std_property, used_summarize_mean)
+mean_score_column = lambda: BOTableColumn({
+    Mode.geom_mean_rel_to_best: "mean score (gmean(mean / best mean))",
+    Mode.mean_rel_to_first: "mean score (mean(mean / mean of first impl))"
+}[CALC_MODE], "{:5.5%}", used_rel_mean_property, used_summarize_mean)
+mean_score_std_column = lambda: BOTableColumn({
+    Mode.geom_mean_rel_to_best: "mean score std (gmean std(mean / best mean))",
+    Mode.mean_rel_to_first: "mean score std (std(mean / mean of first impl))"
+}[CALC_MODE], "{:5.5%}", used_rel_mean_property, used_summarize_mean_std)
+mean_rel_std = lambda: BOTableColumn({
+    Mode.geom_mean_rel_to_best: "mean rel std (gmean(std / mean))",
+    Mode.mean_rel_to_first: "mean rel std (mean(std / mean))"
+}[CALC_MODE], "{:5.5%}", used_std_property, used_summarize_mean)
 
 common_columns = [mean_score_column, mean_score_std_column, mean_rel_std]
 
@@ -261,21 +270,23 @@ class BaseObject:
         return self.get_reduced_x_per_impl(property, geom_std)
 
     def get_geom_over_rel_means(self) -> t.Dict[str, float]:
-        return self.get_reduced_x_per_impl(rel_mean_property, stats.gmean)
+        return self.get_reduced_x_per_impl(used_rel_mean_property, stats.gmean)
 
     def get_geom_std_over_rel_means(self) -> t.Dict[str, float]:
-        return self.get_gsd_for_x_per_impl(rel_mean_property)
+        return self.get_gsd_for_x_per_impl(used_rel_mean_property)
 
     def get_geom_over_rel_stds(self) -> t.Dict[str, float]:
         return self.get_reduced_x_per_impl(rel_std_property, stats.gmean)
 
-    def table_html_for_vals_per_impl(self, columns: t.List[BOTableColumn], base_file_name: str,
+    def table_html_for_vals_per_impl(self, columns: t.List[t.Union[BOTableColumn, t.Callable[[], BOTableColumn]]],
+                                     base_file_name: str,
                                      x_per_impl_func: t.Callable[[StatProperty], t.Dict[str, t.List[float]]] = None) \
             -> str:
         """
         Returns the html for a table that has a row for each implementation and several columns (the first is the
         implementation column).
         """
+        columns = [col() if not isinstance(col, BOTableColumn) else col for col in columns]
         html = """
         <table class="table">
             <tr><th></th>{header}</tr>
@@ -303,7 +314,7 @@ class BaseObject:
         with open(base_file_name + ".csv", "w") as f:
             f.write("\n".join(",".join(val for val in row) for row in cells))
         html += """
-        <br/><a href="file:{}.csv">csv</a><br/>
+            <a href="file:{}.csv">csv</a><br/>
         """.format(base_file_name)
         return html
 
@@ -479,6 +490,10 @@ class ProgramWithInput(BaseObject):
     def __getitem__(self, name: str) -> Implementation:
         return self.impls[name]
 
+    def __setitem__(self, key: str, value: Implementation):
+        self.impls[key] = value
+        self.children[key] = value
+
     def get_single(self):
         data = InsertionTimeOrderedDict()
         for impl in self.impls:
@@ -493,10 +508,10 @@ class ProgramWithInput(BaseObject):
 
     def get_statistical_properties_for_each(self, func: StatisticalPropertyFunc) -> t.Dict[str, float]:
         sps = self.get_single_properties()
-        best_mean = min(sp.mean() for (impl, sp) in sps)
+        means = [sp.mean() for (impl, sp) in sps]
         d = InsertionTimeOrderedDict()
         for (impl, sp) in sps:
-            d[impl] = func(sp, best_mean)
+            d[impl] = func(sp, means)
         return d
 
     def get_box_plot_html(self, base_file_name: str) -> str:
@@ -512,13 +527,14 @@ class ProgramWithInput(BaseObject):
 
     def get_html(self, base_file_name: str, h_level: int) -> str:
         sp = None # type: SingleProperty
-        scores = self.get_means_rel_to_best()
         columns = [
             BOTableColumn("n", "{:5d}", lambda sp, _: sp.observations(), first),
             BOTableColumn("mean", "{:10.5f}", lambda sp, _: sp.mean(), first),
             BOTableColumn("mean / best mean", "{:5.5%}", lambda sp, means: sp.mean() / min(means), first),
+            BOTableColumn("mean / mean of first impl", "{:5.5%}", lambda sp, means: sp.mean() / means[0], first),
             BOTableColumn("std / mean", "{:5.5%}", lambda sp, _: sp.std_dev_per_mean(), first),
             BOTableColumn("std / best mean", "{:5.5%}", lambda sp, means: sp.std_dev() / min(means), first),
+            BOTableColumn("std / mean of first impl", "{:5.5%}", lambda sp, means: sp.std_dev() / means[0], first),
             BOTableColumn("median", "{:5.5f}", lambda sp, _: sp.median(), first)
         ]
         html = """
@@ -614,7 +630,7 @@ class Program(BaseObject):
             <h{}>Program: {!r}</h{}>
             The following plot shows the rel means (means / min means) per input distribution for every implementation.
         """.format(h_level, self.name, h_level)
-        html += self.boxplot_html_for_data("mean score", base_file_name, self.get_x_per_impl(rel_mean_property))
+        html += self.boxplot_html_for_data("mean score", base_file_name, self.get_x_per_impl(used_rel_mean_property))
         html += self.table_html_for_vals_per_impl(common_columns, base_file_name)
         for (i, input) in enumerate(self.prog_inputs.keys()):
             app = html_escape_property(input)
@@ -752,12 +768,12 @@ class ProgramCategory(BaseObject):
         return self.boxplot_html(base_file_name, singles)
 
     def get_html2(self, base_file_name: str, h_level: int):
-        base_file_name += "__program_category_" + html_escape_property(self.name)
+        base_file_name += "__cat_" + html_escape_property(self.name)
         html = """
             <h{}>{}</h{}>
         """.format(h_level, self.name, h_level)
         if len(self.children) > 1:
-            html += self.boxplot_html_for_data("mean score", base_file_name, self.get_x_per_impl(rel_mean_property))
+            html += self.boxplot_html_for_data("mean score", base_file_name, self.get_x_per_impl(used_rel_mean_property))
             html += self.table_html_for_vals_per_impl(common_columns, base_file_name)
             if len(self.get_input_strs()) > 1:
                 html += """
@@ -771,7 +787,7 @@ class ProgramCategory(BaseObject):
                     """.format(input, h=h_level + 2)
                     file_name = base_file_name + "__input_" + html_escape_property(input)
                     html += self.boxplot_html_for_data("mean score", file_name,
-                                          self.get_x_per_impl_and_input(rel_mean_property, input))
+                                          self.get_x_per_impl_and_input(used_rel_mean_property, input))
                     html += self.table_html_for_vals_per_impl(common_columns, file_name,
                                                               lambda property: self.get_x_per_impl_and_input(property,                                                                                       input))
         for (i, prog) in enumerate(self.programs):
@@ -922,11 +938,8 @@ class Language(BaseObject):
                         for impl_conf in config["impls"]:
                             name = impl_conf["name"]
                             if name not in p_in_val.impls:
-                                p_in_val.impls[name] = Implementation.from_config_dict(p_in_val, impl_conf)
+                                p_in_val[name] = Implementation.from_config_dict(p_in_val, impl_conf)
         return lang
-
-    def __getitem__(self, name: str) -> ProgramCategory:
-        return self.categories[name]
 
     def set_run_data_from_result_dict(self, run_datas: t.List[t.Dict[str, t.Any]], property: str = "task-clock"):
         for run_data in run_datas:
@@ -943,6 +956,78 @@ class Language(BaseObject):
             except KeyError as err:
                 #logging.warning(err)
                 pass
+
+    @classmethod
+    def merge_different_versions_of_the_same(cls, configs: t.List[dict], config_impl_apps: t.List[str],
+                                             group_by_app: bool):
+        assert len(configs) == len(config_impl_apps)
+        configs = copy.deepcopy(configs)
+        typecheck(configs, List(Dict({
+            "language": Str(),
+            "categories": List(Dict(all_keys=False)),
+            "impls": List(Dict({"name": Str()}, all_keys=False)) | NonExistent()
+        })))
+        first_config = configs[0]
+        typecheck(configs, List(Dict({
+            "language": E(first_config["language"]),
+            "categories": E(first_config["categories"]),
+        }, all_keys=False)))
+        lang = cls(first_config["language"], [])
+        lang.categories = InsertionTimeOrderedDict()
+        for cat_conf in first_config["categories"]:
+            cat = ProgramCategory.from_config_dict(lang, cat_conf)
+            lang.categories[cat.name] = cat
+            lang.children[cat.name] = cat
+        impl_confs = []  # type: t.List[t.Tuple[str, dict]]
+        if not group_by_app:
+            for (i, config) in enumerate(configs):
+                for impl_conf in config["impls"]:
+                    impl_confs.append((config_impl_apps[i], impl_conf))
+        else:
+            d = defaultdict(lambda: [])
+            for (i, config) in enumerate(configs):
+                for (j, impl_conf) in enumerate(config["impls"]):
+                    d[j].append((config_impl_apps[i], impl_conf))
+            impl_confs = []
+            for i in range(len(first_config["impls"])):
+                impl_confs.extend(d[i])
+        if "impls" in first_config:
+            for cat in lang.categories:
+                cat_val = lang.categories[cat]
+                for prog in cat_val.programs:
+                    prog_val = cat_val.programs[prog]
+                    for p_in in prog_val.prog_inputs:
+                        p_in_val = prog_val.prog_inputs[p_in]
+                        for (app, impl_conf) in impl_confs:
+                                conf = copy.deepcopy(impl_conf)
+                                conf["name"] += app
+                                name = conf["name"]
+                                if name not in p_in_val.impls:
+                                    p_in_val[name] = Implementation.from_config_dict(p_in_val, conf)
+        return lang
+
+    def set_merged_run_data_from_result_dict(self, run_datas: t.List[t.List[t.Dict[str, t.Any]]],
+                                             impl_apps: t.List[str],property: str = "task-clock"):
+        assert len(run_datas) == len(impl_apps)
+        for (i, run_data_list) in enumerate(run_datas):
+            for run_data in run_data_list:
+                attrs = run_data["attributes"]
+                typecheck(attrs, Dict({
+                    "language": E(self.name),
+                    "category": Str(),
+                    "program": Str(),
+                    "impl": Str(),
+                    "input": Str()
+                }))
+                try:
+                    self[attrs["category"]][attrs["program"]][attrs["input"]][attrs["impl"] + impl_apps[i]].run_data \
+                        = run_data["data"][property]
+                except KeyError as err:
+                    logging.warning(err)
+                    pass
+
+    def __getitem__(self, name: str) -> ProgramCategory:
+        return self.categories[name]
 
     def process_result_file(self, file: str, property: str = "task-clock"):
         with open(file, "r") as f:
@@ -969,7 +1054,7 @@ class Language(BaseObject):
 
     def get_html2(self, base_file_name: str, h_level: int, with_header: bool = True,
                   multiprocess: bool = False, show_entropy_distinction: bool = True):
-        base_file_name += "__program_category_" + html_escape_property(self.name)
+        base_file_name += "_" + html_escape_property(self.name)
         html = ""
         if with_header:
             html += """
@@ -979,12 +1064,12 @@ class Language(BaseObject):
             h_level -= 1
 
         def summary(h_level: int, base_file_name: str):
-            html = self.boxplot_html_for_data("mean score", base_file_name, self.get_x_per_impl(rel_mean_property))
+            html = self.boxplot_html_for_data("mean score", base_file_name, self.get_x_per_impl(used_rel_mean_property))
             html += self.table_html_for_vals_per_impl(common_columns, base_file_name)
             if self.get_max_input_num() > 1:
                 for n in range(0, self.get_max_input_num()):
-                    mean_scores = self.get_statistical_property_scores_per_input_per_impl(rel_mean_func, n)
-                    std_scores = self.get_statistical_property_scores_per_input_per_impl(rel_std_dev_func, n)
+                    mean_scores = self.get_statistical_property_scores_per_input_per_impl(used_rel_mean_property, n)
+                    std_scores = self.get_statistical_property_scores_per_input_per_impl(used_std_property, n)
                     html += """
                         <h{h}>Summary for input no. {n} </h{h}>
                         Mean score per implementation. Excludes all categories with less than {m} inputs.
@@ -993,7 +1078,7 @@ class Language(BaseObject):
                         <p>
                     """.format(h=h_level + 1, n=n, m=self.get_max_input_num())
                     html += self.boxplot_html_for_data("mean score", base_file_name + "__input_" + str(n),
-                                              self.get_x_per_impl_and_input(rel_mean_property, n))
+                                              self.get_x_per_impl_and_input(used_rel_mean_property, n))
                     html += self.table_html_for_vals_per_impl(common_columns, base_file_name + "__input_" + str(n),
                                                               lambda property: self.get_x_per_impl_and_input(property, n))
             return html
@@ -1543,7 +1628,8 @@ def haskel_config(inputs_per_category: InputsPerCategory, optimisation: str, ghc
 
 def process(config: ConfigDict, name: str = None, build_dir: str = None, build: bool = True, benchmark: bool = True,
             report: bool = True, temci_runs: int = 15, temci_options: str = "--discarded_blocks 1",
-            temci_stop_start: bool = True, report_dir: str = None, property: str = "task-clock"):
+            temci_stop_start: bool = True, report_dir: str = None, property: str = "task-clock",
+            report_modes: t.List[Mode] = [Mode.mean_rel_to_first, Mode.geom_mean_rel_to_best]):
     """
     Process a config dict. Simplifies the build, benchmarking and report generating.
     :param config: processed config dict
@@ -1565,8 +1651,6 @@ def process(config: ConfigDict, name: str = None, build_dir: str = None, build: 
     temci_run_file = name + ".exec.yaml"
     temci_result_file = name + ".yaml"
     build_dir = build_dir or "/tmp/" + name
-    report_dir = report_dir or name + "_report"
-    os.system("mkdir -p {} {}".format(build_dir, report_dir))
     if build:
         lang.create_temci_run_file(build_dir, temci_run_file)
     if benchmark:
@@ -1577,7 +1661,12 @@ def process(config: ConfigDict, name: str = None, build_dir: str = None, build: 
         os.system(cmd)
     if report:
         lang.process_result_file(temci_result_file, property)
-        lang.store_html(report_dir, clear_dir=True, html_func=lang.get_html2)
+        for mode in report_modes:
+            global CALC_MODE
+            CALC_MODE = mode
+            _report_dir = (report_dir or name + "_report") + "_" + str(mode)
+            os.system("mkdir -p " + _report_dir)
+            lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
 
 
 MODE = "haskell_full"
@@ -1585,7 +1674,7 @@ MODE = "haskell_full"
 
 if MODE == "haskell_full":
 
-    for opti in ["", "-O", "-O2", "-Odph"]:
+    for opti in []: #["", "-O", "-O2", "-Odph"]:
         try:
             config = replace_run_with_build_cmd(haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
             process(config, "compile_time_haskell_" + opti, temci_runs=30, build=False, benchmark=False)
@@ -1595,15 +1684,23 @@ if MODE == "haskell_full":
             pass
         os.sync()
         #time.sleep(60)
-
-    for opti in  reversed(["", "-O", "-O2", "-Odph"]):
+    optis = ["-O", "-O2", "-Odph"]
+    for opti in []:#reversed(optis):
         try:
             config = haskel_config(INPUTS_PER_CATEGORY, opti)
             process(config, "haskell" + opti, temci_options=" --discarded_blocks 1 --nice --other_nice", build=False, benchmark=False, property="task-clock")
             logging.info("processed")
-            shutil.rmtree("/tmp/haskell" + opti)
+            #shutil.rmtree("/tmp/haskell" + opti)
         except BaseException as ex:
             logging.exception(ex)
             pass
-        os.sync()
-        #time.sleep(60)
+    configs = [haskel_config(INPUTS_PER_CATEGORY, opti) for opti in optis]
+    data = [yaml.load(open("haskell" + opti + ".yaml", "r")) for opti in optis]
+    for (by_opti, app) in [(True, "_grouped_by_opti"), (False, "_grouped_by_version")]:
+        lang = Language.merge_different_versions_of_the_same(configs, optis, by_opti)
+        lang.set_merged_run_data_from_result_dict(data, optis)
+        for mode in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_first]:
+            CALC_MODE = mode
+            _report_dir = "haskell_merged_report" + "_" + str(mode) + app
+            os.system("mkdir -p " + _report_dir)
+            lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)

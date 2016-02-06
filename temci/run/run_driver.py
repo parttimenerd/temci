@@ -321,11 +321,6 @@ class ExecRunDriver(AbstractRunDriver):
             block["working_dir"] = self.dirs[block.id]
         if self.misc_settings["runner"] != "":
             block["runner"] = self.misc_settings["runner"]
-        if block["runner"] and not is_perf_available():
-            if not self.showed_perf_stat_warning:
-                logging.warning("perf tool not available therefore using rusage instead of perf_stat runner")
-                self.showed_perf_stat_warning = True
-            block["runner"] = "rusage"
         super()._setup_block(block)
 
     def benchmark(self, block: RunProgramBlock, runs: int,
@@ -384,7 +379,7 @@ class ExecRunDriver(AbstractRunDriver):
         cmd = cmds[rand_index]
         cwd = block["cwds"][rand_index]
         executed_cmd = block["cmd_prefix"] + [cmd]
-        if cpuset is not None:
+        if cpuset is not None and has_root_privileges():
             executed_cmd.insert(0, "sudo cset proc --move --force --pid $$ {} > /dev/null"\
                 .format(cpuset.get_sub_set(set_id)))
         env = os.environ.copy()

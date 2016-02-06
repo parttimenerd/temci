@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import re
 import shutil
 import subprocess, os, time
@@ -30,15 +31,11 @@ class CPUSet:
         :raises EnvironmentError if the environment can't be setup properly (e.g. no root privileges)
         """
         #self.bench_set = "bench.set"
-        if not has_root_privileges():
-            logging.warning("CPUSet functionality is disabled because root privileges are missing.")
-            return
-        logging.info("Initialize CPUSet")
         self.own_set = ''
         self.base_core_number = Settings().default(base_core_number, "run/cpuset/base_core_number")
         self.parallel = Settings().default(parallel, "run/cpuset/parallel")
         self.sub_core_number = Settings().default(sub_core_number, "run/cpuset/sub_core_number")
-        self.av_cores = self._cpu_range_size("")
+        self.av_cores = self._cpu_range_size("") if has_root_privileges() else multiprocessing.cpu_count()
         if self.parallel == 0:
             self.parallel_number = 0
         else:
@@ -52,6 +49,10 @@ class CPUSet:
                              "on system with just {} cores. Note: The benchmark controller"
                              "needs a cpuset too.".format(self.av_cores))
             self.base_core_number = self.av_cores - self.sub_core_number * self.parallel_number - 1
+        if not has_root_privileges():
+            logging.warning("CPUSet functionality is disabled because root privileges are missing.")
+            return
+        logging.info("Initialize CPUSet")
         av_cores = self._cpu_range_size("")
         typecheck(self.base_core_number, PositiveInt())
         typecheck(self.parallel_number, NaturalNumber())
