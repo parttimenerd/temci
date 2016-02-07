@@ -24,9 +24,13 @@ import temci.run.run_driver_plugin
 from temci.tester.report import ReporterRegistry
 from temci.utils.settings import Settings
 from temci.tester.report_processor import ReportProcessor
+import temci.tester.report
+import temci.tester.testers
 import click, sys, yaml, logging, json, os
 from temci.utils.click_helper import type_scheme_option, cmd_option, CmdOption, CmdOptionList
 import temci.scripts.version
+
+Settings().load_files()
 
 @click.group(epilog="""
 temci (version {})  Copyright (C) 2016 Johannes Bechberger

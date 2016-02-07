@@ -778,6 +778,8 @@ class CPUSpecExecRunner(ExecRunner):
         "files": ListOrTuple(Str()) // Default(["result/CINT2000.*.raw",
                                                 "result/CFP2000.*.raw"])
                  // Description("File patterns (the newest file will be used)"),
+        "randomize": Bool() // Default(False)
+                // Description("Randomize the assembly during compiling?"),
         "rand_conf": Builder.rand_conf_type // Default(Settings()["build/rand"])
                  // Description("Randomisation ")
     })
@@ -786,8 +788,10 @@ class CPUSpecExecRunner(ExecRunner):
         file_cmds = []
         for file in self.misc["files"]:
             file_cmds.append("realpath `ls --sort=time {} | head -n 1`".format(file))
-        block["env"].update(env_variables_for_rand_conf(self.misc["rand_conf"]))
-        block["run_cmds"] = ["PATH='{}' ".format(block["env"]["PATH"]) + cmd + " > /dev/null; " + "; ".join(file_cmds) for cmd in block["run_cmds"]]
+        if self.misc["randomize"]:
+            block["env"].update(env_variables_for_rand_conf(self.misc["rand_conf"]))
+        pre = "PATH='{}' ".format(block["env"]["PATH"]) if self.misc["randomize"] else ""
+        block["run_cmds"] = [pre + cmd + " > /dev/null; " + "; ".join(file_cmds) for cmd in block["run_cmds"]]
         #print(block["run_cmds"])
 
     def parse_result(self, exec_res: ExecRunDriver.ExecResult,
@@ -820,7 +824,10 @@ class CPUSpecExecRunner(ExecRunner):
                 name, *parts, number, subprop = prop.split(".")
                 number = int(number)
                 if subprop == "reported_time":
-                    val = float(val)
+                    if val == "--":
+                        val = -1
+                    else:
+                        val = float(val)
                     if name not in pre_data:
                         pre_data[name] = {}
                     if number not in pre_data[name]:

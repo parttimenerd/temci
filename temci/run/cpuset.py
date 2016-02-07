@@ -46,14 +46,13 @@ class CPUSet:
                 self.parallel_number = self.parallel
                 if self.parallel > self._number_of_parallel_sets(self.base_core_number, True, self.sub_core_number):
                     raise ValueError("Invalid values for base_core_number and sub_core_number "
-                             "on system with just {} cores. Note: The benchmark controller"
+                             "on system with just {} cores. Note: The benchmark controller "
                              "needs a cpuset too.".format(self.av_cores))
             self.base_core_number = self.av_cores - self.sub_core_number * self.parallel_number - 1
         if not has_root_privileges():
             logging.warning("CPUSet functionality is disabled because root privileges are missing.")
             return
         logging.info("Initialize CPUSet")
-        av_cores = self._cpu_range_size("")
         typecheck(self.base_core_number, PositiveInt())
         typecheck(self.parallel_number, NaturalNumber())
         self.own_sets = [SUB_BENCH_SET.format(i) for i in range(0, self.parallel_number)] \
@@ -268,7 +267,9 @@ class CPUSet:
         return str(out)
 
     def _cset(self, argument: str):
-        proc = subprocess.Popen(["/bin/sh", "-c", "sudo cset {}".format(argument)],
+        #cmd = ["/bin/sh", "-c", "sudo cset {}".format(argument)]
+        cmd = ["/bin/sh", "-c", "sudo python3 -c 'import cpuset.main; print(cpuset.main.main())' " + argument]
+        proc = subprocess.Popen(cmd,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 universal_newlines=True)

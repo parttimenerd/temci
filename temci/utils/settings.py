@@ -19,7 +19,7 @@ class Settings(metaclass=Singleton):
     Manages the Settings.
     """
 
-    type_scheme = Dict({
+    type_scheme = Dict({  # type: Dict
         "settings_file": Str() // Description("Additional settings file") // Default("")
                     // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
         "tmp_dir": Str() // Default("/tmp/temci") // Description("Used temporary directory"),
@@ -110,8 +110,10 @@ class Settings(metaclass=Singleton):
         self.prefs = copy.deepcopy(self.type_scheme.get_default())
         res = self._validate_settings_dict(self.prefs, "default settings")
         if not res:
-            self.prefs = copy.deepcopy(self.defaults)
             raise SettingsError(str(res))
+        self._setup()
+
+    def load_files(self):
         self.load_from_config_dir()
         self.load_from_current_dir()
         self._setup()
@@ -156,13 +158,14 @@ class Settings(metaclass=Singleton):
         :param file: path to the file
         :raises SettingsError if the settings file is incorrect or doesn't exist
         """
+        self.prefs = self.type_scheme.get_default()
         tmp = copy.deepcopy(self.prefs)
         try:
             with open(file, 'r') as stream:
                 map = yaml.load(stream)
 
                 def func(key, path, value):
-                    self._set(path, value)
+                    self._set_default(path, value)
 
                 recursive_exec_for_leafs(map, func)
         except (yaml.YAMLError, IOError) as err:
@@ -271,6 +274,9 @@ class Settings(metaclass=Singleton):
 
     def has_key(self, key: str) -> bool:
         return self.validate_key_path(key.split("/"))
+
+    def _set_default(self, path: t.List[str], value):
+        self.modify_type_scheme("/".join(path), lambda t: t // Default(value))
 
     def modify_setting(self, key: str, type_scheme: Type):
         """

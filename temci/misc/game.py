@@ -45,6 +45,9 @@ if util.can_import("scipy"):
     import yaml
 
 from temci.tester.report import HTMLReporter2, html_escape_property
+from temci.utils.settings import Settings
+Settings().load_files()
+
 
 FIG_WIDTH = 15
 FIG_HEIGHT_PER_ELEMENT = 1.5
