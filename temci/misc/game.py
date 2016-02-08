@@ -48,7 +48,7 @@ from temci.tester.report import HTMLReporter2, html_escape_property
 from temci.utils.settings import Settings
 Settings().load_files()
 
-
+USABLE_WITH_SERVER = True
 FIG_WIDTH = 15
 FIG_HEIGHT_PER_ELEMENT = 1.5
 
@@ -216,14 +216,14 @@ class BaseObject:
                             pdf=False)
         html = """
         <center>
-        <img src="file:{}"/>
+        <img src="{}{}"/>
         </center>
         <p>
-        """.format(d["img"])
+        """.format("" if USABLE_WITH_SERVER else "file:", d["img"].split("/")[-1])
         for format in sorted(d):
             html += """
-            <a href="file:{}">{}</a>
-            """.format(d[format], format)
+            <a href="{}{}">{}</a>
+            """.format("" if USABLE_WITH_SERVER else "file:", d[format].split("/")[-1], format)
         return html + "</p>"
 
     def boxplot_html_for_data(self, name: str, base_file_name: str, data: t.Dict[str, t.List[float]]):
@@ -317,8 +317,8 @@ class BaseObject:
         with open(base_file_name + ".csv", "w") as f:
             f.write("\n".join(",".join(val for val in row) for row in cells))
         html += """
-            <a href="file:{}.csv">csv</a><br/>
-        """.format(base_file_name)
+            <a href="{}{}.csv">csv</a><br/>
+        """.format("" if USABLE_WITH_SERVER else "file:", base_file_name.split("/")[-1])
         return html
 
 
@@ -1198,13 +1198,13 @@ class Language(BaseObject):
         <link rel="stylesheet" src="http://gregfranko.com/jquery.tocify.js/css/jquery.ui.all.css">
         <link rel="stylesheet" src="http://gregfranko.com/jquery.tocify.js/css/jquery.tocify.css">
         <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="file:resources/style.css">
+        <link rel="stylesheet" href="{srv}resources/style.css">
         <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
         <script src="http://gregfranko.com/jquery.tocify.js/js/jquery-ui-1.9.1.custom.min.js"></script>
         <script src="http://gregfranko.com/jquery.tocify.js/js/jquery.tocify.js"></script>
         <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_SVG"></script>
-        <script src="file:resources/script.js"></script>
+        <script src="{srv}resources/script.js"></script>
     </head>
     <body style="font-family: sans-serif;">
         <div id="toc"></div>
@@ -1238,6 +1238,7 @@ class Language(BaseObject):
         inner_html = html_func(base_dir + "/fig", 2, with_header=False)
         import humanfriendly
         timespan = humanfriendly.format_timespan(time.time() - START_TIME)
+        srv = "" if USABLE_WITH_SERVER else "file:"
         return html.format(**locals())
 
     def store_html(self, base_dir: str, clear_dir: bool = True, html_func: t.Callable[[str, int, bool], str] = None):
@@ -1676,8 +1677,9 @@ MODE = "haskell_full"
 
 
 if MODE == "haskell_full":
-
-    for opti in []: #["", "-O", "-O2", "-Odph"]:
+    optis = ["", "-O", "-O2", "-Odph"]
+    """
+    for opti in optis:
         try:
             config = replace_run_with_build_cmd(haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
             process(config, "compile_time_haskell_" + opti, temci_runs=30, build=False, benchmark=False)
@@ -1687,8 +1689,20 @@ if MODE == "haskell_full":
             pass
         os.sync()
         #time.sleep(60)
+    """
+    configs = [haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti) for opti in optis]
+    data = [yaml.load(open("compile_time_haskell_" + opti + ".yaml", "r")) for opti in optis]
+    for (by_opti, app) in [(True, "_grouped_by_opti"), (False, "_grouped_by_version")]:
+        lang = Language.merge_different_versions_of_the_same(configs, optis, by_opti)
+        lang.set_merged_run_data_from_result_dict(data, optis)
+        for mode in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_first]:
+            CALC_MODE = mode
+            _report_dir = "compile_time_haskell_merged_report" + "_" + str(mode) + app
+            os.system("mkdir -p " + _report_dir)
+            lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
+    """
     optis = ["-O", "-O2", "-Odph"]
-    for opti in []:#reversed(optis):
+    for opti in reversed(optis):
         try:
             config = haskel_config(INPUTS_PER_CATEGORY, opti)
             process(config, "haskell" + opti, temci_options=" --discarded_blocks 1 --nice --other_nice", build=False, benchmark=False, property="task-clock")
@@ -1707,3 +1721,4 @@ if MODE == "haskell_full":
             _report_dir = "haskell_merged_report" + "_" + str(mode) + app
             os.system("mkdir -p " + _report_dir)
             lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
+    """

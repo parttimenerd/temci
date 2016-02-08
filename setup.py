@@ -31,7 +31,8 @@ setup(
         'jedi',
         'Pygments',
         'wcwidth',
-        'rainbow_logging_handler'
+        'rainbow_logging_handler',
+        'tablib'
     ],
     license='GPLv3',
     platforms='linux',

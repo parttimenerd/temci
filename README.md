@@ -19,7 +19,7 @@ Requirements
 ------------
 - python3
     - numpy and scipy (and some other packages), if you want to be sure install all needed ones via
-        - Ubuntu (version 15.10):
+        - Ubuntu or Debian:
             ```
                 sudo dnf install python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy
             ```
@@ -27,7 +27,6 @@ Requirements
             ```
                 sudo dnf install python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy
             ```
-        - Debian (version 8, stable)
 - linux (other oses aren't supported)
     - tested with Fedora 23 and Ubuntu 15.10
     - most distros with a kernel version >= 3.0 should work

@@ -552,6 +552,7 @@ class HTMLReporter(AbstractReporter):
     "alpha": Float() // Default(0.05) // Description("Alpha value for confidence intervals"),
     "gen_tex": Bool() // Default(True) // Description("Generate simple latex versions of the plotted figures?"),
     "gen_pdf": Bool() // Default(False) // Description("Generate pdf versions of the plotted figures?"),
+    "gen_xls": Bool() // Default(False) // Description("Generate excel files for all tables"),
     "show_zoomed_out": Bool() // Default(False)
                        // Description("Show zoomed out (x min = 0) figures in the extended summaries?")
 }))
@@ -1556,6 +1557,8 @@ class HTMLReporter2(AbstractReporter):
         self._id_counter += 1
         return "id" + str(self._id_counter)
 
+    def get_random_filename(self) -> str:
+        return os.path.realpath(os.path.join(os.path.abspath(self.misc["out"]), self._random_html_id()))
 
 class Popover:
 
@@ -1775,6 +1778,12 @@ class Table:
                     {descr}
                   </div>
             """.format(descr=d["descr"], id=id, filename="table" + d["ending"], mime=d["mime"])
+        if self.parent.misc["gen_xls"]:
+            html += """
+                <a href='file:{filename}' class='list-group-item'>
+                    Excel (.xls) file
+                </a>
+            """.format(filename=self.xls())
         html += """
             </div>
         """
@@ -1820,6 +1829,18 @@ class Table:
         for (hcell, row) in zip(self.header_col, self.content_cells):
             rows.append(",".join(convert_content(cell.content) for cell in [hcell] + row))
         return "\n".join(rows)
+
+    def xls(self) -> str:
+        import tablib
+        data = tablib.Dataset()
+        data.headers = [cell.content for cell in [self.orig_anchor_cell] + self.header_row]
+        for (hcell, row) in zip(self.header_col, self.content_cells):
+            data.append([cell.content for cell in [hcell] + row])
+        filename = self.parent.get_random_filename() + ".xls"
+        with open(filename, "wb") as f:
+            f.write(data.xls)
+        return filename
+
 
     def __getitem__(self, cell_pos: t.Tuple[int, int]) -> 'Cell':
         return self.content_cells[cell_pos[0]][cell_pos[1]]

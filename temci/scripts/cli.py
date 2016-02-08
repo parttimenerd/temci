@@ -1,3 +1,6 @@
+import locale
+locale.setlocale(locale.LC_ALL, "en_US.utf8")
+
 import warnings
 
 from temci.scripts.temci_completion import completion_file_name, create_completion_dir

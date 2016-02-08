@@ -25,6 +25,9 @@ class AbstractRunWorkerPool:
             if not has_root_privileges():
                 logging.warning("Can't disable hyper threading as root privileges are missing")
                 return
+            if Settings()["run/cpuset/active"]:
+                logging.warning("Currently disabling hyper threading doesn't work well in combination with cpusets")
+                return
             self._disable_hyper_threading()
 
     def submit(self, block: RunProgramBlock, id: int, runs: int):
@@ -34,7 +37,7 @@ class AbstractRunWorkerPool:
         pass
 
     def teardown(self):
-        if not has_root_privileges():
+        if not has_root_privileges() or Settings()["run/cpuset/active"]:
             return
         if Settings()["run/disable_hyper_threading"]:
             self._enable_hyper_threading()
