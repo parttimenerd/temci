@@ -749,7 +749,7 @@ def process_assembler(call: str):
         if ret is None:
             return
         #else:
-        #    logging.debug("Another try")
+        #    logging.info("Another try")
     if processor.config["file_structure"]:
         logging.warning("Disabled file structure randomization")
         config["file_structure"] = False

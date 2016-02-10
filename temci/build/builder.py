@@ -44,8 +44,9 @@ class Builder:
         typecheck(number, PositiveInt())
         typecheck(base_dir, DirName())
         _rand_conf = rand_conf
-        rand_conf = Settings()["build/rand"]
-        rand_conf.update(rand_conf)
+        _rand_conf = Settings()["build/rand"]
+        _rand_conf.update(rand_conf)
+        rand_conf = _rand_conf
         typecheck(rand_conf, self.rand_conf_type)
         self.build_dir = os.path.join(base_dir, build_dir)
         self.build_cmd = build_cmd
@@ -166,5 +167,5 @@ class BuilderThread(threading.Thread):
                     shutil.rmtree(tmp_build_dir)
                     #self.submit_queue.put(item)
                     raise EnvironmentError("Thread {}: Build error: {}".format(self.id, str(err)))
-            logging.info("Thread {}: {}".format(self.id, str(out)))
+            logging.info("Thread {}: Finished building… {}".format(self.id, str(out)))
             setup.exec("hadori", "./hadori {} {}".format(item.tmp_dir, tmp_build_dir))

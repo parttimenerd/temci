@@ -13,9 +13,9 @@ $(function() {
 
 // Adapted from http://stackoverflow.com/questions/2897619/using-html5-javascript-to-generate-and-save-a-file
 function download(th) {
-    contentType = th.getAttribute("mime");
-    content = $("#" + th.getAttribute("code_id")).text();
-    filename = th.getAttribute("filename");
+    var contentType = th.getAttribute("mime");
+    var content = $("#" + th.getAttribute("code_id")).text();
+    var filename = th.getAttribute("filename");
     if(!contentType) {
         contentType = 'application/octet-stream';
     }

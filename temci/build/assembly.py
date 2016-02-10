@@ -12,6 +12,7 @@ import tempfile
 import time
 
 from temci.utils.typecheck import *
+import typing as t
 
 
 class Line:
@@ -109,7 +110,8 @@ class Section:
     @classmethod
     def from_lines(cls, lines: list) -> 'Section':
         typecheck(lines, List(T(Line)))
-        if any(line.is_function_label() for line in lines):
+        libfirm_begin_pattern = re.compile("#[-\ ]* Begin ")
+        if any(line.is_function_label() or libfirm_begin_pattern.match(line.content) for line in lines):
             return FunctionSection(lines)
         section = Section(lines)
         return section
@@ -271,17 +273,18 @@ class AssemblyFile:
     """
 
     def __init__(self, lines: list):
-        self._lines = []
+        self._lines = [] # t.List[Line]
         self.sections = []
         self.add_lines(lines)
 
     def _init_sections(self):
         self.sections = []
-        if any(line.startswith("# Begin") for line in self._lines): # libfirm mode
+        libfirm_begin_pattern = re.compile("#[-\ ]* Begin ")
+        if any(bool(libfirm_begin_pattern.match(line.content)) for line in self._lines): # libfirm mode
             cur = Section()
             for i, line in enumerate(self._lines):
                 if line.content.strip() == "":
-                    self.sections.append(cur)
+                    self.sections.append(Section.from_lines(cur.lines))
                     cur = Section()
                 cur.append(line)
             self.sections.append(cur)
@@ -289,13 +292,13 @@ class AssemblyFile:
             cur = Section()
             for line in self._lines:
                 if line.content.strip() == ".text":
-                    self.sections.append(cur)
+                    self.sections.append(Section.from_lines(cur.lines))
                     cur = Section()
                 cur.append(line)
             self.sections.append(cur)
-        #else:
-        #    logging.error("\n".join(line.content for line in self._lines))
-        #    raise ValueError("Unknown assembler")
+        else:
+            logging.error("\n".join(line.content for line in self._lines))
+            raise ValueError("Unknown assembler")
 
     def add_lines(self, lines: list):
         """

@@ -57,6 +57,8 @@ class Mode(Enum):
     """ calculate all mean scores as "mean / best mean" and use the geometric mean for summaries"""
     mean_rel_to_first = 2
     """ calculate all mean scores as "mean / mean of first" and use the arithmetic mean for summaries"""
+    mean_rel_to_one = 3
+    """ calculate all mean scores as "mean / 1" and use the arithmetic mean for summaries"""
 
 CALC_MODE = Mode.geom_mean_rel_to_best # type: Mode
 
@@ -80,7 +82,7 @@ def amean_std(values: t.List[float]) -> float:
 def used_summarize_mean(values: t.List[float]) -> float:
     if CALC_MODE == Mode.geom_mean_rel_to_best:
         return stats.gmean(values)
-    elif CALC_MODE == Mode.mean_rel_to_first:
+    elif CALC_MODE in [Mode.mean_rel_to_first, Mode.mean_rel_to_one]:
         return sp.mean(values)
     assert False
 
@@ -88,7 +90,7 @@ def used_summarize_mean(values: t.List[float]) -> float:
 def used_summarize_mean_std(values: t.List[float]) -> float:
     if CALC_MODE == Mode.geom_mean_rel_to_best:
         return geom_std(values)
-    elif CALC_MODE == Mode.mean_rel_to_first:
+    elif CALC_MODE in [Mode.mean_rel_to_first, Mode.mean_rel_to_one]:
         return amean_std(values)
     assert False
 
@@ -119,11 +121,13 @@ def used_rel_mean_property(single: SingleProperty, means: t.List[float]) -> floa
         return single.mean() / min(means)
     elif CALC_MODE == Mode.mean_rel_to_first:
         return single.mean() / means[0]
+    elif CALC_MODE == Mode.mean_rel_to_one:
+        return single.mean()
     assert False
 
 
 def used_std_property(single: SingleProperty, means: t.List[float]) -> float:
-    if CALC_MODE in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_first]:
+    if CALC_MODE in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_first, Mode.mean_rel_to_one]:
         return single.std_dev_per_mean()
     assert False
 
@@ -139,15 +143,18 @@ class BOTableColumn:
 
 mean_score_column = lambda: BOTableColumn({
     Mode.geom_mean_rel_to_best: "mean score (gmean(mean / best mean))",
-    Mode.mean_rel_to_first: "mean score (mean(mean / mean of first impl))"
+    Mode.mean_rel_to_first: "mean score (mean(mean / mean of first impl))",
+    Mode.mean_rel_to_one: "mean score (mean(mean / 1))"
 }[CALC_MODE], "{:5.5%}", used_rel_mean_property, used_summarize_mean)
 mean_score_std_column = lambda: BOTableColumn({
     Mode.geom_mean_rel_to_best: "mean score std (gmean std(mean / best mean))",
-    Mode.mean_rel_to_first: "mean score std (std(mean / mean of first impl))"
+    Mode.mean_rel_to_first: "mean score std (std(mean / mean of first impl))",
+    Mode.mean_rel_to_one: "mean score std (std(mean / 1))"
 }[CALC_MODE], "{:5.5%}", used_rel_mean_property, used_summarize_mean_std)
 mean_rel_std = lambda: BOTableColumn({
     Mode.geom_mean_rel_to_best: "mean rel std (gmean(std / mean))",
-    Mode.mean_rel_to_first: "mean rel std (mean(std / mean))"
+    Mode.mean_rel_to_first: "mean rel std (mean(std / mean))",
+    Mode.mean_rel_to_one: "mean rel std (mean(std / mean))"
 }[CALC_MODE], "{:5.5%}", used_std_property, used_summarize_mean)
 
 common_columns = [mean_score_column, mean_score_std_column, mean_rel_std]
@@ -1010,7 +1017,7 @@ class Language(BaseObject):
         return lang
 
     def set_merged_run_data_from_result_dict(self, run_datas: t.List[t.List[t.Dict[str, t.Any]]],
-                                             impl_apps: t.List[str],property: str = "task-clock"):
+                                             impl_apps: t.List[str], property: str = "task-clock"):
         assert len(run_datas) == len(impl_apps)
         for (i, run_data_list) in enumerate(run_datas):
             for run_data in run_data_list:
@@ -1028,6 +1035,34 @@ class Language(BaseObject):
                 except KeyError as err:
                     logging.warning(err)
                     pass
+
+    def set_difference_from_two_result_dicts(self, run_datas: t.Tuple[t.List[t.Dict[str, t.Any]]], app: str,
+                                             property: str = "task-clock"):
+        """
+        First - Second for each measured value
+        :param run_datas:
+        :param app:
+        :return:
+        """
+        assert len(run_datas) == 2
+        first_run_data_list = run_datas[0]
+        for (i, run_data) in enumerate(first_run_data_list):
+            sec_run_data = run_datas[1][i]
+            attrs = run_data["attributes"]
+            typecheck([attrs, sec_run_data["attributes"]], List(Dict({
+                "language": E(self.name),
+                "category": Str(),
+                "program": Str(),
+                "impl": Str(),
+                "input": Str()
+            })))
+            data = [f - s for (f, s) in zip(run_data["data"][property], sec_run_data["data"][property])]
+            try:
+                self[attrs["category"]][attrs["program"]][attrs["input"]][attrs["impl"]].run_data \
+                    = data
+            except KeyError as err:
+                logging.warning(err)
+                pass
 
     def __getitem__(self, name: str) -> ProgramCategory:
         return self.categories[name]
@@ -1689,7 +1724,6 @@ if MODE == "haskell_full":
             pass
         os.sync()
         #time.sleep(60)
-    """
     configs = [haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti) for opti in optis]
     data = [yaml.load(open("compile_time_haskell_" + opti + ".yaml", "r")) for opti in optis]
     for (by_opti, app) in [(True, "_grouped_by_opti"), (False, "_grouped_by_version")]:
@@ -1700,7 +1734,6 @@ if MODE == "haskell_full":
             _report_dir = "compile_time_haskell_merged_report" + "_" + str(mode) + app
             os.system("mkdir -p " + _report_dir)
             lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
-    """
     optis = ["-O", "-O2", "-Odph"]
     for opti in reversed(optis):
         try:
@@ -1711,8 +1744,11 @@ if MODE == "haskell_full":
         except BaseException as ex:
             logging.exception(ex)
             pass
+    """
+    optis = ["-O", "-O2", "-Odph"]
     configs = [haskel_config(INPUTS_PER_CATEGORY, opti) for opti in optis]
     data = [yaml.load(open("haskell" + opti + ".yaml", "r")) for opti in optis]
+    """
     for (by_opti, app) in [(True, "_grouped_by_opti"), (False, "_grouped_by_version")]:
         lang = Language.merge_different_versions_of_the_same(configs, optis, by_opti)
         lang.set_merged_run_data_from_result_dict(data, optis)
@@ -1722,3 +1758,11 @@ if MODE == "haskell_full":
             os.system("mkdir -p " + _report_dir)
             lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
     """
+    for (first_opti, second_opti, app) in [(0, 1, "O-O2"), (1, 2, "O2-Odph")]:
+        lang = Language.from_config_dict(configs[first_opti])
+        lang.set_difference_from_two_result_dicts((data[first_opti], data[second_opti]), app)
+        for mode in [Mode.mean_rel_to_one]:
+            CALC_MODE = mode
+            _report_dir = "haskell_" + app + "_report" + "_" + str(mode)
+            os.system("mkdir -p " + _report_dir)
+            lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)

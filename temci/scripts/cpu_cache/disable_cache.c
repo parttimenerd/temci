@@ -1,6 +1,6 @@
 /**
     Adapted from http://www.linuxquestions.org/questions/linux-kernel-70/disabling-cpu-caches-936077/
-    and memtest source code.
+    and memtest86++ source code.
     http://www.spinics.net/lists/newbies/msg40952.html was helpful too.
 */
 
