@@ -91,11 +91,18 @@ class Settings(metaclass=Singleton):
                 "rodata": Bool() // Default(False)
                         // Description("Randomize the rodata sub segments?"),
                 "file_structure": Bool() // Default(False)
-                                  // Description("Randomize the file structure.")
+                                  // Description("Randomize the file structure."),
+                "linker": (Bool() | NonExistent()) // Default(False)
+                              // Description("Randomize the linking order"),
+                "used_as": (Bool() | NonExistent()) // Default("/usr/bin/as")
+                            // Description("Used gnu assembler, default is /usr/bin/as"),
+                "used_ld": (Bool() | NonExistent()) // Default("/usr/bin/ld")
+                            // Description("Used gnu linker, default is /usr/bin/ld")
             }) // Description("Assembly randomization"),
             "in": Str() // Default("build.yaml") // Description("Input file with the program blocks to build")
                 // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
-            "out": Str() // Default("run.exec.yaml") // Description("Resulting run config file")
+            "out": Str() // Default("run.exec.yaml") // Description("Resulting run config file"),
+            "threads": PositiveInt() // Default(1) // Description("Number of threads that build simultaneously")
         })
     }, all_keys=False)
     config_file_name = "temci.yaml"

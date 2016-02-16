@@ -717,7 +717,7 @@ def bash(**kwargs):
 @cli.command(short_help=command_docs["assembler"])
 @click.argument("call", type=str)
 def assembler(call: str):
-    process_assembler(call)
+    process_assembler(call.split(" "))
 
 
 def cli_with_error_catching():

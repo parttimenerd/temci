@@ -1,8 +1,9 @@
 """
 Enables the randomization of assembler files and can be used as a wrapper for as.
 
-Currently only tested on 64bit system.
+Currently only tested on a 64 bit system.
 """
+
 import json
 import logging
 import random
@@ -16,6 +17,7 @@ import shutil
 
 from temci.utils.typecheck import *
 import typing as t
+import temci.utils.settings
 
 
 class Line:
@@ -182,6 +184,7 @@ class Section:
                 self.lines.insert(i, Line(subq_statement_format.format(rand()), i))
                 i += 1
             i += 1
+
 
 class FunctionSection(Section):
     """
@@ -384,7 +387,7 @@ class AssemblyProcessor:
                 // Description("Randomize the rodata sub segments?"),
         "file_structure": Bool() // Default(False)
                           // Description("Randomize the file structure.")
-    })
+    }, all_keys=False)
 
     def __init__(self, config: dict):
         self.config = self.config_scheme.get_default()
@@ -393,7 +396,7 @@ class AssemblyProcessor:
 
     def process(self, file: str, small_changes = False):
         assm = AssemblyFile.from_file(file)
-        assm.to_file("/tmp/abc.s")
+        #assm.to_file("/tmp/abc.s")
         if self.config["file_structure"]:
             assm.randomize_file_structure(small_changes)
         if self.config["heap"] > 0:
@@ -407,14 +410,13 @@ class AssemblyProcessor:
         if self.config["rodata"]:
             assm.randomize_sub_segments("rodata")
         assm.to_file(file)
-        assm.to_file("/tmp/abcd.s")
+        #assm.to_file("/tmp/abcd.s")
 
 
-def process_assembler(call: str):
-    call = call.split(" ")
+def process_assembler(call: t.List[str]):
     input_file = os.path.abspath(call[-1])
     config = json.loads(os.environ["RANDOMIZATION"]) if "RANDOMIZATION" in os.environ else {}
-    as_tool = os.environ["USED_AS"] if "USED_AS" in os.environ else "/usr/bin/as"
+    as_tool = config["used_as"] if "used_as" in config else "/usr/bin/as"
     tmp_assm_file = os.path.join(os.environ["TMP_DIR"] if "TMP_DIR" in os.environ else "/tmp", "temci_assembler.s")
     def exec(cmd):
         proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE,

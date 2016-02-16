@@ -33,7 +33,11 @@ class Builder:
             "rodata": (Bool() | NonExistent())
                     // Description("Randomize the rodata sub segments?"),
             "file_structure": (Bool() | NonExistent())
-                              // Description("Randomize the file structure.")
+                              // Description("Randomize the file structure."),
+            "linker": (Bool() | NonExistent())
+                              // Description("Randomize the linking order"),
+            "used_as": (Bool() | NonExistent()) // Description("Used gnu assembler, default is /usr/bin/as"),
+            "used_ld": (Bool() | NonExistent()) // Description("Used gnu linker, default is /usr/bin/ld")
         }, all_keys=False)
 
     def __init__(self, build_dir: str, build_cmd: str, revision, number: int, rand_conf: dict,
@@ -59,7 +63,7 @@ class Builder:
         """
         Build the program blocks.
         """
-        thread_count = thread_count or multiprocessing.cpu_count()
+        thread_count = thread_count or Settings()["build/threads"]
         logging.info("Create base temporary directory and copy build directory")
         time_tag = datetime.datetime.now().strftime("%s%f")
         def tmp_dirname(i: int = "base"):
