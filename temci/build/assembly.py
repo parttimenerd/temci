@@ -417,7 +417,12 @@ def process_assembler(call: t.List[str]):
     input_file = os.path.abspath(call[-1])
     config = json.loads(os.environ["RANDOMIZATION"]) if "RANDOMIZATION" in os.environ else {}
     as_tool = config["used_as"] if "used_as" in config else "/usr/bin/as"
-    tmp_assm_file = os.path.join(os.environ["TMP_DIR"] if "TMP_DIR" in os.environ else "/tmp", "temci_assembler.s")
+    #tmp_assm_file = os.path.join(os.environ["TMP_DIR"] if "TMP_DIR" in os.environ else "/tmp", "temci_assembler.s")
+    input_file_content = ""
+    with open(input_file, "r") as f:
+        input_file_content = f.read()  # keep the original assembler some where...
+
+
     def exec(cmd):
         proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
@@ -427,20 +432,23 @@ def process_assembler(call: t.List[str]):
             return str(err)
         return None
 
+
+    def store_original_assm():
+        with open(input_file, "w") as f:
+            f.write(input_file_content)
+
     processor = AssemblyProcessor(config)
-    shutil.copy(input_file, tmp_assm_file)
     call[0] = as_tool
-    shutil.copy(tmp_assm_file, input_file)
     processor.process(input_file)
     ret = exec(" ".join(call))
     if ret is None:
         return
     for i in range(0, 6):
-        shutil.copy(tmp_assm_file, input_file)
         processor.process(input_file, small_changes=True)
         ret = exec(" ".join(call))
         if ret is None:
             return
+        store_original_assm()
         #else:
         #    logging.info("Another try")
     if processor.config["file_structure"]:
@@ -448,14 +456,12 @@ def process_assembler(call: t.List[str]):
         config["file_structure"] = False
         for i in range(0, 6):
             processor = AssemblyProcessor(config)
-            shutil.copy(tmp_assm_file, input_file)
             processor.process(input_file)
             ret = exec(" ".join(call))
             if ret is None:
                 return
             logging.info("Another try")
-    logging.error(ret)
-    shutil.copy(tmp_assm_file, input_file)
+            store_original_assm()
     ret = exec(" ".join(call))
     if ret is not None:
         logging.error(ret)
