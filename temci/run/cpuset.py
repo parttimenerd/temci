@@ -13,6 +13,7 @@ BENCH_SET = 'temci.set'
 CONTROLLER_SUB_BENCH_SET = 'temci.set.controller'
 SUB_BENCH_SET = 'temci.set.{}'
 
+
 class CPUSet:
     """
     This class allows the usage of cpusets (see `man cpuset`) and therefore requires root privileges.
@@ -20,7 +21,7 @@ class CPUSet:
     This class needs root privileges to operate properly. Warns if not.
     """
 
-    def __init__(self, base_core_number: int = None, parallel: int = None, sub_core_number: int = None):
+    def __init__(self, active: bool = has_root_privileges(), base_core_number: int = None, parallel: int = None, sub_core_number: int = None):
         """
         Initializes the cpu sets an determines the number of parallel programs (parallel_number variable).
 
@@ -31,11 +32,12 @@ class CPUSet:
         :raises EnvironmentError if the environment can't be setup properly (e.g. no root privileges)
         """
         #self.bench_set = "bench.set"
+        self.active = active and has_root_privileges()
         self.own_set = ''
         self.base_core_number = Settings().default(base_core_number, "run/cpuset/base_core_number")
         self.parallel = Settings().default(parallel, "run/cpuset/parallel")
         self.sub_core_number = Settings().default(sub_core_number, "run/cpuset/sub_core_number")
-        self.av_cores = self._cpu_range_size("") if has_root_privileges() else multiprocessing.cpu_count()
+        self.av_cores = self._cpu_range_size("") if active else multiprocessing.cpu_count()
         if self.parallel == 0:
             self.parallel_number = 0
         else:
@@ -44,13 +46,15 @@ class CPUSet:
                                                                      True, self.sub_core_number)
             else:
                 self.parallel_number = self.parallel
-                if self.parallel > self._number_of_parallel_sets(self.base_core_number, True, self.sub_core_number):
+                if self.parallel > self._number_of_parallel_sets(self.base_core_number, True, self.sub_core_number)\
+                        and self.active:
                     raise ValueError("Invalid values for base_core_number and sub_core_number "
                              "on system with just {} cores. Note: The benchmark controller "
                              "needs a cpuset too.".format(self.av_cores))
             self.base_core_number = self.av_cores - self.sub_core_number * self.parallel_number - 1
-        if not has_root_privileges():
-            logging.warning("CPUSet functionality is disabled because root privileges are missing.")
+        if not active:
+            if not has_root_privileges():
+                logging.warning("CPUSet functionality is disabled because root privileges are missing.")
             return
         logging.info("Initialize CPUSet")
         typecheck(self.base_core_number, PositiveInt())
@@ -71,7 +75,7 @@ class CPUSet:
         :param pid: passed process id
         :param set_id: passed parallel sub cpuset id
         """
-        if not has_root_privileges():
+        if not self.active:
             return
         try:
             typecheck(pid, Int())
@@ -83,7 +87,7 @@ class CPUSet:
             raise
 
     def get_sub_set(self, set_id: int) -> str:
-        if has_root_privileges():
+        if self.active:
             typecheck(set_id, Int(range=range(0, self.parallel_number)))
         return SUB_BENCH_SET.format(set_id)
 
@@ -91,7 +95,7 @@ class CPUSet:
         """
         Tears the created cpusets down and makes the system usable again.
         """
-        if not has_root_privileges():
+        if not self.active:
             return
         for set in self.own_sets:
             try:
@@ -104,7 +108,7 @@ class CPUSet:
 
     def _number_of_parallel_sets(self, base_core_number: int, parallel: bool, sub_core_number: int) -> int:
         typecheck([base_core_number, parallel, sub_core_number], List(Int()))
-        if base_core_number + 1 + sub_core_number > self.av_cores:
+        if base_core_number + 1 + sub_core_number > self.av_cores and self.active:
             raise ValueError("Invalid values for base_core_number and sub_core_number "
                              "on system with just {} cores. Note: The benchmark controller"
                              "needs a cpuset too.".format(self.av_cores))

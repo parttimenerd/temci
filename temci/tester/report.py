@@ -1078,7 +1078,8 @@ class HTMLReporter2(AbstractReporter):
                 "title": "mean",
                 "func": lambda x: x.mean(),
                 "format": "{:5.5f}",
-                "popover": Popover(self, "Explanation", """The simple arithmetical mean
+                "popover": Popover(self, "Explanation", """
+                    The simple arithmetical mean
                     \\[ \\frac{1}{n}\\sum_{i=1}^{n} a_i. \\]
                 """)
             }, {
@@ -1141,7 +1142,7 @@ class HTMLReporter2(AbstractReporter):
                 "extended": True
             }, {
                 "title": "max",
-                "func": lambda x: x.min(),
+                "func": lambda x: x.max(),
                 "format": "{:5.5f}",
                 "popover": Popover(self, "Explanation", """The maximum value. It's a bad sign if the maximum
                                                   is far higher than the mean and you can't explain it.

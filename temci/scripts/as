@@ -2,7 +2,7 @@
 
 import os, sys
 
-from temci.scripts.cli import process_assembler
+from temci.build.assembly import process_assembler
 
 process_assembler(" ".join(sys.argv))
 #with open("/tmp/sdf", "w") as f:

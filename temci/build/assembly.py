@@ -3,6 +3,7 @@ Enables the randomization of assembler files and can be used as a wrapper for as
 
 Currently only tested on 64bit system.
 """
+import json
 import logging
 import random
 import re
@@ -10,6 +11,8 @@ import sys, os, subprocess, shlex
 import tempfile
 
 import time
+
+import shutil
 
 from temci.utils.typecheck import *
 import typing as t
@@ -405,6 +408,57 @@ class AssemblyProcessor:
             assm.randomize_sub_segments("rodata")
         assm.to_file(file)
         assm.to_file("/tmp/abcd.s")
+
+
+def process_assembler(call: str):
+    call = call.split(" ")
+    input_file = os.path.abspath(call[-1])
+    config = json.loads(os.environ["RANDOMIZATION"]) if "RANDOMIZATION" in os.environ else {}
+    as_tool = os.environ["USED_AS"] if "USED_AS" in os.environ else "/usr/bin/as"
+    tmp_assm_file = os.path.join(os.environ["TMP_DIR"] if "TMP_DIR" in os.environ else "/tmp", "temci_assembler.s")
+    def exec(cmd):
+        proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                universal_newlines=True)
+        out, err = proc.communicate()
+        if proc.poll() > 0:
+            return str(err)
+        return None
+
+    processor = AssemblyProcessor(config)
+    shutil.copy(input_file, tmp_assm_file)
+    call[0] = as_tool
+    shutil.copy(tmp_assm_file, input_file)
+    processor.process(input_file)
+    ret = exec(" ".join(call))
+    if ret is None:
+        return
+    for i in range(0, 6):
+        shutil.copy(tmp_assm_file, input_file)
+        processor.process(input_file, small_changes=True)
+        ret = exec(" ".join(call))
+        if ret is None:
+            return
+        #else:
+        #    logging.info("Another try")
+    if processor.config["file_structure"]:
+        logging.warning("Disabled file structure randomization")
+        config["file_structure"] = False
+        for i in range(0, 6):
+            processor = AssemblyProcessor(config)
+            shutil.copy(tmp_assm_file, input_file)
+            processor.process(input_file)
+            ret = exec(" ".join(call))
+            if ret is None:
+                return
+            logging.info("Another try")
+    logging.error(ret)
+    shutil.copy(tmp_assm_file, input_file)
+    ret = exec(" ".join(call))
+    if ret is not None:
+        logging.error(ret)
+        exit(1)
+
 
 if __name__ == "__main__":
 

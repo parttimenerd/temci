@@ -760,6 +760,14 @@ class SingleProperty(BaseStatObject):
             whisk_lo = min(whisk_lo)
         return whisk_lo, whisk_hi
 
+    def outliers(self, whis: float = 1.5) -> t.List[float]:
+        """
+        Returns the values that don't lie in the in the range fenced by the whiskers.
+        """
+        whiskers = self.whiskers(whis)
+        return [x for x in self.data if x < whiskers[0] or x > whiskers[1]]
+
+
 class TestedPair(BaseStatObject):
     """
     A statistical wrapper around two run data objects that are compared via a tester.
@@ -885,6 +893,7 @@ class TestedPairsAndSingles(BaseStatObject):
         assert 0 <= id < self.number_of_singles()
         return self.singles[id]
 
+
 class EffectToSmallWarning(StatWarning):
 
     message = "The mean difference per standard deviation of {props} is less than {b_val}."
@@ -903,6 +912,27 @@ class EffectToSmallError(EffectToSmallWarning):
 
     type = StatMessageType.ERROR
     border_value = 1
+
+
+class SignificanceTooLowWarning(StatWarning):
+    message = """The used statistical significance test showed that the significance of the
+    difference with {props} is too low."""
+    hint = """Increase the number of benchmarking runs."""
+
+    @classmethod
+    def check_value(cls, value) -> bool:
+        r = Settings()["stats/uncertainty_range"]
+        return r[0] <= value <= r[1]
+
+
+class SignificanceTooLowError(SignificanceTooLowWarning):
+
+    type = StatMessageType.ERROR
+
+    @classmethod
+    def check_value(cls, value) -> bool:
+        r = Settings()["stats/uncertainty_range"]
+        return r[1] > value
 
 
 class TestedPairProperty(BaseStatObject):
@@ -926,11 +956,15 @@ class TestedPairProperty(BaseStatObject):
         :return: simplified list of all messages
         """
         msgs = self.first.get_stat_messages() + self.second.get_stat_messages()
-        if self.is_equal() == False:
-            msgs += [
-                EffectToSmallWarning.create_if_valid(self, self.mean_diff_per_dev(), self.property),
-                EffectToSmallError.create_if_valid(self, self.mean_diff_per_dev(), self.property)
-            ]
+        #if self.is_equal() == False:
+        sign_val = self.tester.test(self.first.data, self.second.data)
+        msgs += [
+            EffectToSmallWarning.create_if_valid(self, self.mean_diff_per_dev(), self.property),
+            EffectToSmallError.create_if_valid(self, self.mean_diff_per_dev(), self.property),
+            SignificanceTooLowWarning.create_if_valid(self, sign_val, property),
+            SignificanceTooLowError.create_if_valid(self, sign_val, property),
+        ]
+
         return msgs
     
     def mean_diff(self) -> float:
@@ -1078,12 +1112,13 @@ class SinglesProperty(BaseStatObject):
     max space between ticks=50pt
     ]""".format(
             width=fig_width, height=fig_height, xlabel=self.property,
-            yticklabels="\\\\".join(descrs) + "\\\\",
+            yticklabels="\\\\".join(reversed(descrs)) + "\\\\",
             yticks=",".join(map(str, range(1, len(descrs) + 1)))
         )
-        for single in self.singles:
+        for single in reversed(self.singles):
             q1, q2, q3 = single.quartiles()
             wh_lower, wh_upper = single.whiskers()
+            outliers = " ".join("(0, {})".format(x) for x in single.outliers())
             tex += """
         \\addplot+[
         boxplot prepared={{
@@ -1093,7 +1128,7 @@ class SinglesProperty(BaseStatObject):
             upper whisker={wh_upper},
             lower whisker={wh_lower}
         }},
-        ] coordinates {{}};
+        ] coordinates {{{outliers}}};
         """.format(median=single.median(), **locals())
         tex += """
     \end{axis}

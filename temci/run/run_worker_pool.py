@@ -126,7 +126,7 @@ class RunWorkerPool(AbstractRunWorkerPool):
         self.result_queue = Queue()
         if run_driver_name is None:
             run_driver_name = RunDriverRegistry().get_used()
-        self.cpuset = CPUSet(parallel=0) if Settings()["run/cpuset/active"] else None
+        self.cpuset = CPUSet(parallel=0) if Settings()["run/cpuset/active"] else CPUSet(active=False)
         self.run_driver = RunDriverRegistry().get_for_name(run_driver_name)
         self.parallel_number = 1
 
@@ -189,7 +189,8 @@ class ParallelRunWorkerPool(AbstractRunWorkerPool):
         if Settings()["run/cpuset/active"]:
             self.cpuset = CPUSet()
         else:
-            raise ValueError("Only works with run/cpuset/active=True")
+            self.cpuset = CPUSet(active=False)
+            #raise ValueError("Only works with run/cpuset/active=True")
         self.parallel_number = self.cpuset.parallel_number
         logging.info("Using {} parallel processes to benchmark.".format(self.parallel_number))
         self.threads = []
