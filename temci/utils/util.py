@@ -71,6 +71,18 @@ def get_cache_line_size(cache_level: int = None) -> t.Optional[int]:
         return int(f.readline().strip())
 
 
+def get_memory_page_size() -> int:
+    try:
+        proc = subprocess.Popen(["/bin/sh", "-c", "getconf PAGESIZE"], stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL)
+        out, err = proc.communicate()
+        if proc.poll() == 0:
+            return int(out.strip())
+    except:
+        pass
+    return 4096
+
+
 def join_strs(strs: t.List[str], last_word: str = "and") -> str:
     """
     Joins the passed strings together with ", " except for the last to strings that separated by the passed word.

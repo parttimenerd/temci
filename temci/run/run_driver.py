@@ -277,7 +277,8 @@ class ExecRunDriver(AbstractRunDriver):
         "revision": (Int(lambda x: x >= -1) | Str()) // Description("Used revision (or revision number)."
                                                         "-1 is the current revision."),
         "cwd": (List(Str())|Str()) // Description("Execution directories for each command"),
-        "runner": ExactEither() // Description("Used runner")
+        "runner": ExactEither() // Description("Used runner"),
+        "disable_aslr": Bool() // Description("Disable the address space layout randomization")
     }, all_keys=False)
     block_default = {
         "run_cmd": "",

@@ -152,7 +152,7 @@ class BuilderThread(threading.Thread):
                 "LANGUAGE": "en_US",
                 "TMP_DIR": Settings()["tmp_dir"]
             }
-            logging.info("Thread {}: Start building number {}".format(self.id, item.id))
+            logging.info("Thread {}: Building number {}".format(self.id, item.id))
             proc = subprocess.Popen(["/bin/sh", "-c", "export PATH={}/:$PATH; sync;".format(as_path)
                                      + item.build_cmd],
                                     stdout=subprocess.PIPE,
@@ -171,5 +171,5 @@ class BuilderThread(threading.Thread):
                     shutil.rmtree(tmp_build_dir)
                     #self.submit_queue.put(item)
                     raise EnvironmentError("Thread {}: Build error: {}".format(self.id, str(err)))
-            logging.info("Thread {}: Finished building… {}".format(self.id, str(out)))
+            #logging.info("Thread {}: Finished building… {}".format(self.id, str(out)))
             #setup.exec("hadori", "./hadori {} {}".format(item.tmp_dir, tmp_build_dir))

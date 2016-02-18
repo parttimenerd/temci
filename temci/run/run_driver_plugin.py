@@ -1,7 +1,7 @@
 """
 This module consists of run driver plugin implementations.
 """
-
+from temci.utils.util import get_memory_page_size
 from .run_driver import RunProgramBlock
 from .run_driver import ExecRunDriver
 from ..utils.registry import register
@@ -107,19 +107,19 @@ class NicePlugin(AbstractRunDriverPlugin):
 
 
 @register(ExecRunDriver, "env_randomize", Dict({
-    "min": NaturalNumber() // Default(0) // Description("Minimum number of added random environment variables"),
-    "max": PositiveInt() // Default(100) // Description("Maximum number of added random environment variables"),
-    "var_max": PositiveInt() // Default(1000) // Description("Maximum length of each random value"),
-    "key_max": PositiveInt() // Default(100) // Description("Maximum length of each random key")
+    "min": NaturalNumber() // Default(1) // Description("Minimum number of added random environment variables"),
+    "max": PositiveInt() // Default(1) // Description("Maximum number of added random environment variables"),
+    "var_max": PositiveInt() // Default(get_memory_page_size() // 2) // Description("Maximum length of each random value"),
+    "key_max": PositiveInt() // Default(get_memory_page_size() // 2) // Description("Maximum length of each random key")
 }))
 class EnvRandomizePlugin(AbstractRunDriverPlugin):
     """
     Adds random environment variables.
     """
 
-    def setup_block(self, block: RunProgramBlock, runs: int = 1):
+    def setup_block_run(self, block: RunProgramBlock, runs: int = 1):
         env = {}
-        for i in range(random.randint(self.misc_settings["min"], self.misc_settings["max"])):
+        for i in range(random.randint(self.misc_settings["min"], self.misc_settings["max"] + 1)):
             env["a" * random.randint(0, self.misc_settings["key_max"])] \
                 = "a" * random.randint(0, self.misc_settings["var_max"])
         block["env"] = env

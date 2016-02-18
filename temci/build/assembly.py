@@ -8,7 +8,7 @@ import json
 import logging
 import random
 import re
-import sys, os, subprocess, shlex
+import sys, os, subprocess, copy
 import tempfile
 
 import time
@@ -96,7 +96,7 @@ class Section:
     """
 
     def __init__(self, lines: list = None):
-        self.lines = lines or []
+        self.lines = lines or [] # type: t.List[Line]
 
     def append(self, line: Line):
         typecheck(line, Line)
@@ -109,8 +109,16 @@ class Section:
     def __str__(self) -> str:
         return "\n".join(str(x) for x in self.lines if not x.startswith(".loc "))
 
+    def __repr__(self) -> str:
+        if self.lines:
+            return "Section({} to {})".format(self.lines[0].number, self.lines[-1].number)
+        return "Section()"
+
     def __len__(self) -> int:
         return len(self.lines)
+
+    def __eq__(self, other):
+        return isinstance(other, type(self)) and self.lines == other.lines
 
     @classmethod
     def from_lines(cls, lines: list) -> 'Section':
@@ -194,7 +202,16 @@ class FunctionSection(Section):
     - a function uses [real instruction] \n "ret" to return from it
     """
 
-    def pad_stack(self, amount: int):
+    def pad_stack(self, amount: int) -> True:
+        old_lines = copy.copy(self.lines)
+
+        def log_failure():
+            #logging.warning("Didn't pad function {!r}.".format(self))
+            self.lines = old_lines
+
+        def is_bad(i: int) -> bool:
+            return self.lines[i].content.strip() == ".cfi_endproc"
+
         self._replace_leave()
         """
         Pads the stack at the beginning of each function call by the given amount.
@@ -203,10 +220,12 @@ class FunctionSection(Section):
         # search for function label
         i = 0
         while i < len(self.lines) and not self.lines[i].is_function_label():
+            if is_bad(i):
+                return
             i += 1
         if i == len(self.lines):
-            logging.warning("Didn't pad function.")
-            return
+            log_failure()
+            return False
         # search for the first "pushq %rbp" instruction
 
         def is_push_instr():
@@ -219,13 +238,15 @@ class FunctionSection(Section):
             return splitted[0].strip() == "pushq" and splitted[1].strip().startswith("%rbp")
 
         while i < len(self.lines) and not is_push_instr():
+            if is_bad(i):
+                return
             i += 1
         if i == len(self.lines):
-            logging.warning("Didn't pad function.")
+            log_failure()
             return False
         # insert a subq $xxx, %rsp instruction, that shouldn't have any bad side effect
         self.lines.insert(i + 1, Line("\tsubq ${}, %rsp\n".format(amount), i))
-        i += 1
+        i += 2
         # search for all ret instructions and place a "subq $-xxx, %rbp" like statement
         # right before the (real) instruction before the ret instruction
 
@@ -240,7 +261,11 @@ class FunctionSection(Section):
 
             # search for ret instruction
             while j < len(self.lines) and not is_ret_instruction(self.lines[j]):
+                if is_bad(i):
+                    return
                 j += 1
+            if is_bad(i):
+                return
             if j == len(self.lines):
                 return
             # no self.lines[j] =~ "ret" and search for real instruction directly before
@@ -248,11 +273,12 @@ class FunctionSection(Section):
             while k > i and not is_real_instruction(self.lines[k]):
                 k -= 1
             if k == i:
-                #print("error", self.lines[k])
-                logging.warning("Didn't pad function properly")
-                return
+                log_failure()
+                return False
             self.lines.insert(k, Line("\taddq ${}, %rsp\n".format(amount), k))
-            i = k + 2
+            i = j + 2
+        logging.warning("pad properly")
+        return True
 
     def _replace_leave(self):
         i = 0
@@ -279,7 +305,7 @@ class AssemblyFile:
     """
 
     def __init__(self, lines: list):
-        self._lines = [] # t.List[Line]
+        self._lines = [] # type: t.List[Line]
         self.sections = []
         self.add_lines(lines)
 
@@ -295,13 +321,42 @@ class AssemblyFile:
                 cur.append(line)
             self.sections.append(cur)
         elif any(line.startswith(".cfi") for line in self._lines): # gcc mode
+
+            """
+            # search for cfi_endproc, add ".text" Line after it
+
+            def is_cfi_endproc(line: Line) -> bool:
+                return line.content.strip() == ".cfi_endproc"
+
+            def break_up_text_block(lines: t.List[Line]) -> t.List[Section]:
+                # Breaks up text segments
+                i = 0
+                cur_lines = []
+                sections = []
+                while i < len(lines):
+                    if is_cfi_endproc(lines[i]):
+                        cur_lines.append(lines[i])
+                        sections.append(Section.from_lines(cur_lines))
+                        cur_lines = []
+                        while i < len(lines):
+                            lines.insert(i, Line(".text", i))
+                    else:
+                        cur_lines.append(lines[i])
+                        i += 1
+                if cur_lines:
+                    sections.append(Section.from_lines(cur_lines))
+                return sections
+            self.sections = break_up_text_block(self._lines)
+            #for s in self.sections:
+            """
             cur = Section()
-            for line in self._lines:
-                if line.content.strip() == ".text":
+            for i, line in enumerate(self._lines):
+                if line.content.strip() == ".text" or line.is_segment_statement():
                     self.sections.append(Section.from_lines(cur.lines))
                     cur = Section()
                 cur.append(line)
             self.sections.append(cur)
+            #print(self)
         else:
             logging.error("\n".join(line.content for line in self._lines))
             raise ValueError("Unknown assembler")
@@ -333,12 +388,16 @@ class AssemblyFile:
             while i < len(_sections) - 1:
                 if random.randrange(0, 2) == 0:
                     tmp = _sections[i]
-                    _sections[i] = _sections[i + 1]
+                    _sections[i] = _sections[i]
                     _sections[i + 1] = tmp
                 i += 2
         else:
             random.shuffle(_sections)
-        self.sections[1:-1] = _sections
+        pre = self.sections[0]
+        post = self.sections[-1]
+        self.sections = [pre] + _sections + [post]
+        #random.shuffle(self.sections)
+
 
     def randomize_stack(self, padding: range):
         for section in self.sections:
@@ -439,10 +498,12 @@ def process_assembler(call: t.List[str]):
 
     processor = AssemblyProcessor(config)
     call[0] = as_tool
-    processor.process(input_file)
-    ret = exec(" ".join(call))
-    if ret is None:
-        return
+    for i in range(0, 2):
+        res = processor.process(input_file)
+        ret = exec(" ".join(call))
+        if ret is None:
+            return
+        store_original_assm()
     for i in range(0, 6):
         processor.process(input_file, small_changes=True)
         ret = exec(" ".join(call))
@@ -478,11 +539,12 @@ if __name__ == "__main__":
     print(Line("	.section	.text.unlikely\n", 1).is_segment_statement())
     #exit(0)
     #assm = AssemblyFile.from_file("/home/parttimenerd/Documents/Studium/Bachelorarbeit/test/hello2/hello.s")
-    assm = AssemblyFile.from_file("/tmp/abc.s")
+    assm = AssemblyFile.from_file("/tmp/hello.s")
     #test(assm)
     #assm.randomize_malloc_calls(padding=range(1, 1000))
     #test(assm)
-    assm.randomize_file_structure()
+    #assm.randomize_file_structure()
+    assm.randomize_stack(range(0, 10))
     test(assm)
     #print("till randomize")
     #assm.randomize_stack(padding=range(1, 100))
