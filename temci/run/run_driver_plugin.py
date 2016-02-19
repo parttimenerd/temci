@@ -107,10 +107,10 @@ class NicePlugin(AbstractRunDriverPlugin):
 
 
 @register(ExecRunDriver, "env_randomize", Dict({
-    "min": NaturalNumber() // Default(1) // Description("Minimum number of added random environment variables"),
-    "max": PositiveInt() // Default(1) // Description("Maximum number of added random environment variables"),
-    "var_max": PositiveInt() // Default(get_memory_page_size() // 2) // Description("Maximum length of each random value"),
-    "key_max": PositiveInt() // Default(get_memory_page_size() // 2) // Description("Maximum length of each random key")
+    "min": NaturalNumber() // Default(4) // Description("Minimum number of added random environment variables"),
+    "max": PositiveInt() // Default(4) // Description("Maximum number of added random environment variables"),
+    "var_max": PositiveInt() // Default(get_memory_page_size()) // Description("Maximum length of each random value"),
+    "key_max": PositiveInt() // Default(get_memory_page_size()) // Description("Maximum length of each random key")
 }))
 class EnvRandomizePlugin(AbstractRunDriverPlugin):
     """

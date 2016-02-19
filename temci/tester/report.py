@@ -945,6 +945,7 @@ class HTMLReporter2(AbstractReporter):
         return html
 
     def _short_summary_of_tested_pair(self, obj: TestedPair, extended: bool = False, use_modals: bool = False) -> str:
+        ts = None # type: TestedPairProperty
         tested_per_prop = [
             {
                 "title": "Mean difference",
@@ -977,25 +978,48 @@ class HTMLReporter2(AbstractReporter):
                     </ul>
                 """, trigger="hover click")
             }, {
-                "title": "... ci",
-                "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[0],
-                "format": "{:5.5f}",
-                "extended": True,
-                "popover": Popover(self, "Confidence interval", """
-                        The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
-                        lies in the interval of which the lower and the upper bound are given
-                        (assuming the data is normal distributed to a certain degree).
-                                                """.format(p=1-self.misc["alpha"]))
-            } ,{
-                "title": "",
-                "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[1],
-                "format": "{:5.5f}",
-                "extended": True,
-                "popover": Popover(self, "Confidence interval", """
-                        The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
-                        lies in the interval of which the lower and the upper bound are given.
-                                                """.format(p=1-self.misc["alpha"]))
+                "title": "Min difference",
+                "popover": None,#Popover(self, "", """  """),
+                "func": lambda x: x.first.min() - x.second.min(),
+                "format": "{:5.5f}"
             }, {
+                "title": "... per min",
+                "func": lambda x: (x.first.min() - x.second.min()) / x.first.min(),
+                "format": "{:5.5%}",
+                "popover": None,#Popover(self, "Explanation", """            """)
+            }, {
+                "title": "... per std dev",
+                "func": lambda x: (x.first.min() - x.second.min()) / x.max_std_dev(),
+                "format": "{:5.5%}",
+                "popover": Popover(self, "Explanation", """
+                The mean difference relative to the maximum standard deviation is important,
+                because as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
+                    Gernot Heiser</a> points out:
+                    <ul>
+                        <li>Don't believe any effect that is less than a standard deviation</li>
+                        <li>Be highly suspicious if it is less than two standard deviations</li>
+                    </ul>
+                """, trigger="hover click")
+            },{
+#               "title": "... ci",
+#               "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[0],
+#               "format": "{:5.5f}",
+#               "extended": True,
+#               "popover": Popover(self, "Confidence interval", """
+#                       The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
+#                       lies in the interval of which the lower and the upper bound are given
+#                       (assuming the data is normal distributed to a certain degree).
+#                                               """.format(p=1-self.misc["alpha"]))
+#           } ,{
+#               "title": "",
+#               "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[1],
+#               "format": "{:5.5f}",
+#               "extended": True,
+#               "popover": Popover(self, "Confidence interval", """
+#                       The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
+#                       lies in the interval of which the lower and the upper bound are given.
+#                                               """.format(p=1-self.misc["alpha"]))
+#           }, {
                 "title": obj.tester.name,
                 "func": lambda x: x.equal_prob(),
                 "format": "{:5.5%}",
@@ -1139,7 +1163,13 @@ class HTMLReporter2(AbstractReporter):
                 "popover": Popover(self, "Explanation", """The minimum value. It's a bad sign if the maximum
                                                   is far lower than the mean and you can't explain it.
                                                   """),
-                "extended": True
+                "extended": False
+            }, {
+                "title": "$$\sigma$$ per min",
+                "func": lambda x: x.std_dev() / x.min(),
+                "format": "{:5.5f}",
+                "popover": Popover(self, "sdf", "sdf"),
+                "extended": False
             }, {
                 "title": "max",
                 "func": lambda x: x.max(),
@@ -1748,7 +1778,7 @@ class Table:
         formats = [{
             "ending": ".tex",
             "mime": "application/x-latex",
-            "descr": "Latex table",
+            "descr": "Latex table (requires package <code>booktabs</code>)",
             "code": self.latex()
          }, {
             "ending": ".tex",
@@ -1798,20 +1828,22 @@ class Table:
         if with_env:
             tex = """
 \\documentclass[10pt,a4paper]{article}
+\\usepackage{booktabs}
 \\begin{document}
             """
             tex_end = """
 \\end{document}
 """
         tex += """
-    \\begin{{tabular}}{{l|{cs}}}
+    \\begin{{tabular}}{{l{cs}}}\\toprule
         """.format(cs="".join("r" * self.width))
         tex_end = """
+        \\bottomrule
     \\end{tabular}
         """ + tex_end
-        tex += " & ".join(cell.content for cell in [self.orig_anchor_cell] + self.header_row) + "\\\\ \n \\hline "
+        tex += " & ".join(cell.content for cell in [self.orig_anchor_cell] + self.header_row) + "\\\\ \n \\midrule "
         for (hcell, row) in zip(self.header_col, self.content_cells):
-            tex += " & ".join(cell.content.replace("%", "\\%") for cell in [hcell] + row) + "\\\\ \n"
+            tex += " & ".join(cell.content.replace("%", "\\%").replace("_", "\\_") for cell in [hcell] + row) + "\\\\ \n"
         return tex + tex_end
 
     def csv(self) -> str:

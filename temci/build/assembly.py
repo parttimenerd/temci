@@ -454,6 +454,8 @@ class AssemblyProcessor:
         typecheck(self.config, self.config_scheme)
 
     def process(self, file: str, small_changes = False):
+        if not any(self.config[x] for x in ["file_structure", "heap", "stack", "bss", "data", "rodata"]):
+            return
         assm = AssemblyFile.from_file(file)
         #assm.to_file("/tmp/abc.s")
         if self.config["file_structure"]:

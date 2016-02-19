@@ -961,8 +961,8 @@ class TestedPairProperty(BaseStatObject):
         msgs += [
             EffectToSmallWarning.create_if_valid(self, self.mean_diff_per_dev(), self.property),
             EffectToSmallError.create_if_valid(self, self.mean_diff_per_dev(), self.property),
-            SignificanceTooLowWarning.create_if_valid(self, sign_val, property),
-            SignificanceTooLowError.create_if_valid(self, sign_val, property),
+            SignificanceTooLowWarning.create_if_valid(self, sign_val, self.property),
+            SignificanceTooLowError.create_if_valid(self, sign_val, self.property),
         ]
 
         return msgs
