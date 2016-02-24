@@ -96,10 +96,10 @@ class NicePlugin(AbstractRunDriverPlugin):
         self._set_io_nice(self.misc_settings["io_nice"])
 
     def _set_nice(self, nice: int):
-        self._exec_command("sudo renice -n {} -p {}".format(nice, os.getpid()))
+        self._exec_command("renice -n {} -p {}".format(nice, os.getpid()))
 
     def _set_io_nice(self, nice: int):
-        self._exec_command("sudo ionice -n {} -p {}".format(nice, os.getpid()))
+        self._exec_command("ionice -n {} -p {}".format(nice, os.getpid()))
 
     def teardown(self):
         self._set_nice(self.old_nice)
@@ -158,7 +158,7 @@ class PreheatPlugin(AbstractRunDriverPlugin):
 
 @register(ExecRunDriver, "other_nice", Dict({
     "nice": Int(range=range(-20, 20)) // Description("Niceness values for other processes.")
-                                      // Default(18),
+                                      // Default(19),
     "min_nice": Int(range=range(-15, 20)) // Default(-10)
                 // Description("Processes with lower nice values are ignored.")
 }))
@@ -337,7 +337,7 @@ class DropFSCaches(AbstractRunDriverPlugin):
 
     def setup_block_run(self, block: RunProgramBlock):
         num = self.misc_settings["free_pagecache"] + 2 * self.misc_settings["free_dentries_inodes"]
-        self._exec_command("sudo sync; sudo sh -c 'echo {} > /proc/sys/vm/drop_caches'".format(num))
+        self._exec_command("sync; echo {} > /proc/sys/vm/drop_caches".format(num))
 
 
 @register(ExecRunDriver, "disable_swap", Dict({}))
@@ -349,10 +349,10 @@ class DisableSwap(AbstractRunDriverPlugin):
     needs_root_privileges = True
 
     def setup(self):
-        self._exec_command("sudo swapoff -a")
+        self._exec_command("swapoff -a")
 
     def teardown(self):
-        self._exec_command("sudo swapon -a")
+        self._exec_command("swapon -a")
 
 
 @register(ExecRunDriver, "disable_cpu_caches", Dict({}))
@@ -369,10 +369,10 @@ class DisableCPUCaches(AbstractRunDriverPlugin):
     needs_root_privileges = True
 
     def setup(self):
-        setup.exec("cpu_cache", "sudo insmod disable_cache.ko")
+        setup.exec("cpu_cache", "insmod disable_cache.ko")
 
     def teardown(self):
-        setup.exec("cpu_cache", "sudo rmmod disable_cache.ko")
+        setup.exec("cpu_cache", "rmmod disable_cache.ko")
 
 
 @register(ExecRunDriver, "cpu_governor", Dict({
@@ -412,5 +412,5 @@ class CPUGovernor(AbstractRunDriverPlugin):
             raise ValueError("No such governor {} for cpu {}, expected one of these: ".
                              format(cpu, governor, ", ".join(self.av_governors)))
         with open(self.cpu_paths[cpu] + "scaling_governor", "w") as f:
-            self._exec_command("sudo /bin/sh -c 'echo {gov} >  {p}scaling_governor'"
+            self._exec_command("echo {gov} >  {p}scaling_governor"
                                .format(gov=governor, p=self.cpu_paths[cpu]))

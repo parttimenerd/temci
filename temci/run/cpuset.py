@@ -258,7 +258,7 @@ class CPUSet:
                     #logging.error(str(err))
 
     def _set_cpu_affinity(self, pid: int, cpus):
-        cmd = "sudo taskset --all-tasks --cpu-list -p {} {}; sudo nice".format(cpus, pid)
+        cmd = "taskset --all-tasks --cpu-list -p {} {}; nice".format(cpus, pid)
         proc = subprocess.Popen(["/bin/sh", "-c", cmd],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
@@ -272,7 +272,7 @@ class CPUSet:
 
     def _cset(self, argument: str):
         #cmd = ["/bin/sh", "-c", "sudo cset {}".format(argument)]
-        cmd = ["/bin/sh", "-c", "sudo python3 -c 'import cpuset.main; print(cpuset.main.main())' " + argument]
+        cmd = ["/bin/sh", "-c", "python3 -c 'import cpuset.main; print(cpuset.main.main())' " + argument]
         proc = subprocess.Popen(cmd,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
@@ -281,6 +281,6 @@ class CPUSet:
         if proc.poll() > 0:
             raise EnvironmentError (
                 "Error with cset tool. "
-                " More specific error (cmd = 'sudo cset {}'): ".format(argument) + str(err) + str(out)
+                " More specific error (cmd = 'cset {}'): ".format(argument) + str(err) + str(out)
             )
         return str(out)

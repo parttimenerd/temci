@@ -6,6 +6,11 @@ It's currently in a pre alpha state as it's a part of the evaluation for my bach
 that I'm currently doing,
 """
 
+import temci.utils.util as util
+
+if __name__ == "__main__":
+    util.allow_all_imports = True
+
 import logging, time
 import typing as t
 
@@ -15,16 +20,13 @@ import zlib
 from collections import defaultdict
 from enum import Enum
 
+from temci.tester.testers import Tester, TTester, TesterRegistry
+
 START_TIME = time.time()
 
 import subprocess
 
 import itertools
-
-import temci.utils.util as util
-
-if __name__ == "__main__":
-    util.allow_all_imports = True
 
 from temci.tester.rundata import RunData
 
@@ -35,7 +37,7 @@ from pprint import pprint
 from temci.tester import report
 import scipy as sp
 
-from temci.utils.util import InsertionTimeOrderedDict
+from temci.utils.util import InsertionTimeOrderedDict, geom_std
 
 itod_from_list = InsertionTimeOrderedDict.from_list
 
@@ -63,15 +65,6 @@ class Mode(Enum):
 CALC_MODE = Mode.geom_mean_rel_to_best # type: Mode
 
 
-def geom_std(values: t.List[float]) -> float:
-    """
-    Calculates the geometric standard deviation for the values.
-    Source: https://en.wikipedia.org/wiki/Geometric_standard_deviation
-    """
-    gmean = stats.gmean(values)
-    return sp.exp(sp.sqrt(sp.sum([sp.log(x / gmean) ** 2 for x in values]) / len(values)))
-
-
 def amean_std(values: t.List[float]) -> float:
     """
     Calculates the arithmetic mean.
@@ -80,17 +73,17 @@ def amean_std(values: t.List[float]) -> float:
 
 
 def used_summarize_mean(values: t.List[float]) -> float:
-    if CALC_MODE == Mode.geom_mean_rel_to_best:
+    if CALC_MODE in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_one]:
         return stats.gmean(values)
-    elif CALC_MODE in [Mode.mean_rel_to_first, Mode.mean_rel_to_one]:
+    elif CALC_MODE in [Mode.mean_rel_to_first]:
         return sp.mean(values)
     assert False
 
 
 def used_summarize_mean_std(values: t.List[float]) -> float:
-    if CALC_MODE == Mode.geom_mean_rel_to_best:
+    if CALC_MODE in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_one]:
         return geom_std(values)
-    elif CALC_MODE in [Mode.mean_rel_to_first, Mode.mean_rel_to_one]:
+    elif CALC_MODE in [Mode.mean_rel_to_first]:
         return amean_std(values)
     assert False
 
@@ -143,17 +136,17 @@ class BOTableColumn:
 
 mean_score_column = lambda: BOTableColumn({
     Mode.geom_mean_rel_to_best: "mean score (gmean(mean / best mean))",
-    Mode.mean_rel_to_first: "mean score (mean(mean / mean of first impl))",
+    Mode.mean_rel_to_first: "mean score (gmean(mean / mean of first impl))",
     Mode.mean_rel_to_one: "mean score (mean(mean / 1))"
 }[CALC_MODE], "{:5.5%}", used_rel_mean_property, used_summarize_mean)
 mean_score_std_column = lambda: BOTableColumn({
     Mode.geom_mean_rel_to_best: "mean score std (gmean std(mean / best mean))",
-    Mode.mean_rel_to_first: "mean score std (std(mean / mean of first impl))",
+    Mode.mean_rel_to_first: "mean score std (gmean std(mean / mean of first impl))",
     Mode.mean_rel_to_one: "mean score std (std(mean / 1))"
 }[CALC_MODE], "{:5.5%}", used_rel_mean_property, used_summarize_mean_std)
 mean_rel_std = lambda: BOTableColumn({
     Mode.geom_mean_rel_to_best: "mean rel std (gmean(std / mean))",
-    Mode.mean_rel_to_first: "mean rel std (mean(std / mean))",
+    Mode.mean_rel_to_first: "mean rel std (gmean(std / mean))",
     Mode.mean_rel_to_one: "mean rel std (mean(std / mean))"
 }[CALC_MODE], "{:5.5%}", used_std_property, used_summarize_mean)
 
@@ -1708,12 +1701,105 @@ def process(config: ConfigDict, name: str = None, build_dir: str = None, build: 
             lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
 
 
+DataBlock = t.Dict[str, t.Union[t.Dict[str, t.List[float]], t.Any]]
+
+
+def produce_ttest_comparison_table(datas: t.List[t.List[DataBlock]],
+                                   impls: t.List[str],
+                                   data_descrs: t.List[str],
+                                   filename: str,
+                                   property: str = "task-clock", alpha: float = 0.05,
+                                   tester_name: str = "t",
+                                   ratio_format: str = "{:3.0%}"):
+
+    assert len(datas) == len(data_descrs)
+
+    tester = TesterRegistry.get_for_name(tester_name, [alpha, 2 * alpha])
+
+    def not_equal(data_block1: DataBlock, data_block2: DataBlock) -> Bool:
+
+        def extract_list(data_block: DataBlock) -> t.List[float]:
+            return data_block["data"][property]
+
+        return tester.test(extract_list(data_block1), extract_list(data_block2)) < alpha
+
+    def get_data_blocks_for_impl(data: t.List[DataBlock], impl: str) -> t.List[DataBlock]:
+        return [x for x in data if x["attributes"]["impl"] == impl]
+
+    def not_equal_ratio_for_impl(data1: t.List[DataBlock], data2: t.List[DataBlock], impl: str) -> float:
+        bools = [not_equal(f, s) for (f, s) in zip(get_data_blocks_for_impl(data1, impl), get_data_blocks_for_impl(data2, impl))]
+        not_equal_num = sum(bools)
+        return not_equal_num / len(bools)
+
+    def not_equal_ratios_forall_impls(data1: t.List[DataBlock], data2: t.List[DataBlock]) -> t.List[float]:
+        l = [not_equal_ratio_for_impl(data1, data2, impl) for impl in impls]
+        l.append(sum(l) / len(l))
+        return l
+
+    def get_data_permutation_ratios_per_impl() -> t.List[t.Tuple[str, t.List[float]]]:
+        tuples = []
+        for (i, (data1, descr1)) in enumerate(zip(data, data_descrs)):
+            for (data2, descr2) in list(zip(data, data_descrs))[i + 1:]:
+                descr = "{} != {}?".format(descr1, descr2)
+                ratios = not_equal_ratios_forall_impls(data1, data2)
+                tuples.append((descr, ratios))
+        return tuples
+
+    def tuples_to_html(tuples: t.List[t.Tuple[str, t.List[float]]]) -> str:
+        html = """
+        <html>
+            <body>
+            <table><tr><th></th>{}</tr>
+        """.format("".join("<th>{}</th>".format(descr) for (descr, d) in tuples))
+        for (i, impl) in enumerate(impls + ["average"]):
+            html += """
+            <tr><td>{}</td>{}</tr>
+            """.format(impl, "".join("<td>{}</td>".format(ratio_format.format(d[i])) for (_, d) in tuples))
+        html += """
+            <table>
+            </body>
+        </html>
+        """
+        return html
+
+    def tuples_to_tex(tuples: t.List[t.Tuple[str, t.List[float]]]) -> str:
+        tex = """
+\\documentclass[10pt,a4paper]{article}
+\\usepackage{booktabs}
+\\begin{document}
+            """
+        tex_end = """
+\\end{document}
+"""
+        tex += """
+    \\begin{{tabular}}{{l{cs}}}\\toprule
+        """.format(cs="".join("r" * len(tuples)))
+        tex_end = """
+        \\bottomrule
+    \\end{tabular}
+        """ + tex_end
+        tex += "&" + " & ".join(descr for (descr, _) in tuples) + "\\\\ \n \\midrule "
+        for (i, impl) in enumerate(impls + ["average"]):
+            tex += """
+            {} & {} \\\\
+            """.format(impl, " & ".join(ratio_format.format(d[i]).replace("%", "\\%") for (_, d) in tuples))
+        return tex + tex_end
+
+    tuples = get_data_permutation_ratios_per_impl()
+    #pprint(tuples)
+
+    with open(filename + ".html", "w") as f:
+        f.write(tuples_to_html(tuples))
+
+    with open(filename + ".tex", "w") as f:
+        f.write(tuples_to_tex(tuples))
+
 MODE = "haskell_full"
 
 
 if MODE == "haskell_full":
     optis = ["", "-O", "-O2", "-Odph"]
-    """
+
     for opti in optis:
         try:
             config = replace_run_with_build_cmd(haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
@@ -1744,10 +1830,11 @@ if MODE == "haskell_full":
         except BaseException as ex:
             logging.exception(ex)
             pass
-    """
+
     optis = ["-O", "-O2", "-Odph"]
     configs = [haskel_config(INPUTS_PER_CATEGORY, opti) for opti in optis]
     data = [yaml.load(open("haskell" + opti + ".yaml", "r")) for opti in optis]
+
     """
     for (by_opti, app) in [(True, "_grouped_by_opti"), (False, "_grouped_by_version")]:
         lang = Language.merge_different_versions_of_the_same(configs, optis, by_opti)
@@ -1757,7 +1844,7 @@ if MODE == "haskell_full":
             _report_dir = "haskell_merged_report" + "_" + str(mode) + app
             os.system("mkdir -p " + _report_dir)
             lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
-    """
+
     for (first_opti, second_opti, app) in [(0, 1, "O-O2"), (1, 2, "O2-Odph")]:
         lang = Language.from_config_dict(configs[first_opti])
         lang.set_difference_from_two_result_dicts((data[first_opti], data[second_opti]), app)
@@ -1766,3 +1853,6 @@ if MODE == "haskell_full":
             _report_dir = "haskell_" + app + "_report" + "_" + str(mode)
             os.system("mkdir -p " + _report_dir)
             lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
+    """
+
+    produce_ttest_comparison_table(data, ["ghc-" + x for x in AV_GHC_VERSIONS], optis, "haskell_comp")

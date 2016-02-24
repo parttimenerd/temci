@@ -39,8 +39,11 @@ class ReporterRegistry(AbstractRegistry):
 
 class AbstractReporter:
 
-    def __init__(self, misc_settings: dict = None, stats_helper: RunDataStatsHelper = None):
+    def __init__(self, misc_settings: dict = None, stats_helper: RunDataStatsHelper = None,
+                 excluded_properties: t.List[str] = None):
+        excluded_properties = excluded_properties or Settings()["report/excluded_properties"]
         self.misc = misc_settings
+        self.stats_helper = None  # type: RunDataStatsHelper
         if stats_helper is None:
             runs = []
             typecheck(Settings()["report/in"], ValidYamlFileName())
@@ -49,6 +52,7 @@ class AbstractReporter:
             self.stats_helper = RunDataStatsHelper.init_from_dicts(runs)
         else:
             self.stats_helper = stats_helper
+        self.stats_helper = self.stats_helper.exclude_properties(excluded_properties)
         self.stats = TestedPairsAndSingles(self.stats_helper.valid_runs(), distinct_descriptions=True)
 
     def report(self):
@@ -554,7 +558,12 @@ class HTMLReporter(AbstractReporter):
     "gen_pdf": Bool() // Default(False) // Description("Generate pdf versions of the plotted figures?"),
     "gen_xls": Bool() // Default(False) // Description("Generate excel files for all tables"),
     "show_zoomed_out": Bool() // Default(False)
-                       // Description("Show zoomed out (x min = 0) figures in the extended summaries?")
+                       // Description("Show zoomed out (x min = 0) figures in the extended summaries?"),
+    "percent_format": Str() // Default("{:5.5%}") // Description("Format string used to format floats as percentages"),
+    "min_in_comparison_tables": Bool() // Default(True)
+                                // Description("Show the mininmum related values in the big comparison table"),
+    "mean_in_comparison_tables": Bool() // Default(True)
+                                // Description("Show the mean related values in the big comparison table")
 }))
 class HTMLReporter2(AbstractReporter):
     """
@@ -574,6 +583,7 @@ class HTMLReporter2(AbstractReporter):
         resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
         shutil.copytree(resources_path, self.misc["out"])
         runs = self.stats_helper.valid_runs()
+        self.percent_format = self.misc["percent_format"]
         self.app_html = ""
         html = """<html lang="en">
     <head>
@@ -715,28 +725,30 @@ class HTMLReporter2(AbstractReporter):
                 rel_diff = None
                 if property is None:
                     popover.content = """
-                        Geometric mean of the mean differences relative to the means of the left:
+                        Geometric mean of the means of the left relative to the means of the right:
                         \\[\\sqrt[\|properties\|]{
                         \\prod_{p \in \\text{properties}}
-                        \\frac{\\overline{\\text{left[p]}} - \\overline{\\text{right[p]}}}{
-                            \\overline{\\text{left[p]}}}}\]
+                        \\frac{\\overline{\\text{left[p]}}}{
+                            \\overline{\\text{right[p]}}}}\]
                         <p>Using the more widely known would be like
                         <a href='http://ece.uprm.edu/~nayda/Courses/Icom6115F06/Papers/paper4.pdf?origin=publication_detail'>
-                        lying</a></p>.
-                    """
-                    rel_diff = pair.rel_difference()
+                        lying</a>.</p>
+                        <p>The geometric standard deviation is <b>%s</b></p>.
+                    """ % self.percent_format.format(pair.first_rel_to_second_std())
+                    rel_diff = pair.first_rel_to_second()
                     popover.trigger = "hover click"
                 else:
                     pair = pair[property]
                     popover.content="""Difference relative to the mean of the left:
                     \\begin{align}
-                        & \\frac{\\overline{\\text{left[%s]}} - \\overline{\\text{right[%s]}}}{\\overline{\\text{left[%s]}}} \\\\
-                        &= \\frac{%5.4f - %5.4f}{%5.4f}
+                        & \\frac{\\overline{\\text{left[%s]}}}{\\overline{\\text{right[%s]}}} \\\\
+                        &= \\frac{%5.4f}{%5.4f}
                     \\end{align}
-                    """ % (property, property, property, pair.first.mean(), pair.second.mean(), pair.first.mean())
-                    rel_diff = pair.mean_diff_per_mean()
-
-                cell = Cell(self, content=str(rel_diff), popover=popover, color_class_obj=pair, show_click_on_info=True)
+                    <p>The maximum standard deviation of the left and the right relative to the mean of the right is <b>%s</b>.</p>
+                    """ % (property, property, pair.first.mean(), pair.second.mean(),
+                           self.percent_format.format(pair.max_std_dev() / pair.second.mean()))
+                    rel_diff = pair.first_rel_to_second()
+                cell = Cell(self, content=self.percent_format.format(rel_diff), popover=popover, color_class_obj=pair, show_click_on_info=True)
                 cell.modal_id = self._short_summary_modal(pair)
                 table[i, j] = cell
         return table
@@ -856,9 +868,9 @@ class HTMLReporter2(AbstractReporter):
                 "func": lambda x: x.mean_diff(),
                 "format": "{:5.5f}"
             }, {
-                "title": "... per mean",
+                "title": "... per first mean",
                 "func": lambda x: x.mean_diff_per_mean(),
-                "format": "{:5.5%}",
+                "format": self.percent_format,
                 "popover": Popover(self, "Explanation", """The mean difference relative to the first mean
                 \\begin{align}
                     & \\frac{ \\overline{\\text{%s}} - \\overline{\\text{%s}}}{ \\overline{\\text{%s}} } \\\\
@@ -870,9 +882,9 @@ class HTMLReporter2(AbstractReporter):
                 """ % (obj.first.parent.description(), obj.second.parent.description(), str(obj.first.parent),
                        float(obj.mean_diff()), float(obj.first.mean())))
             }, {
-                "title": "... per std dev",
+                "title": "... per max std dev",
                 "func": lambda x: x.mean_diff_per_dev(),
-                "format": "{:5.5%}",
+                "format": self.percent_format,
                 "popover": Popover(self, "Explanation", """
                     The mean difference relative to the maximum standard deviation:
                     \\begin{{align}}
@@ -907,7 +919,7 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": obj.tester.name,
                 "func": lambda x: x.equal_prob(),
-                "format": "{:5.5%}",
+                "format": self.percent_format,
                 "popover": self._popover_for_tester(obj.tester)
             }, {
                 "title": "min n",
@@ -946,7 +958,9 @@ class HTMLReporter2(AbstractReporter):
 
     def _short_summary_of_tested_pair(self, obj: TestedPair, extended: bool = False, use_modals: bool = False) -> str:
         ts = None # type: TestedPairProperty
-        tested_per_prop = [
+        tested_per_prop = []
+        if self.misc["mean_in_comparison_tables"]:
+            tested_per_prop.extend([
             {
                 "title": "Mean difference",
                 "popover": Popover(self, "Explanation", """
@@ -956,18 +970,18 @@ class HTMLReporter2(AbstractReporter):
                 "func": lambda x: x.mean_diff(),
                 "format": "{:5.5f}"
             }, {
-                "title": "... per mean",
+                "title": "... per first mean",
                 "func": lambda x: x.mean_diff_per_mean(),
-                "format": "{:5.5%}",
+                "format": self.percent_format,
                 "popover": Popover(self, "Explanation", """The mean difference relative to the first mean
                 gives a number that helps to talk about the practical significance of the mean difference.
                 A tiny difference might be cool, but irrelevant (as caching effects are probably higher, use the
                 \\verb|temci build| if you're curious about this).
                 """)
             }, {
-                "title": "... per std dev",
+                "title": "... per max std dev",
                 "func": lambda x: x.mean_diff_per_dev(),
-                "format": "{:5.5%}",
+                "format": self.percent_format,
                 "popover": Popover(self, "Explanation", """
                 The mean difference relative to the maximum standard deviation is important,
                 because as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
@@ -977,20 +991,22 @@ class HTMLReporter2(AbstractReporter):
                         <li>Be highly suspicious if it is less than two standard deviations</li>
                     </ul>
                 """, trigger="hover click")
-            }, {
+            }])
+        if self.misc["min_in_comparison_tables"]:
+            tested_per_prop.extend([{
                 "title": "Min difference",
                 "popover": None,#Popover(self, "", """  """),
                 "func": lambda x: x.first.min() - x.second.min(),
                 "format": "{:5.5f}"
             }, {
-                "title": "... per min",
+                "title": "... per first min",
                 "func": lambda x: (x.first.min() - x.second.min()) / x.first.min(),
-                "format": "{:5.5%}",
+                "format": self.percent_format,
                 "popover": None,#Popover(self, "Explanation", """            """)
             }, {
-                "title": "... per std dev",
+                "title": "... per max std dev",
                 "func": lambda x: (x.first.min() - x.second.min()) / x.max_std_dev(),
-                "format": "{:5.5%}",
+                "format": self.percent_format,
                 "popover": Popover(self, "Explanation", """
                 The mean difference relative to the maximum standard deviation is important,
                 because as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
@@ -1000,7 +1016,9 @@ class HTMLReporter2(AbstractReporter):
                         <li>Be highly suspicious if it is less than two standard deviations</li>
                     </ul>
                 """, trigger="hover click")
-            },{
+            }])
+#        if self.misc["mean_in_comparison_tables"]:
+#            tested_per_prop.extend([{
 #               "title": "... ci",
 #               "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[0],
 #               "format": "{:5.5f}",
@@ -1019,13 +1037,14 @@ class HTMLReporter2(AbstractReporter):
 #                       The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
 #                       lies in the interval of which the lower and the upper bound are given.
 #                                               """.format(p=1-self.misc["alpha"]))
-#           }, {
-                "title": obj.tester.name,
+#           }])
+        tested_per_prop.extend([{
+                "title": obj.tester.name + " test",
                 "func": lambda x: x.equal_prob(),
-                "format": "{:5.5%}",
+                "format": self.percent_format,
                 "popover": self._popover_for_tester(obj.tester)
-            }
-        ]
+            }])
+
         if not extended:
             l = []
             for elem in tested_per_prop:
@@ -1063,17 +1082,19 @@ class HTMLReporter2(AbstractReporter):
                                         header_popover_func=header_popover_func)
         html = str(table)
         html += """
-            <p {po}>The <b>relative difference</b> between {first} and {second} is <b>{rel_diff}</d>
+            <p {po}>The {first} relative to the {second} is <b>{rel_diff}</b>
+            (geometric standard deviation is {std})</p>
         """.format(po=Popover(self, "Explanation", """
-                        Geometric mean of the mean differences relative to the means of the first:
+                        Geometric mean of the means of the first relative to the means of the second:
                         \\[\\sqrt[\|properties\|]{
                         \\prod_{p \in \\text{properties}}
-                        \\frac{\\overline{\\text{first[p]}} - \\overline{\\text{second[p]}}}{
-                            \\overline{\\text{first[p]}}}}\]
+                        \\frac{\\overline{\\text{first[p]}}}{
+                            \\overline{\\text{second[p]}}}}\]
                         Using the more widely known would be like
                         <a href='http://ece.uprm.edu/~nayda/Courses/Icom6115F06/Papers/paper4.pdf?origin=publication_detail'>
                         lying</a>.
-                 """, trigger="hover click"), first=obj.first, second=obj.second, rel_diff=obj.rel_difference())
+                 """, trigger="hover click"), first=obj.first, second=obj.second, rel_diff=obj.first_rel_to_second(),
+                   std=obj.first_rel_to_second_std())
         return html
 
     def _short_summary_table_for_single_property(self, objs: t.List[SingleProperty], use_modal: bool,
@@ -1124,7 +1145,7 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "$$\sigma$$ per mean",
                 "func": lambda x: x.std_dev_per_mean(),
-                "format": "{:5.0%}",
+                "format": self.percent_format,
                 "popover": Popover(self, "Explanation", """
                     The standard deviation relative to the mean is a measure of how big the relative variation
                     of data is. A small value is considered neccessary for a benchmark to be useful.
@@ -1212,7 +1233,7 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "normality probability",
                 "func": lambda x: x.normality(),
-                "format": "{:5.5%}",
+                "format": self.percent_format,
                 "popover": Popover(self, "Explanation", """
                     Quoting the
                     <a href='http://blog.minitab.com/blog/michelle-paret/using-the-mean-its-not-always-a-slam-dunk'>

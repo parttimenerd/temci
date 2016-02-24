@@ -177,3 +177,14 @@ formatter = logging.Formatter("[%(asctime)s] %(message)s")  # same as default
 handler = RainbowLoggingHandler(sys.stderr, color_funcName=('black', 'yellow', True))
 handler.setFormatter(formatter)
 logger.addHandler(handler)
+
+
+def geom_std(values: t.List[float]) -> float:
+    """
+    Calculates the geometric standard deviation for the values.
+    Source: https://en.wikipedia.org/wiki/Geometric_standard_deviation
+    """
+    import scipy.stats as stats
+    import scipy as sp
+    gmean = stats.gmean(values)
+    return sp.exp(sp.sqrt(sp.sum([sp.log(x / gmean) ** 2 for x in values]) / len(values)))

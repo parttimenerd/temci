@@ -102,7 +102,7 @@ class AbstractRunWorkerPool:
             return
         arg = "\n".join("echo {} > /sys/devices/system/cpu/cpu{}/online"
                         .format(online_status, core_id) for core_id in ht_cores)
-        proc = subprocess.Popen(["/bin/sh", "-c", "sudo bash -c '{}'".format(arg)],
+        proc = subprocess.Popen(["/bin/sh", "-c", arg],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 universal_newlines=True)

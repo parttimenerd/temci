@@ -348,9 +348,9 @@ def prompt_build_dict(with_header: bool = True, whole_config: bool = True) -> di
         rand_dict["heap"] = int(default_prompt("Maximum size of the random padding of each heap allocation? ",
                                                default=get_cache_line_size(), completer=size_completer,
                                                validator=TypeValidator(NaturalNumber())))
-        rand_dict["stack"] = int(default_prompt("Maximum size of the random padding of each stack frame? ",
-                                                default=get_cache_line_size(), completer=size_completer,
-                                                validator=TypeValidator(NaturalNumber())))
+        #rand_dict["stack"] = int(default_prompt("Maximum size of the random padding of each stack frame? ",
+        #                                        default=get_cache_line_size(), completer=size_completer,
+        #                                        validator=TypeValidator(NaturalNumber())))
         rand_dict["bss"] = prompt_yesno("Randomize bss segment? ", default=True)
         rand_dict["data"] = prompt_yesno("Randomize data segment? ", default=True)
         rand_dict["rodata"] = prompt_yesno("Randomize rodata segment? ", default=True)

@@ -39,6 +39,8 @@ class Settings(metaclass=Singleton):
             #  "reporter": Str() // Default("console") // Description(),
             "in": Str() // Default("run_output.yaml") // Description("File that contains the benchmarking results")
                     // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
+            "excluded_properties": ListOrTuple(Str()) // Default(["__ov-time"])
+                    // Description("Properties that aren't shown in the report.")
         }, all_keys=False),
         "run": Dict({
             "discarded_blocks": NaturalNumber() // Description("First n blocks that are discarded") // Default(2),

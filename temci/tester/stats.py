@@ -22,7 +22,7 @@ if util.can_import("scipy"):
     import pandas as pd
 from temci.utils.typecheck import *
 
-from temci.utils.util import join_strs
+from temci.utils.util import join_strs, geom_std
 
 
 class StatMessageType(Enum):
@@ -798,8 +798,10 @@ class TestedPair(BaseStatObject):
         Calculates the geometric mean of the relative mean differences (first - second) / first.
 
         :see http://www.cse.unsw.edu.au/~cs9242/15/papers/Fleming_Wallace_86.pdf
+
+        Don't use this method. It's flawed.
         """
-        # todo: add method (and report.py support) to give a score (based on first mean / second mean)
+        assert False
         mean = 1
         for x in self.properties.values():
             mean *= x.mean_diff_per_mean()
@@ -807,6 +809,20 @@ class TestedPair(BaseStatObject):
             return 1
         sig = np.sign(mean)
         return sig * math.pow(abs(mean), 1 / len(self.properties))
+
+    def first_rel_to_second(self) -> float:
+        """
+        Calculates the geometric mean of the first means relative to the second means.
+
+        :see http://www.cse.unsw.edu.au/~cs9242/15/papers/Fleming_Wallace_86.pdf
+        """
+        return st.gmean([x.first_rel_to_second() for x in self.properties.values()])
+
+    def first_rel_to_second_std(self) -> float:
+        """
+        Calculates the geometric standard deviation for the first_rel_to_second method.
+        """
+        return geom_std([x.first_rel_to_second() for x in self.properties.values()])
 
     def swap(self) -> 'TestedPair':
         """
@@ -988,6 +1004,12 @@ class TestedPairProperty(BaseStatObject):
         :return: (mean(A) - mean(B)) / mean(A)
         """
         return self.mean_diff() / self.first.mean()
+
+    def first_rel_to_second(self) -> float:
+        """
+        :return: mean(first) / mean(second)
+        """
+        return self.first.mean() / self.second.mean()
     
     def mean_diff_per_dev(self) -> float:
         """

@@ -381,7 +381,7 @@ class ExecRunDriver(AbstractRunDriver):
         cwd = block["cwds"][rand_index]
         executed_cmd = block["cmd_prefix"] + [cmd]
         if cpuset is not None and has_root_privileges():
-            executed_cmd.insert(0, "sudo cset proc --move --force --pid $$ {} > /dev/null"\
+            executed_cmd.insert(0, "cset proc --move --force --pid $$ {} > /dev/null"\
                 .format(cpuset.get_sub_set(set_id)))
         env = os.environ.copy()
         env.update(block["env"])

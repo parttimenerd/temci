@@ -95,6 +95,13 @@ class RunData(object):
             return self.attributes["description"]
         return ", ".join("{}={}".format(key, self.attributes[key]) for key in self.attributes)
 
+    def exclude_properties(self, properties: t.List[str]) -> 'RunData':
+        data = {}
+        for prop in self.data:
+            if prop not in properties:
+                data[prop] = self.data[prop]
+        return RunData(data, self.attributes, self.external)
+
 
 class RunDataStatsHelper(object):
     """
@@ -336,3 +343,10 @@ class RunDataStatsHelper(object):
         res = [x for x in self.runs if x is not None]
         #print(res)
         return res
+
+    def exclude_properties(self, properties: t.List[str]) -> 'RunDataStatsHelper':
+        runs = []
+        for run in self.runs:
+            if run is not None:
+                runs.append(run.exclude_properties(properties))
+        return RunDataStatsHelper(runs, self.tester, self.external_count)

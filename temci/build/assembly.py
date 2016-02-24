@@ -175,24 +175,27 @@ class Section:
 
     def randomize_malloc_calls(self, padding: range):
         """
-        Randomizes the malloc calls (and thereby the heap) by adding the given padding to each malloc call.
+        Randomizes the malloc and new method calls (and thereby the heap) by adding the given padding to each malloc call.
         :param padding: given padding
         """
         def rand() -> int:
             return random.randrange(padding.start, padding.stop, padding.step)
+
+        randomized_method_names = ["malloc", "_Znwm", "_Znam", "calloc"]
+        # doesn't support realloc for now
+
         subq_statement_format = "\taddq ${}, %rdi" if sys.maxsize > 2**32 else "\tadd ${}, %edi"
         i = 0
         while i < len(self.lines):
             line = self.lines[i]
             if line.is_statement() and line.to_statement_line().statement == "call":
                 arr = re.split(r"\s+", line.to_statement_line().rest.strip())
-                if len(arr) == 0 or arr[0] != "malloc":
+                if len(arr) == 0 or arr[0] not in randomized_method_names:
                     i += 1
                     continue
                 self.lines.insert(i, Line(subq_statement_format.format(rand()), i))
                 i += 1
             i += 1
-
 
 class FunctionSection(Section):
     """
@@ -382,7 +385,8 @@ class AssemblyFile:
         """
         if len(self.sections) == 0:
             return
-        _sections = self.sections[1:-1]
+        is_gcc = any(line.startswith(".cfi") for line in self._lines)
+        _sections = self.sections[is_gcc:]
         if small_changes:
             i = 0
             while i < len(_sections) - 1:
@@ -462,8 +466,8 @@ class AssemblyProcessor:
             assm.randomize_file_structure(small_changes)
         if self.config["heap"] > 0:
             assm.randomize_malloc_calls(padding=range(0, self.config["heap"]))
-        if self.config["stack"] > 0:
-            assm.randomize_stack(padding=range(0, self.config["stack"]))
+        #if self.config["stack"] > 0:
+        #    assm.randomize_stack(padding=range(0, self.config["stack"]))
         if self.config["bss"]:
             assm.randomize_sub_segments("bss")
         if self.config["data"]:
@@ -471,6 +475,7 @@ class AssemblyProcessor:
         if self.config["rodata"]:
             assm.randomize_sub_segments("rodata")
         assm.to_file(file)
+        #assm.to_file("/tmp/hello.S")
         #assm.to_file("/tmp/abcd.s")
 
 
