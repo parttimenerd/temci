@@ -1,6 +1,7 @@
 import copy
 import random
 
+import click
 from pyaml import pprint
 
 from temci.utils.util import join_strs
@@ -78,7 +79,8 @@ class RunProcessor:
             self.max_runs = tmp
 
         self.shuffle = Settings()["run/shuffle"]
-        if Settings()["run/runs"] != -1:
+        self.fixed_runs = Settings()["run/runs"] != -1
+        if self.fixed_runs:
             self.min_runs = self.max_runs = self.min_runs = Settings()["run/runs"]
         self.start_time = round(time.time())
         try:
@@ -90,7 +92,8 @@ class RunProcessor:
         self.erroneous_run_blocks = [] # type: t.List[t.Tuple[int, BenchmarkingResultBlock]]
 
     def _finished(self):
-        print(len(self.stats_helper.get_program_ids_to_bench()))
+        if self.fixed_runs:
+            return self.block_run_count >= self.max_runs
         return (len(self.stats_helper.get_program_ids_to_bench()) == 0 \
                or not self._can_run_next_block()) and self.min_runs <= self.block_run_count
 
@@ -116,31 +119,22 @@ class RunProcessor:
             last_round_time = time.time()
             if time_per_run != None:
                 last_round_time -= time_per_run * self.run_block_size
-            while not self._finished():
-                if len(self.stats_helper.valid_runs()) == 0:
-                    logging.warning("Finished benchmarking as there a now valid program block to benchmark")
-                    break
-                last_round_span = time.time() - last_round_time
-                last_round_time = time.time()
-                try:
-                    if Settings().has_log_level("info") and \
-                            ("exec" != RunDriverRegistry.get_used() or "start_stop" not in ExecRunDriver.get_used()):
-                        nr = self.block_run_count
-                        estimate, title = "", ""
-                        if nr <= self.min_runs:
-                            estimate = last_round_span * (self.min_runs - self.block_run_count)
-                            title = "Estimated time till minimum runs completed"
-                        else:
-                            estimate = last_round_span * (self.max_runs - self.block_run_count)
-                            title = "Estimated time till maximum runs completed"
-                        estimate = min(estimate, self.end_time - time.time())
-                        estimate_str = humanfriendly.format_timespan(math.floor(estimate))
-                        logging.info("[Finished {nr:>3}] {title}: {time:>20}"
-                                     .format(nr=nr, title=title, time=estimate_str))
-                except:
-                    logging.warning("Error in estimating and printing the needed time.")
-                self._benchmarking_block_run()
-            print()
+            show_progress = Settings().has_log_level("info") and \
+                            ("exec" != RunDriverRegistry.get_used() or "start_stop" not in ExecRunDriver.get_used())
+            showed_progress_before = False
+            if show_progress:
+                if self.fixed_runs:
+                    label = "Benchmark {} times".format(self.max_runs)
+                else:
+                    label = "Benchmark between {} and {} times".format(self.min_runs, self.max_runs)
+                with click.progressbar(range(0, self.max_runs), label=label) as runs:
+                    for run in runs:
+                        if self._finished():
+                            break
+                        self._benchmarking_block_run()
+            else:
+                while not self._finished():
+                    self._benchmarking_block_run()
         except BaseException as ex:
             logging.error("Forced teardown of RunProcessor")
             self.store_and_teardown()
