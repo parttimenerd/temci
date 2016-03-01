@@ -56,7 +56,7 @@ class RunProgramBlock:
         else:
             self.run_driver_class = RunDriverRegistry.get_class(RunDriverRegistry.get_used())
         self.type_scheme = self.run_driver_class.block_type_scheme
-        self.data = deepcopy(self.run_driver_class.block_default)
+        self.data = deepcopy(self.run_driver_class.block_type_scheme.get_default())
         self.data.update(data)
         self.attributes = attributes
         self.is_enqueued = False
@@ -174,7 +174,6 @@ class AbstractRunDriver(AbstractRegistry):
     use_list = True
     default = []
     block_type_scheme = Dict()
-    block_default = {}
     registry = {}
 
     def __init__(self, misc_settings: dict = None):
@@ -253,7 +252,7 @@ class ExecValidator:
         "unexpected_output": (List(Str())|Str()) // Default([]),
         "expected_erroutput": (List(Str())|Str()) // Default([]),
         "unexpected_erroutput": (List(Str())|Str()) // Default([]),
-        "expected_return_code": (List(Int())|Int()) // Default(1)
+        "expected_return_code": (List(Int())|Int()) // Default(0)
     })
 
     def __init__(self, config: dict):
@@ -316,26 +315,16 @@ class ExecRunDriver(AbstractRunDriver):
     use_list = True
     default = ["nice"]
     block_type_scheme = Dict({
-        "run_cmd": (List(Str()) | Str()) // Description("Commands to benchmark"),
-        "env": Dict(all_keys=False, key_type=Str()) // Description("Environment variables"),
-        "cmd_prefix": List(Str()) // Description("Command to append before the commands to benchmark"),
-        "revision": (Int(lambda x: x >= -1) | Str()) // Description("Used revision (or revision number)."
-                                                        "-1 is the current revision."),
-        "cwd": (List(Str())|Str()) // Description("Execution directories for each command"),
-        "runner": ExactEither() // Description("Used runner"),
-        "disable_aslr": Bool() // Description("Disable the address space layout randomization"),
+        "run_cmd": (List(Str()) | Str()) // Default("") // Description("Commands to benchmark"),
+        "env": Dict(all_keys=False, key_type=Str()) // Default({}) // Description("Environment variables"),
+        "cmd_prefix": List(Str()) // Default([]) // Description("Command to append before the commands to benchmark"),
+        "revision": (Int(lambda x: x >= -1) | Str()) // Default(-1) // Description("Used revision (or revision number)."
+                                                                                   "-1 is the current revision."),
+        "cwd": (List(Str())|Str()) // Default(".") // Description("Execution directories for each command"),
+        "runner": ExactEither().dont_typecheck_default() // Default("time") // Description("Used runner"),
+        "disable_aslr": Bool() // Default(False) // Description("Disable the address space layout randomization"),
         "validator": ExecValidator.config_type_scheme
     }, all_keys=False)
-    block_default = {
-        "run_cmd": "",
-        "env": {},
-        "cmd_prefix": [],
-        "revision": -1,
-        "cwd": ".",
-        "base_dir": ".",
-        "runner": "time",
-        "validator": ExecValidator.config_type_scheme.get_default()
-    }
     registry = { }
 
     def __init__(self, misc_settings: dict = None):
@@ -477,7 +466,6 @@ class ExecRunDriver(AbstractRunDriver):
             cls.block_type_scheme["runner"] |= E(klass.name)
             Settings().modify_type_scheme("run/exec_misc/runner", lambda x: x | E(klass.name))
             cls.block_type_scheme[klass.name] = klass.misc_options
-            cls.block_default[klass.name] = klass.misc_options.get_default()
             if klass.__doc__ is not None:
                 header = ""# "Description of {} (class {}):\n".format(name, klass.__qualname__)
                 lines = str(klass.__doc__.strip()).split("\n")

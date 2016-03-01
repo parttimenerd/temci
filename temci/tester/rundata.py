@@ -215,13 +215,14 @@ class RunDataStatsHelper(object):
         """
         to_bench = set()
         for (i, run) in enumerate(self.runs):
-            if i in to_bench or not run:
+            if i in to_bench or run is None:
                 continue
             for j in range(i):
-                if j in to_bench or not self.runs[j]:
+                if j in to_bench or self.runs[j] is None:
                     continue
                 run2 = self.runs[j]
-                if any(self._is_uncertain(prop, run, run2) for prop in set(run.properties)
+                if run2.min_values() == 0 or run.min_values() == 0 or \
+                        any(self._is_uncertain(prop, run, run2) for prop in set(run.properties)
                         .intersection(run2.properties)):
                     to_bench.add(i)
                     to_bench.add(j)

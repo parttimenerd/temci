@@ -66,16 +66,23 @@ class RunProcessor:
         else:
             self.pool = ParallelRunWorkerPool()
         self.run_block_size = Settings()["run/run_block_size"]
-        self.discarded_blocks = Settings()["run/discarded_blocks"]
-        self.pre_runs = self.discarded_blocks * self.run_block_size
-        self.max_runs = max(Settings()["run/max_runs"], Settings()["run/min_runs"]) + self.pre_runs
-        self.min_runs = Settings()["run/min_runs"] + self.pre_runs
+        self.discarded_runs = Settings()["run/discarded_runs"]
+
+        self.max_runs = Settings()["run/max_runs"]
+        self.min_runs = Settings()["run/min_runs"]
+        if self.min_runs > self.max_runs:
+            logging.warning("min_runs ({}) is bigger than max_runs ({}), therefore they are swapped."
+                            .format(self.min_runs, self.max_runs))
+            tmp = self.min_runs
+            self.min_runs = self.max_runs
+            self.max_runs = tmp
+
         self.shuffle = Settings()["run/shuffle"]
         if Settings()["run/runs"] != -1:
-            self.min_runs = self.max_runs = self.min_runs = Settings()["run/runs"] + self.pre_runs
+            self.min_runs = self.max_runs = self.min_runs = Settings()["run/runs"]
         self.start_time = round(time.time())
         try:
-            self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"], Settings()["run/discarded_blocks"])
+            self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"])
         except:
             self.teardown()
             raise
@@ -83,8 +90,9 @@ class RunProcessor:
         self.erroneous_run_blocks = [] # type: t.List[t.Tuple[int, BenchmarkingResultBlock]]
 
     def _finished(self):
+        print(len(self.stats_helper.get_program_ids_to_bench()))
         return (len(self.stats_helper.get_program_ids_to_bench()) == 0 \
-               or not self._can_run_next_block()) and self.min_runs < self.block_run_count
+               or not self._can_run_next_block()) and self.min_runs <= self.block_run_count
 
     def _can_run_next_block(self):
         estimated_time = self.stats_helper.estimate_time_for_next_round(self.run_block_size,
@@ -96,7 +104,7 @@ class RunProcessor:
                             .format(humanfriendly.format_timespan(time.time() + estimated_time - self.start_time),
                                     to_bench_count))
             return False
-        if self.block_run_count >= self.max_runs and self.block_run_count > self.min_runs:
+        if self.block_run_count >= self.max_runs and self.block_run_count >= self.min_runs:
             #print("benchmarked too often, block run count ", self.block_run_count, self.block_run_count + self.run_block_size > self.min_runs)
             logging.warning("Benchmarked program blocks to often and aborted therefore now.")
             return False
@@ -104,26 +112,20 @@ class RunProcessor:
 
     def benchmark(self):
         try:
+            time_per_run = self._make_discarded_runs()
             last_round_time = time.time()
-            while self.block_run_count <= self.pre_runs or not self._finished():
+            if time_per_run != None:
+                last_round_time -= time_per_run * self.run_block_size
+            while not self._finished():
                 if len(self.stats_helper.valid_runs()) == 0:
                     logging.warning("Finished benchmarking as there a now valid program block to benchmark")
                     break
                 last_round_span = time.time() - last_round_time
                 last_round_time = time.time()
                 try:
-                    if Settings().has_log_level("info") and self.block_run_count > self.pre_runs and \
+                    if Settings().has_log_level("info") and \
                             ("exec" != RunDriverRegistry.get_used() or "start_stop" not in ExecRunDriver.get_used()):
-                        # last_round_actual_estimate = \
-                        #    self.stats_helper.estimate_time_for_next_round(self.run_block_size,
-                        #                                                   all=self.block_run_count < self.min_runs)
-                        # estimate = self.stats_helper.estimate_time(self.run_block_size, self.min_runs, self.max_runs)
-                        # if last_round_actual_estimate != 0:
-                        #    estimate *= last_round_span / last_round_actual_estimate
-                        #    estimate = (estimate / self.pool.parallel_number) - (time.time() - self.start_time)
-                        # else:
-                        #    estimate = 0
-                        nr = self.block_run_count - self.pre_runs
+                        nr = self.block_run_count
                         estimate, title = "", ""
                         if nr <= self.min_runs:
                             estimate = last_round_span * (self.min_runs - self.block_run_count)
@@ -148,18 +150,18 @@ class RunProcessor:
             raise
         self.store_and_teardown()
 
-    def _benchmarking_block_run(self):
+    def _benchmarking_block_run(self, block_size: int = None, discard: bool = False, bench_all: bool = None):
+        block_size = block_size or self.run_block_size
+        if bench_all is None:
+            bench_all = self.block_run_count < self.min_runs
         try:
-            self.block_run_count += self.run_block_size
-            to_bench = []
-            if self.block_run_count <= self.min_runs:
-                to_bench = list(enumerate(self.run_blocks))
-            else:
+            to_bench = list(enumerate(self.run_blocks))
+            if not bench_all and self.block_run_count < self.max_runs:
                 to_bench = [(i, self.run_blocks[i]) for i in self.stats_helper.get_program_ids_to_bench()]
             to_bench = [(i, b) for (i, b) in to_bench if self.stats_helper.runs[i] is not None]
             if self.shuffle:
                 random.shuffle(to_bench)
-            if len(to_bench) == 0 or self.block_run_count > self.max_runs:
+            if len(to_bench) == 0:
                 return
             for (id, run_block) in to_bench:
                 self.pool.submit(run_block, id, self.run_block_size)
@@ -169,13 +171,23 @@ class RunProcessor:
                     self.stats_helper.disable_run_data(id)
                     logging.error("Program block no. {} failed: {}".format(id, result.error))
                     self.store_erroneous()
-                elif self.block_run_count > self.pre_runs:
+                elif not discard:
                     self.stats_helper.add_data_block(id, result.data)
+            if not discard:
+                self.block_run_count += block_size
         except BaseException:
             self.store_and_teardown()
             logging.error("Forced teardown of RunProcessor")
             raise
-        self.store()
+        if not discard:
+            self.store()
+
+    def _make_discarded_runs(self) -> t.Optional[int]:
+        if self.discarded_runs == 0:
+            return None
+        start_time = time.time()
+        self._benchmarking_block_run(block_size=self.discarded_runs, discard=True, bench_all=True)
+        return (time.time() - start_time) / self.discarded_runs
 
     def teardown(self):
         self.pool.teardown()

@@ -43,13 +43,13 @@ class Settings(metaclass=Singleton):
                     // Description("Properties that aren't shown in the report.")
         }, all_keys=False),
         "run": Dict({
-            "discarded_blocks": NaturalNumber() // Description("First n blocks that are discarded") // Default(2),
+            "discarded_runs": NaturalNumber() // Description("First n runs that are discarded") // Default(1),
             "min_runs": NaturalNumber() // Default(20) // Description("Minimum number of benchmarking runs"),
             "max_runs": NaturalNumber() // Default(100) // Description("Maximum number of benchmarking runs"),
             "runs": Int(lambda x: x >= -1) // Default(-1) // Description("if != -1 sets max and min runs to it's value"),
             "max_time": ValidTimeSpan() // Default("2h") // Description("Maximum time the whole benchmarking should take "
                                                                         "+- time to execute one block."), # in seconds
-            "run_block_size": PositiveInt() // Default(5)
+            "run_block_size": PositiveInt() // Default(1)
                               // Description("Number of benchmarking runs that are done together"),
             "in": Str() // Default("input.exec.yaml")
                   // Description("Input file with the program blocks to benchmark")

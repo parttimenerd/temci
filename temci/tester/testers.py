@@ -57,8 +57,10 @@ class Tester(object, metaclass=util.Singleton):
         return getattr(st, self.scipy_stat_method)(data1, data2)[-1]
 
     def is_uncertain(self, data1: list, data2: list) -> bool:
+        val = self.test(data1, data2)
         return min(len(data1), len(data2)) == 0 or \
-               self.uncertainty_range[0] <= self.test(data1, data2) <= self.uncertainty_range[1]
+               self.uncertainty_range[0] <= val <= self.uncertainty_range[1] or \
+               val != val
 
     def is_equal(self, data1: list, data2: list):
         return self.test(data1, data2) > max(*self.uncertainty_range)

@@ -320,6 +320,9 @@ class Type(object):
         strs = list(map(lambda x: i_str + x, y_str.split("\n")))
         return strs if str_list else "\n".join(strs)
 
+    def dont_typecheck_default(self) -> 'Type':
+        self.typecheck_default = False
+        return self
 
 class Exact(Type):
     """
