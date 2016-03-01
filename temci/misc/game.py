@@ -358,7 +358,8 @@ class Implementation(BaseObject):
             "bfile": os.path.basename(self.parent.parent.file),
             "program": self.parent.parent.name,
             "impl": self.name,
-            "impl_escaped": html_escape_property(self.name)
+            "impl_escaped": html_escape_property(self.name),
+            "category": self.parent.parent.parent.name
         }
         run_cmd = self.run_cmd.format(**d)
         if self.parent.parent.file is not None:
@@ -1591,13 +1592,57 @@ def cparser_config(inputs_per_category: InputsPerCategory, optimisation: str = "
 
     return config
 
+
+AV_RUST_VERSIONS = ["1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0", "1.5.0", "1.6.0", "beta", "nightly"]
+
+def rust_config(inputs_per_category: InputsPerCategory, optimisation: int = 3) -> ConfigDict:
+    """
+    Generates a game config that compares the different rust versions.
+    """
+
+    def cat(category: str, numbers: t.List[int] = None):
+        return bench_category(category, "rust", inputs_per_category[category], numbers)
+
+    impls = []
+    for version in AV_RUST_VERSIONS:
+        impls.append({
+            "name": str(version),
+            "build_cmd": "cp {file} {category}.rust; multirust run $V rustc {category}.rust -Copt-level=$O -o {category}"
+                .replace("$O", str(optimisation)).replace("$V", str(version)),
+            "run_cmd": "./{category} {input} > /dev/null"
+        })
+
+    config = {
+        "language": "rust",
+        "categories": [
+            ##cat("binarytrees")
+            #cat("chameneosredux"),
+            #cat("fannkuchredux"),
+            #cat("fasta", [1]),
+            #cat("fastaredux"),
+            ##cat("knucleotide"),
+            cat("mandelbrot", [1]),
+            #cat("meteor"),
+            #cat("nbody"),
+            #cat("pidigits"),
+            ##cat("regexdna"),
+            ##cat("revcomp"),
+            #cat("spectralnorm"),
+            #cat("threadring")
+        ],
+        "impls": impls
+    }
+
+    return config
+
+
 AV_GHC_VERSIONS = ["7.0.1", "7.2.1", "7.4.1", "7.6.1", "7.8.1", "7.10.1", "8.0.1"]
 """ These are (currently) the versions installable via the ppa on https://launchpad.net/~hvr/+archive/ubuntu/ghc
 Older versions can't be installed due to version conflicts and missing libraries """
 
 
-def haskel_config(inputs_per_category: InputsPerCategory, optimisation: str, ghc_versions: t.List[str] = None) \
-        -> ConfigDict:
+def haskel_config(inputs_per_category: InputsPerCategory, optimisation: str, ghc_versions: t.List[str] = None,
+                  used_c_compilers: t.List[str] = None) -> ConfigDict:
     """
     Generate a game config comparing all available ghc versions
     :param inputs_per_category: 
@@ -1617,22 +1662,29 @@ def haskel_config(inputs_per_category: InputsPerCategory, optimisation: str, ghc
         return dir
     
     
-    def ghc_impl(version: str) -> t.Dict[str, str]:
+    def ghc_impl(version: str, used_c_compiler: str = None) -> t.Dict[str, str]:
+        c_comp_str = "-pgmc " + used_c_compiler if used_c_compiler else ""
         return {
-            "name": "ghc-" + version,
+            "name": "ghc-" + version + ("-" + used_c_compiler if used_c_compiler else ""),
             "build_cmd": "cp {{file}} {{bfile}}.{{impl}}.hs; PATH={impl_dir}:$PATH ghc {O} -XBangPatterns "
                          "{{bfile}}.{{impl}}.hs -XCPP -XGeneralizedNewtypeDeriving -XTypeSynonymInstances "
                          "-XFlexibleContexts -XUnboxedTuples -funbox-strict-fields -XScopedTypeVariables "
-                         "-XFlexibleInstances -funfolding-use-threshold=32 -XMagicHash -threaded"
-                .format(O=optimisation, impl_dir=ghc_impl_dir(version)),
+                         "-XFlexibleInstances -funfolding-use-threshold=32 {c_comp} -XMagicHash -threaded"
+                .format(O=optimisation, impl_dir=ghc_impl_dir(version), c_comp=c_comp_str),
             "run_cmd": "./{{bfile}}.{{impl}} {{input}} > /dev/null".format(ghc_impl_dir(version))
         }
     
-        
+
+    impls = [ghc_impl(version) for version in ghc_versions]
+    if used_c_compilers:
+        impls = []
+        for c_comp in used_c_compilers:
+            impls.extend([ghc_impl(version, c_comp) for version in ghc_versions])
+
     # Note to the removed programs:
     # These either don't compile with all ghc versions properly or use additional hackage packages
     # The latter is bad because installing the package for all ghc's isn't to costly
-    
+
     config = {
         "language": "haskell",
         "categories": [
@@ -1651,7 +1703,7 @@ def haskel_config(inputs_per_category: InputsPerCategory, optimisation: str, ghc
             ###cat("threadring")    # doesn't compile properly
         ],
         "impls": [
-            ghc_impl(version) for version in AV_GHC_VERSIONS
+            ghc_impl(version) for version in ghc_versions
         ]
     }
 
@@ -1683,11 +1735,14 @@ def process(config: ConfigDict, name: str = None, build_dir: str = None, build: 
     temci_run_file = name + ".exec.yaml"
     temci_result_file = name + ".yaml"
     build_dir = build_dir or "/tmp/" + name
+    if not os.path.exists(build_dir):
+        os.mkdir(build_dir)
     if build:
         lang.create_temci_run_file(build_dir, temci_run_file)
     if benchmark:
+        logging.info("Start benchmarking")
         stop_start_str = "--stop_start" if temci_stop_start else ""
-        cmd = "temci exec {temci_run_file} --runs {temci_runs} {temci_options} {stop_start_str} --out {temci_result_file}"\
+        cmd = "temci exec {temci_run_file} --runner perf_stat --runs {temci_runs} {temci_options} {stop_start_str} --out {temci_result_file}"\
             .format(**locals())
         #print(cmd)
         os.system(cmd)
@@ -1794,7 +1849,39 @@ def produce_ttest_comparison_table(datas: t.List[t.List[DataBlock]],
     with open(filename + ".tex", "w") as f:
         f.write(tuples_to_tex(tuples))
 
-MODE = "haskell_full"
+#MODE = "haskell_full"
+#MODE = "rustc" # requires multirust
+MODE = "haskell_c_compilers"
+
+if MODE == "rustc":
+    optis = [0, 1, 2, 3]
+    """
+    for opti in reversed(optis):
+        try:
+            config = replace_run_with_build_cmd(rust_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
+            process(config, "compile_time_rust_" + str(opti), temci_runs=30, build=True, benchmark=True,
+                    temci_options="--nice --other_nice --send_mail me@mostlynerdless.de", temci_stop_start=True)
+            #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
+        except OSError as ex:
+            logging.error(ex)
+            pass
+        os.sync()
+        time.sleep(60)
+    """
+    for opti in reversed(optis):
+        try:
+            config = rust_config(first_inputs(INPUTS_PER_CATEGORY), opti)
+            process(config, "rust_" + str(opti),
+                    temci_options="--discarded_blocks 1 --nice --other_nice --send_mail me@mostlynerdless.de ",
+                    build=True, benchmark=True, property="task-clock",
+                    temci_stop_start=False)
+            #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
+        except OSError as ex:
+
+            logging.error(ex)
+            pass
+        os.sync()
+        time.sleep(60)
 
 
 if MODE == "haskell_full":
@@ -1856,3 +1943,15 @@ if MODE == "haskell_full":
     """
 
     produce_ttest_comparison_table(data, ["ghc-" + x for x in AV_GHC_VERSIONS], optis, "haskell_comp")
+
+if MODE == "haskell_c_compilers":
+    for opti in ["-Odph"]:
+        try:
+            config = haskel_config(INPUTS_PER_CATEGORY, opti, ghc_versions=AV_GHC_VERSIONS[-1:], used_c_compilers=[None, "clang", "gcc"])
+            process(config, "haskell_c_compilers_" + opti, temci_options=" --discarded_blocks 0 --nice --other_nice", build=True,
+                    benchmark=True, property="task-clock", )
+            logging.info("processed")
+            #shutil.rmtree("/tmp/haskell" + opti)
+        except BaseException as ex:
+            logging.exception(ex)
+            pass

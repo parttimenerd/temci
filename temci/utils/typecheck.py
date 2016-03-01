@@ -1086,7 +1086,7 @@ class ValidYamlFileName(Str):
             return info.errormsg(self, "isn't a file")
         try:
             with open(value, "r") as f:
-                 yaml.load(f.readline())
+                 yaml.load(f.read())
         except (IOError, yaml.YAMLError) as ex:
             return info.errormsg(self, "YAML parse error: " + str(ex))
         return info.wrap(True)

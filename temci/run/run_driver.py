@@ -246,6 +246,51 @@ class AbstractRunDriver(AbstractRegistry):
         raise NotImplementedError()
 
 
+class ExecValidator:
+
+    config_type_scheme = Dict({
+        "expected_output": (List(Str())|Str()) // Default([]),
+        "unexpected_output": (List(Str())|Str()) // Default([]),
+        "expected_erroutput": (List(Str())|Str()) // Default([]),
+        "unexpected_erroutput": (List(Str())|Str()) // Default([]),
+        "expected_return_code": (List(Int())|Int()) // Default(1)
+    })
+
+    def __init__(self, config: dict):
+        #self.config = copy(self.config_type_scheme.get_default())  # type: dict
+        #self.config.update(config)
+        #typecheck_locals(config=self.config_type_scheme)
+        self.config = config
+
+    def validate(self, cmd: str, out: str, err: str, return_code: int):
+        """
+        :raises BenchmarkingError if the check failed
+        """
+        self._match(cmd, "program output", out, self.config["expected_output"], True)
+        self._match(cmd, "program output", out, self.config["unexpected_output"], False)
+        self._match(cmd, "program error output", out, self.config["expected_erroutput"], True)
+        self._match(cmd, "program error output", out, self.config["unexpected_erroutput"], False)
+        self._match_return_code(cmd, self.config["expected_return_code"], return_code)
+
+    def _match(self, cmd: str, name: str, checked_str: str, checker: List(Str())|Str(), expect_match: bool):
+        if not isinstance(checker, List()):
+            checker = [checker]
+        bools = [check in checked_str for check in checker]
+        if expect_match and not all(bools):
+            raise BenchmarkingError("{} for {!r} doesn't contain the string {!r}, it's: {}"
+                                    .format(name, cmd, checker[bools.index(False)], checked_str))
+        if not expect_match and any(bools):
+            raise BenchmarkingError("{} for {!r} contains the string {!r}, it's: {}"
+                                    .format(name, cmd, checker[bools.index(True)], checked_str))
+
+    def _match_return_code(self, cmd: str, exptected_codes: t.Union[t.List[int], int], return_code: int):
+        if isinstance(exptected_codes, int):
+            exptected_codes = [exptected_codes]
+        if return_code not in exptected_codes:
+            raise BenchmarkingError("Unexpected return code {} of {!r}, expected {}"
+                                    .format(str(return_code), cmd, join_strs(list(map(str, exptected_codes)), "or")))
+
+
 @register(RunDriverRegistry, "exec", Dict({
     "perf_stat_props": ListOrTuple(Str()) // Description("Measured properties")
                               // Default(["task-clock", "branch-misses", "cache-references",
@@ -278,7 +323,8 @@ class ExecRunDriver(AbstractRunDriver):
                                                         "-1 is the current revision."),
         "cwd": (List(Str())|Str()) // Description("Execution directories for each command"),
         "runner": ExactEither() // Description("Used runner"),
-        "disable_aslr": Bool() // Description("Disable the address space layout randomization")
+        "disable_aslr": Bool() // Description("Disable the address space layout randomization"),
+        "validator": ExecValidator.config_type_scheme
     }, all_keys=False)
     block_default = {
         "run_cmd": "",
@@ -287,7 +333,8 @@ class ExecRunDriver(AbstractRunDriver):
         "revision": -1,
         "cwd": ".",
         "base_dir": ".",
-        "runner": "time"
+        "runner": "time",
+        "validator": ExecValidator.config_type_scheme.get_default()
     }
     registry = { }
 
@@ -399,10 +446,11 @@ class ExecRunDriver(AbstractRunDriver):
                                     #preexec_fn=os.setsid)
             out, err = proc.communicate()
             t = time.time() - t
-            if proc.poll() > 0:
-                msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
+            ExecValidator(block["validator"]).validate(cmd, out, err, proc.poll())
+            #if proc.poll() > 0:
+            #    msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
                # logging.error(msg)
-                raise BenchmarkingError(msg)
+            #    raise BenchmarkingError(msg)
             return self.ExecResult(time=t, stderr=str(err), stdout=str(out))
         except:
             if proc is not None:

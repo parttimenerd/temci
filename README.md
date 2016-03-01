@@ -21,7 +21,7 @@ Requirements
     - numpy and scipy (and some other packages), if you want to be sure install all needed ones via
         - Ubuntu or Debian:
             ```
-                sudo apt-get install python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy
+                sudo apt-get install python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy time
             ```
         - Fedora (version 23):
             ```
