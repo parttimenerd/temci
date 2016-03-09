@@ -37,7 +37,7 @@ def has_pdflatex() -> bool:
     return does_command_succeed("pdflatex --version")
 
 
-def does_command_succeed(cmd: str) -> str:
+def does_command_succeed(cmd: str) -> bool:
     try:
         subprocess.check_call(["/bin/sh", "-c", cmd], stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL)
@@ -81,6 +81,18 @@ def get_memory_page_size() -> int:
     except:
         pass
     return 4096
+
+
+def get_distribution_name() -> str:
+    return subprocess.check_output(["lsb_release", "-i", "-s"], universal_newlines=True).strip()
+
+
+def get_distribution_release() -> str:
+    return subprocess.check_output(["lsb_release", "-r", "-s"], universal_newlines=True).strip()
+
+
+def does_program_exist(program: str) -> bool:
+    return does_command_succeed("which {!r}".format(program))
 
 
 def join_strs(strs: t.List[str], last_word: str = "and") -> str:

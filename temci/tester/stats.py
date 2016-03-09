@@ -592,8 +592,8 @@ class SingleProperty(BaseStatObject):
             self.rundata = data # type: RunData
             self.data = data[property] # type: t.List[t.Union[int, float]]
         else:
-            self.rundata = data.rundata
-            self.data = data.data
+            self.rundata = data.rundata # type: RunData
+            self.data = data.data # type: t.List[t.Union[int, float]]
         self.array = np.array(self.data)
         self.property = property
 

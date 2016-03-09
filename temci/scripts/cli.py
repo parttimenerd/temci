@@ -61,7 +61,9 @@ command_docs = {
     "short": "Utility commands to ease working directly on the command line",
     "clean": "Clean up the temporary files",
     "setup": "Compile all needed binaries in the temci scripts folder",
-    "version": "Print the current version ({})".format(temci.scripts.version.version)
+    "version": "Print the current version ({})".format(temci.scripts.version.version),
+    "run_package": "Execute a package and create a package that can be executed afterwards to reverse most changes",
+    "exec_package": "Execute a package"
 }
 for driver in run_driver.RunDriverRegistry.registry:
     command_docs[driver] = run_driver.RunDriverRegistry.registry[driver].__description__.strip().split("\n")[0]
@@ -106,6 +108,8 @@ for reporter in ReporterRegistry.registry:
 build_options = CmdOptionList(
     CmdOption.from_non_plugin_settings("build")
 )
+
+package_options = CmdOption.from_non_plugin_settings("package")
 
 misc_commands = {
     "init": {
@@ -274,6 +278,24 @@ def version(**kwargs):
     print(temci.scripts.version.version)
 
 
+@cli.command(short_help=command_docs["run_package"])
+@click.argument('package', type=click.Path(exists=True))
+@cmd_option(common_options)
+@cmd_option(package_options)
+def run_package(package: str, **kwargs):
+    from temci.package.dsl import run
+    run(package)
+
+
+@cli.command(short_help=command_docs["exec_package"])
+@click.argument('package', type=click.Path(exists=True))
+@cmd_option(common_options)
+@cmd_option(package_options)
+def run_package(package: str, **kwargs):
+    from temci.package.dsl import execute
+    execute(package)
+
+
 @cli.group(short_help=command_docs["completion"])
 @cmd_option(common_options)
 def completion(**kwargs):
@@ -391,6 +413,9 @@ _temci(){{
             (build|report|{drivers})
                 _arguments "2: :_files -g '*\.yaml' "\
             ;;
+            (exec_package|run_package)
+                _arguments "2: :_files -g '*\.temci' "\
+            ;;
         esac
         ;;
         """.format(drivers="|".join(sorted(run_driver.RunDriverRegistry.registry.keys())))
@@ -424,36 +449,38 @@ _temci(){{
         ;;
         """.format(driver=driver, opts=process_options(run_options["run_driver_specific"][driver]))
 
-    ret_str += """
-        (report)
-            #echo "(report)" $words[2]
-            case $words[2] in
-                *.yaml)
-                    args=(
-                    $common_opts
-                    {report_opts}
-                    )
-                    _arguments "1:: :echo 3" $args && ret=0
-                ;;
-                *)
-                    _arguments "1:: :echo 3" && ret=0
-            esac
-        ;;
-        (build)
-            case $words[2] in
-                *.yaml)
-                    args=(
-                    $common_opts
-                    {build_opts}
-                    )
-                    _arguments "1:: :echo 3" $args && ret=0
-                ;;
-                *)
-                    _arguments "1:: :echo 3" && ret=0
-            esac
-        ;;
-    """.format(report_opts=process_options(report_options),
-               build_opts=process_options(build_options))
+    cmds = {
+        "report": {
+            "pattern": "*.yaml",
+            "options": report_options,
+        },
+        "build": {
+            "pattern": "*.yaml",
+            "options": build_options
+        },
+        "exec_package|run_package": {
+            "pattern": "*.temci",
+            "options": package_options
+        }
+    }
+
+    for name in cmds:
+        ret_str += """
+            ({name})
+                #echo "({name})" $words[2]
+                case $words[2] in
+                    {pattern})
+                        args=(
+                        $common_opts
+                        {options}
+                        )
+                        _arguments "1:: :echo 3" $args && ret=0
+                    ;;
+                    *)
+                        _arguments "1:: :echo 3" && ret=0
+                esac
+            ;;
+        """.format(name=name, pattern=cmds[name]["pattern"], options=process_options(cmds[name]["options"]))
 
     for misc_cmd in misc_cmds_w_subcmds:
         ret_str += """
@@ -664,6 +691,17 @@ def bash(**kwargs):
                 ;;
                 esac
                 ;;
+            run_package|exec_package)
+                case ${{COMP_WORDS[2]}} in
+                *.temci)
+                    args=(
+                        $common_opts
+                        {package_opts}
+                    )
+                    COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
+                ;;
+                esac
+                ;;
             {run_cmd_file_code}
             *)
             ;;
@@ -674,6 +712,21 @@ def bash(**kwargs):
                 local IFS=$'\n'
                 local LASTCHAR=' '
                 COMPREPLY=($(compgen -o plusdirs -o nospace -f -X '!*.yaml' -- "${{COMP_WORDS[COMP_CWORD]}}"))
+
+                if [ ${{#COMPREPLY[@]}} = 1 ]; then
+                    [ -d "$COMPREPLY" ] && LASTCHAR=/
+                    COMPREPLY=$(printf %q%s "$COMPREPLY" "$LASTCHAR")
+                else
+                    for ((i=0; i < ${{#COMPREPLY[@]}}; i++)); do
+                        [ -d "${{COMPREPLY[$i]}}" ] && COMPREPLY[$i]=${{COMPREPLY[$i]}}/
+                    done
+                fi
+                return 0
+                ;;
+            (run_package|exec_package)
+                local IFS=$'\n'
+                local LASTCHAR=' '
+                COMPREPLY=($(compgen -o plusdirs -o nospace -f -X '!*.temci' -- "${{COMP_WORDS[COMP_CWORD]}}"))
 
                 if [ ${{#COMPREPLY[@]}} = 1 ]; then
                     [ -d "$COMPREPLY" ] && LASTCHAR=/
@@ -702,8 +755,8 @@ def bash(**kwargs):
                misc_commands_code=process_misc_commands(),
                build_common_opts=process_options(build_options),
                run_cmd_file_code=run_cmd_file_code,
-               version=temci.scripts.version.version
-               )
+               version=temci.scripts.version.version,
+               package_opts=process_options(package_options))
     create_completion_dir()
     file_name = completion_file_name("bash")
     with open(file_name, "w") as f:

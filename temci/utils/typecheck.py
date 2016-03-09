@@ -308,6 +308,9 @@ class Type(object):
             raise ValueError("{} has no default value.".format(self))
         return self.default.default
 
+    def has_default(self) -> bool:
+        return self.default is not None
+
     def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> str:
         if defaults is None:
             defaults = self.get_default()
@@ -855,6 +858,12 @@ class Dict(Type):
                 default_dict[key] = self[key].get_default()
         return default_dict
 
+    def has_default(self) -> bool:
+        default_dict = {}
+        if self.default is not None:
+            default_dict = self.default.default
+        return all(self[key].has_default() for key in self.data if key not in default_dict)
+
     def get_default_yaml(self, indent: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> str:
         if len(self.data.keys()) == 0:
             ret = "!!map {}"
@@ -1039,6 +1048,7 @@ class FileName(Str):
     def _instancecheck_impl(self, value, info: Info):
         if not isinstance(value, str) or value == "":
             return info.errormsg(self)
+        value = os.path.expanduser(value)
         if self.allow_std and value == "-" and (self.constraint is None or self.constraint(value)):
             return info.wrap(True)
         is_valid = True
@@ -1301,7 +1311,8 @@ def typecheck_locals(locals: dict = None, **variables: dict):
     """
     if locals is None:
         locals = inspect.currentframe().f_back.f_locals
-    typecheck(locals, Dict(all_keys=False, key_type=Str()))
+    else:
+        typecheck(locals, Dict(all_keys=False, key_type=Str()))
     for var in variables:
         typecheck(locals[var], variables[var], value_name=var)
 

@@ -32,7 +32,7 @@ setup(
         'Pygments',
         'wcwidth',
         'rainbow_logging_handler',
-        'tablib'
+        'tablib', 'glob2', 'globster'
     ],
     license='GPLv3',
     platforms='linux',

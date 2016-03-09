@@ -88,6 +88,7 @@ class RunProcessor:
         except:
             self.teardown()
             raise
+        self.store_often = Settings()["run/store_often"]
         self.block_run_count = 0
         self.erroneous_run_blocks = [] # type: t.List[t.Tuple[int, BenchmarkingResultBlock]]
 
@@ -173,7 +174,7 @@ class RunProcessor:
             self.store_and_teardown()
             logging.error("Forced teardown of RunProcessor")
             raise
-        if not discard:
+        if not discard and self.store_often:
             self.store()
 
     def _make_discarded_runs(self) -> t.Optional[int]:

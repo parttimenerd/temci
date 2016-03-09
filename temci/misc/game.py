@@ -13,6 +13,7 @@ if __name__ == "__main__":
 
 import logging, time
 import typing as t
+import inspect
 
 import multiprocessing
 
@@ -88,28 +89,29 @@ def used_summarize_mean_std(values: t.List[float]) -> float:
     assert False
 
 
-StatProperty = t.Callable[[SingleProperty, t.List[float]], float]
-""" Gets passed a SingleProperty object and the list of means (containing the object's mean) and returns a float. """
+StatProperty = t.Callable[[SingleProperty, t.List[float], t.List[SingleProperty], int], float]
+""" Gets passed a SingleProperty object, the list of means (containing the object's mean),
+ the list of all SingleProperty objects and the index of the first in it and returns a float. """
 ReduceFunc = t.Callable[[t.List[float]], Any]
 """ Gets passed a list of values and returns a single value, e.g. stats.gmean """
 
 def first(values: t.List[float]) -> float:
     return values[0]
 
-def rel_mean_property(single: SingleProperty, means: t.List[float]) -> float:
+def rel_mean_property(single: SingleProperty, means: t.List[float], *args) -> float:
     """
     A property function that returns the relative mean (the mean of the single / minimum of means)
     """
     return single.mean() / min(means)
 
-def rel_std_property(single: SingleProperty, means: t.List[float]) -> float:
+def rel_std_property(single: SingleProperty, means: t.List[float], *args) -> float:
     """
     A property function that returns the relative standard deviation (relative to single's mean)
     """
     return single.std_dev_per_mean()
 
 
-def used_rel_mean_property(single: SingleProperty, means: t.List[float]) -> float:
+def used_rel_mean_property(single: SingleProperty, means: t.List[float], *args) -> float:
     if CALC_MODE == Mode.geom_mean_rel_to_best:
         return single.mean() / min(means)
     elif CALC_MODE == Mode.mean_rel_to_first:
@@ -119,11 +121,24 @@ def used_rel_mean_property(single: SingleProperty, means: t.List[float]) -> floa
     assert False
 
 
-def used_std_property(single: SingleProperty, means: t.List[float]) -> float:
+def used_std_property(single: SingleProperty, means: t.List[float], *args) -> float:
     if CALC_MODE in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_first, Mode.mean_rel_to_one]:
         return single.std_dev_per_mean()
     assert False
 
+alpha = 0.05
+tester = TesterRegistry.get_for_name("t", [alpha, 2 * alpha])
+
+def ttest_rel_to_first_property(single: SingleProperty, _, all_singles: t.List[SingleProperty], index: int) -> float:
+    if index == 0:
+        return float("nan")
+    return tester.test(single.data, all_singles[0].data)
+
+def ttest_summarize(values: t.List[float]) -> float:
+    not_nans = [val for val in values if val == val]
+    if len(not_nans) == 0:
+        return float("nan")
+    return sum(val < alpha for val in not_nans) / len(not_nans)
 
 class BOTableColumn:
     """ Column for BaseObject table_html_for_vals_per_impl  """
@@ -138,19 +153,20 @@ mean_score_column = lambda: BOTableColumn({
     Mode.geom_mean_rel_to_best: "mean score (gmean(mean / best mean))",
     Mode.mean_rel_to_first: "mean score (gmean(mean / mean of first impl))",
     Mode.mean_rel_to_one: "mean score (mean(mean / 1))"
-}[CALC_MODE], "{:5.5%}", used_rel_mean_property, used_summarize_mean)
+}[CALC_MODE], "{:5.1%}", used_rel_mean_property, used_summarize_mean)
 mean_score_std_column = lambda: BOTableColumn({
     Mode.geom_mean_rel_to_best: "mean score std (gmean std(mean / best mean))",
     Mode.mean_rel_to_first: "mean score std (gmean std(mean / mean of first impl))",
     Mode.mean_rel_to_one: "mean score std (std(mean / 1))"
-}[CALC_MODE], "{:5.5%}", used_rel_mean_property, used_summarize_mean_std)
+}[CALC_MODE], "{:5.1%}", used_rel_mean_property, used_summarize_mean_std)
 mean_rel_std = lambda: BOTableColumn({
     Mode.geom_mean_rel_to_best: "mean rel std (gmean(std / mean))",
     Mode.mean_rel_to_first: "mean rel std (gmean(std / mean))",
     Mode.mean_rel_to_one: "mean rel std (mean(std / mean))"
-}[CALC_MODE], "{:5.5%}", used_std_property, used_summarize_mean)
+}[CALC_MODE], "{:5.1%}", used_std_property, used_summarize_mean)
+ttest_to_first = lambda: BOTableColumn("t test: this != first", "{:5.1%}", ttest_rel_to_first_property, ttest_summarize)
 
-common_columns = [mean_score_column, mean_score_std_column, mean_rel_std]
+common_columns = [mean_score_column, mean_score_std_column, mean_rel_std, ttest_to_first]
 
 #MeanBOTableColumn = BOTableColumn("")
 
@@ -290,6 +306,10 @@ class BaseObject:
         implementation column).
         """
         columns = [col() if not isinstance(col, BOTableColumn) else col for col in columns]
+        tex = """
+        \\begin{{tabular}}{{l{cs}}}\\toprule
+           & {header} \\\\ \\midrule
+        """.format(cs="".join("r" * len(columns)), header=" & ".join(col.title for col in columns))
         html = """
         <table class="table">
             <tr><th></th>{header}</tr>
@@ -311,14 +331,24 @@ class BaseObject:
             html += """
                 <tr><td scope="row">{}</td>{}</tr>
             """.format(impl, "".join("<td>{}</td>".format(val) for val in values[impl]))
+            tex += """
+                {} & {} \\\\
+            """.format(impl, " & ".join(str(val).replace("%", "\\%") for val in values[impl]))
         html += """
         </table>
         """
+        tex += """
+                \\bottomrule
+            \\end{tabular}
+                """
         with open(base_file_name + ".csv", "w") as f:
             f.write("\n".join(",".join(val for val in row) for row in cells))
+        with open(base_file_name + ".tex", "w") as f:
+            f.write(tex)
         html += """
-            <a href="{}{}.csv">csv</a><br/>
-        """.format("" if USABLE_WITH_SERVER else "file:", base_file_name.split("/")[-1])
+            <a href="{base}{csv}.csv">csv</a><a href="{base}{csv}.tex">tex</a><br/>
+        """.format(base="" if USABLE_WITH_SERVER else "file:", csv=base_file_name.split("/")[-1])
+
         return html
 
 
@@ -555,9 +585,12 @@ class ProgramWithInput(BaseObject):
         :param property: property function that gets a SingleProperty object and a list of all means and returns a float
         """
         means = [x.mean() for x in self.impls.values()]  # type: t.List[float]
+        singles = [x.get_single_property() for x in self.impls.values()]
         ret = InsertionTimeOrderedDict() # t.Dict[str, t.List[float]]
-        for impl in self.impls:
-            ret[impl] = [property(self.impls[impl].get_single_property(), means)]
+        property_arg_number = min(len(inspect.signature(property).parameters), 4)
+        for (i, impl) in enumerate(self.impls):
+            args = [singles[i], means, singles, i]
+            ret[impl] = [property(*args[:property_arg_number])]
         #pprint(ret._dict)
         typecheck(ret._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), all_keys=False))
         return ret
@@ -1615,20 +1648,20 @@ def rust_config(inputs_per_category: InputsPerCategory, optimisation: int = 3) -
     config = {
         "language": "rust",
         "categories": [
-            ##cat("binarytrees")
-            #cat("chameneosredux"),
-            #cat("fannkuchredux"),
-            #cat("fasta", [1]),
-            #cat("fastaredux"),
-            ##cat("knucleotide"),
-            cat("mandelbrot", [1]),
-            #cat("meteor"),
-            #cat("nbody"),
-            #cat("pidigits"),
-            ##cat("regexdna"),
-            ##cat("revcomp"),
-            #cat("spectralnorm"),
-            #cat("threadring")
+            #cat("binarytrees")
+            cat("chameneosredux"),
+            cat("fannkuchredux", [2]),
+            cat("fasta", [1]),
+            cat("fastaredux"),
+            #cat("knucleotide"),
+            ###cat("mandelbrot", [1]),
+            cat("meteor", [2]),
+            cat("nbody"),
+            cat("pidigits"),
+            #cat("regexdna"),
+            #cat("revcomp"),
+            cat("spectralnorm"),
+            cat("threadring")
         ],
         "impls": impls
     }
@@ -1850,8 +1883,8 @@ def produce_ttest_comparison_table(datas: t.List[t.List[DataBlock]],
         f.write(tuples_to_tex(tuples))
 
 #MODE = "haskell_full"
-#MODE = "rustc" # requires multirust
-MODE = "haskell_c_compilers"
+MODE = "rustc" # requires multirust
+#MODE = "haskell_c_compilers"
 
 if MODE == "rustc":
     optis = [0, 1, 2, 3]
@@ -1867,13 +1900,13 @@ if MODE == "rustc":
             pass
         os.sync()
         time.sleep(60)
-    """
-    for opti in reversed(optis):
+
+    for opti in reversed(optis[-1:]):
         try:
-            config = rust_config(first_inputs(INPUTS_PER_CATEGORY), opti)
+            config = rust_config(INPUTS_PER_CATEGORY, opti)
             process(config, "rust_" + str(opti),
                     temci_options="--discarded_blocks 1 --nice --other_nice --send_mail me@mostlynerdless.de ",
-                    build=True, benchmark=True, property="task-clock",
+                    build=False, benchmark=False, property="task-clock",
                     temci_stop_start=False)
             #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
         except OSError as ex:
@@ -1881,7 +1914,14 @@ if MODE == "rustc":
             logging.error(ex)
             pass
         os.sync()
-        time.sleep(60)
+        #time.sleep(60)
+    """
+    for prop in ["task-clock"]:#["task-clock", "branch-misses", "cache-references", "cache-misses"]:
+        config = rust_config(INPUTS_PER_CATEGORY, 3)
+        process(config, "rust_3", report_dir="rust_c_" + prop,
+                temci_options="--discarded_blocks 1 --nice --other_nice --send_mail me@mostlynerdless.de ",
+                build=False, benchmark=False, property="task-clock",
+                temci_stop_start=False)
 
 
 if MODE == "haskell_full":
@@ -1943,6 +1983,8 @@ if MODE == "haskell_full":
     """
 
     produce_ttest_comparison_table(data, ["ghc-" + x for x in AV_GHC_VERSIONS], optis, "haskell_comp")
+
+
 
 if MODE == "haskell_c_compilers":
     for opti in ["-Odph"]:

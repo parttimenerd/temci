@@ -56,6 +56,8 @@ class Settings(metaclass=Singleton):
                   // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
             "out": Str() // Default("run_output.yaml") // Description("Output file for the benchmarking results")
                     // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
+            "store_often": Bool() // Default(False)
+                           // Description("Store the result file after each set of blocks is benchmarked"),
             "exec_plugins": Dict({
 
             }),
@@ -105,6 +107,24 @@ class Settings(metaclass=Singleton):
                 // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
             "out": Str() // Default("run.exec.yaml") // Description("Resulting run config file"),
             "threads": PositiveInt() // Default(1) // Description("Number of threads that build simultaneously")
+        }),
+        "package": Dict({
+            "dry_run": Bool() // Default(False) // Description("Only log proposed actions?"),
+            "compression": Dict({
+                "program": ExactEither("xz", "gzip") // Default("xz")
+                           // Description("The used compress program. The parallel version (pixz or pigz) is used "
+                                          "if available."),
+                "level": Int(range=range(-9, 1)) // Default(-6)
+                         // Description("Compression level. 0 = low, -9 high compression.")
+            }),
+            "actions": Dict({
+                "sleep": NaturalNumber() // Default(30)
+                         // Description("Default sleep seconds for the sleep action.")
+            }),
+            "send_mail": Str() // Default("")
+                         // Description("If not empty, recipient of a mail if an error occurs or a command finished."),
+            "reverse_file": FileName() // Default("reverse.temci")
+                        // Description("Name of the produced file to reverse the actions of a package.")
         })
     }, all_keys=False)
     config_file_name = "temci.yaml"
