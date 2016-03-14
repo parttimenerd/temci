@@ -320,9 +320,10 @@ class ExecuteCmd(Action):
        return  "Would execute {!r} in directory {!r}".format(self.cmd, self.working_dir)
 
     def _execute(self, db: Database):
+        logging.info("Execute {!r} in directory {!r}".format(self.cmd, self.working_dir))
         proc = subprocess.Popen(["/bin/sh", "-c", self.cmd],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                universal_newlines=True, shell=True, cwd=self.working_dir)
+                                universal_newlines=True, cwd=abspath(self.working_dir))
         out, err = proc.communicate()
         ret_code = proc.wait()
         if self.send_mail:

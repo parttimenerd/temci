@@ -32,7 +32,8 @@ setup(
         'Pygments',
         'wcwidth',
         'rainbow_logging_handler',
-        'tablib', 'glob2', 'globster'
+        'tablib', 'glob2', 'globster',
+        'colorlog', 'jsonrpc', 'bsonrpc'
     ],
     license='GPLv3',
     platforms='linux',

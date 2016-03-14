@@ -789,7 +789,7 @@ def setup():
 if __name__ == "__main__":
     # for testing purposes only
 
-    sys.argv[1:] = ["short", "exec", "-wd", "ls", "-wd", "ls", "--no-cpuset_active", "--min_runs", 1]
+    sys.argv[1:] = ["short", "exec", "-wd", "ls", "--max_runs", "120", "--min_runs", "100"]
     #sys.argv[1:] = ["exec", "-wd", "ls", "-wd", "ls ..", "-wd", "ls /tmp", "--min_runs", "5", "--max_runs", "5",
     #                "--out", "ls_100.yaml", "--stop_start"]
     #sys.argv[1:] = ["report", "../misc/cparser_c_time.yaml", "--reporter", "html"]

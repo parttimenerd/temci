@@ -158,8 +158,9 @@ class BenchmarkingResultBlock:
 
     @classmethod
     def from_dict(cls, source: dict):
+        logging.error(source)
         typecheck(source, Dict({
-            "data": Dict(all_keys=False, key_type=Str(), value_type=Int()|Float())
+            "data": Dict(all_keys=False)
         }, all_keys=False))
         return BenchmarkingResultBlock(source["data"])
 

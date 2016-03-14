@@ -20,14 +20,16 @@ class AbstractRunWorkerPool:
     An abstract run worker pool that just deals with the hyper threading setting.
     """
 
-    def __init__(self, run_driver_name: str = None):
+    def __init__(self, run_driver_name: str = None, disable_ht_check: bool = False):
+        if disable_ht_check:
+            return
         if Settings()["run/disable_hyper_threading"]:
             if not has_root_privileges():
                 logging.warning("Can't disable hyper threading as root privileges are missing")
                 return
-            if Settings()["run/cpuset/active"]:
-                logging.warning("Currently disabling hyper threading doesn't work well in combination with cpusets")
-                return
+            #if Settings()["run/cpuset/active"]:
+            #    logging.warning("Currently disabling hyper threading doesn't work well in combination with cpusets")
+            #    return
             self._disable_hyper_threading()
 
     def submit(self, block: RunProgramBlock, id: int, runs: int):
@@ -37,8 +39,8 @@ class AbstractRunWorkerPool:
         pass
 
     def teardown(self):
-        if not has_root_privileges() or Settings()["run/cpuset/active"]:
-            return
+        #if not has_root_privileges() or Settings()["run/cpuset/active"]:
+        #    return
         if Settings()["run/disable_hyper_threading"]:
             self._enable_hyper_threading()
 
@@ -127,7 +129,7 @@ class RunWorkerPool(AbstractRunWorkerPool):
         if run_driver_name is None:
             run_driver_name = RunDriverRegistry().get_used()
         self.cpuset = CPUSet(parallel=0) if Settings()["run/cpuset/active"] else CPUSet(active=False)
-        self.run_driver = RunDriverRegistry().get_for_name(run_driver_name)
+        self.run_driver = RunDriverRegistry().get_for_name(run_driver_name)  # type: AbstractRunDriver
         self.parallel_number = 1
 
     def submit(self, block: RunProgramBlock, id: int, runs: int):
@@ -220,15 +222,12 @@ class ParallelRunWorkerPool(AbstractRunWorkerPool):
         block.is_enqueued = True
         self.submit_queue.put((block, id, runs))
 
-    def results(self, expected_num: int):
+    def results(self, expected_num: int) -> t.List[t.Tuple[RunProgramBlock, BenchmarkingResultBlock, int]]:
         """
         An iterator over all available benchmarking results.
         The items of this iterator are tuples consisting of
         the benchmarked block, the benchmarking result and the
         blocks id.
-        The benchmarking results are simple
-        ..run_driver.BenchmarkingResultBlock objects.
-
         :param expected_num: expected number of results
         """
         #while not self.intermediate_queue.empty() or not self.submit_queue.empty() or not self.result_queue.empty():
@@ -286,3 +285,5 @@ class BenchmarkingThread(threading.Thread):
 
     def teardown(self):
         pass
+
+

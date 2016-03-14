@@ -1888,18 +1888,17 @@ MODE = "rustc" # requires multirust
 
 if MODE == "rustc":
     optis = [0, 1, 2, 3]
-    """
     for opti in reversed(optis):
         try:
             config = replace_run_with_build_cmd(rust_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
-            process(config, "compile_time_rust_" + str(opti), temci_runs=30, build=True, benchmark=True,
+            process(config, "compile_time_rust_" + str(opti), temci_runs=30, build=False, benchmark=False,
                     temci_options="--nice --other_nice --send_mail me@mostlynerdless.de", temci_stop_start=True)
             #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
-        except OSError as ex:
+        except BaseException as ex:
             logging.error(ex)
             pass
         os.sync()
-        time.sleep(60)
+        #time.sleep(60)
 
     for opti in reversed(optis[-1:]):
         try:
@@ -1909,7 +1908,7 @@ if MODE == "rustc":
                     build=False, benchmark=False, property="task-clock",
                     temci_stop_start=False)
             #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
-        except OSError as ex:
+        except BaseException as ex:
 
             logging.error(ex)
             pass
@@ -1922,7 +1921,7 @@ if MODE == "rustc":
                 temci_options="--discarded_blocks 1 --nice --other_nice --send_mail me@mostlynerdless.de ",
                 build=False, benchmark=False, property="task-clock",
                 temci_stop_start=False)
-
+    """
 
 if MODE == "haskell_full":
     optis = ["", "-O", "-O2", "-Odph"]
@@ -1937,16 +1936,6 @@ if MODE == "haskell_full":
             pass
         os.sync()
         #time.sleep(60)
-    configs = [haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti) for opti in optis]
-    data = [yaml.load(open("compile_time_haskell_" + opti + ".yaml", "r")) for opti in optis]
-    for (by_opti, app) in [(True, "_grouped_by_opti"), (False, "_grouped_by_version")]:
-        lang = Language.merge_different_versions_of_the_same(configs, optis, by_opti)
-        lang.set_merged_run_data_from_result_dict(data, optis)
-        for mode in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_first]:
-            CALC_MODE = mode
-            _report_dir = "compile_time_haskell_merged_report" + "_" + str(mode) + app
-            os.system("mkdir -p " + _report_dir)
-            lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
     optis = ["-O", "-O2", "-Odph"]
     for opti in reversed(optis):
         try:
@@ -1957,6 +1946,16 @@ if MODE == "haskell_full":
         except BaseException as ex:
             logging.exception(ex)
             pass
+    configs = [haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti) for opti in optis]
+    data = [yaml.load(open("compile_time_haskell_" + opti + ".yaml", "r")) for opti in optis]
+    for (by_opti, app) in [(True, "_grouped_by_opti"), (False, "_grouped_by_version")]:
+        lang = Language.merge_different_versions_of_the_same(configs, optis, by_opti)
+        lang.set_merged_run_data_from_result_dict(data, optis)
+        for mode in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_first]:
+            CALC_MODE = mode
+            _report_dir = "compile_time_haskell_merged_report" + "_" + str(mode) + app
+            os.system("mkdir -p " + _report_dir)
+            lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
 
     optis = ["-O", "-O2", "-Odph"]
     configs = [haskel_config(INPUTS_PER_CATEGORY, opti) for opti in optis]

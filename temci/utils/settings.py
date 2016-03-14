@@ -206,6 +206,20 @@ class Settings(metaclass=Singleton):
             raise SettingsError(str(res))
         self._setup()
 
+    def load_from_dict(self, config_dict: dict):
+        self.prefs = self.type_scheme.get_default()
+        tmp = copy.deepcopy(self.prefs)
+
+        def func(key, path, value):
+            self._set_default(path, value)
+
+        recursive_exec_for_leafs(config_dict, func)
+        res = self._validate_settings_dict(self.prefs, "settings with ones config dict")
+        if not res:
+            self.prefs = tmp
+            raise SettingsError(str(res))
+        self._setup()
+
     def load_from_dir(self, dir: str):
         """
         Loads the settings from the `config.yaml` file inside the passed directory.

@@ -17,6 +17,7 @@ from temci.utils.settings import Settings
 from temci.tester.report_processor import ReporterRegistry
 import time, logging, humanfriendly, yaml, sys, math, pytimeparse, os
 import typing as t
+from temci.run.remote import RemoteRunWorkerPool
 
 class RunProcessor:
     """
@@ -62,7 +63,9 @@ class RunProcessor:
                 raise
         else:
             self.stats_helper = RunDataStatsHelper.init_from_dicts(copy.deepcopy(runs))
-        if Settings()["run/cpuset/parallel"] == 0:
+        if Settings()["run/remote"]:
+            self.pool = RemoteRunWorkerPool(Settings()["run/remote"], Settings()["run/remote_port"])
+        elif Settings()["run/cpuset/parallel"] == 0:
             self.pool = RunWorkerPool()
         else:
             self.pool = ParallelRunWorkerPool()
@@ -170,7 +173,7 @@ class RunProcessor:
                     self.stats_helper.add_data_block(id, result.data)
             if not discard:
                 self.block_run_count += block_size
-        except BaseException:
+        except BaseException as ex:
             self.store_and_teardown()
             logging.error("Forced teardown of RunProcessor")
             raise

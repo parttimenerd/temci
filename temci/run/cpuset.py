@@ -6,6 +6,7 @@ import subprocess, os, time
 from temci.utils.settings import Settings, SettingsError
 from temci.utils.util import has_root_privileges
 from temci.utils.typecheck import *
+import typing as t
 
 CPUSET_DIR = '/cpuset'
 NEW_ROOT_SET = 'bench.root'
@@ -21,7 +22,8 @@ class CPUSet:
     This class needs root privileges to operate properly. Warns if not.
     """
 
-    def __init__(self, active: bool = has_root_privileges(), base_core_number: int = None, parallel: int = None, sub_core_number: int = None):
+    def __init__(self, active: bool = has_root_privileges(), base_core_number: int = None,
+                 parallel: int = None, sub_core_number: int = None):
         """
         Initializes the cpu sets an determines the number of parallel programs (parallel_number variable).
 
@@ -37,7 +39,7 @@ class CPUSet:
         self.base_core_number = Settings().default(base_core_number, "run/cpuset/base_core_number")
         self.parallel = Settings().default(parallel, "run/cpuset/parallel")
         self.sub_core_number = Settings().default(sub_core_number, "run/cpuset/sub_core_number")
-        self.av_cores = self._cpu_range_size("") if active else multiprocessing.cpu_count()
+        self.av_cores = len(self._cpus_of_set("")) if active else multiprocessing.cpu_count()
         if self.parallel == 0:
             self.parallel_number = 0
         else:
@@ -134,59 +136,48 @@ class CPUSet:
                 raise EnvironmentError(
                     "Cannot mount /cpuset. " +
                     "Probably you're you're not in root mode or you've already mounted cpuset elsewhere.", str(err))
-        self._create_cpuset(NEW_ROOT_SET, (0, self.base_core_number - 1))
+        self._create_cpuset(NEW_ROOT_SET, self._get_av_cpus()[0: self.base_core_number])
         logging.info("Move all processes to new root cpuset")
         self._move_all_to_new_root()
         if self.parallel == 0: # just use all available cores, as the benchmarked program also runs in it
-            self._create_cpuset(CONTROLLER_SUB_BENCH_SET, (self.base_core_number, self.av_cores - 1))
+            self._create_cpuset(CONTROLLER_SUB_BENCH_SET, self._get_av_cpus()[self.base_core_number:self.av_cores])
         else:
-            self._create_cpuset(CONTROLLER_SUB_BENCH_SET, (self.base_core_number, self.base_core_number))
+            self._create_cpuset(CONTROLLER_SUB_BENCH_SET, self._get_av_cpus()[self.base_core_number:1])
         self._move_process_to_set(CONTROLLER_SUB_BENCH_SET)
         for i in range(0, self.parallel_number):
             start = self.base_core_number + 1 + (i * self.sub_core_number)
-            self._create_cpuset(SUB_BENCH_SET.format(i), (start, start + self.sub_core_number - 1))
+            self._create_cpuset(SUB_BENCH_SET.format(i), self._get_av_cpus()[start:start + self.sub_core_number])
 
-    def _cpu_range_of_set(self, name: str) -> str:
-        """
-        Returns the range of cpu nodes the set with the passed name has.
-        :param name: cpuset name
-        :return: either "<NUM>-<NUM>" or None if the cpuset doesn't exist
-        """
+    def _cpus_of_set(self, name: str) -> t.Optional[t.List[int]]:
         name = self._relname(name)
         if self._has_set(name):
             res = self._cset("set {}".format(name))
             arr = res.split("\n")[3].strip().split(" ")
             arr = [x for x in arr if x != ""]
-            return arr[1] if "-" in arr[1] else "{core}-{core}".format(core=arr[1])
+            if "-" in arr[1]:
+                start, end = map(int, arr[1].split("-"))
+                return list(range(start, end + 1))
+            elif "," in arr[1]:
+                return list(map(int, arr[1].split(",")))
+            else:
+                return int(arr[1])
         return None
 
-    def _cpu_range_tuple_of_set(self, name: str) -> tuple:
-        """
-        Returns the range of cpu nodes the cpuset with passed name has as a tuple
-        (first node, last node).
-        :param name: cpuset name
-        :return: tuple or None if the cpuset doesn't exist
-        """
-        if self._has_set(name):
-            arr = self._cpu_range_of_set(name).split("-")
-            return int(arr[0]), int(arr[0 if len(arr) == 1 else 1])
-        return None
+    def _get_av_cpus(self) -> t.List[int]:
+        return self._cpus_of_set("")
 
-    def _cpu_range_size(self, name: str) -> int:
-        if self._has_set(name):
-            f, s = self._cpu_range_tuple_of_set(name)
-            return s - f + 1
-        return 0
+    def _ints_to_str(self, ints: t.List[int]) -> str:
+        return ",".join(map(str, ints))
 
-    def _has_set(self, name):
+    def _has_set(self, name: str):
         name = self._relname(name)
         return name + "   " in self._cset("set -rl")
 
     def _delete_set(self, name: str):
         self._cset("set -r --force -d %s" % NEW_ROOT_SET)
 
-    def _move_all_to_new_root(self, name = 'root', _count: int = 100):
-        cpus =  "{}-{}".format(0, self.base_core_number - 1) if self.base_core_number > 1 else 0
+    def _move_all_to_new_root(self, name: str = 'root', _count: int = 100):
+        cpus =  self._get_av_cpus()[0:self.base_core_number]
         self._set_cpu_affinity_of_set(name, cpus)
         if _count > 0:
             for child in self._child_sets(name):
@@ -236,15 +227,15 @@ class CPUSet:
             arr.append(line.split(" ")[0])
         return arr
 
-    def _create_cpuset(self, name: str, cpus: tuple):
-        typecheck(cpus, Tuple(Int(), Int()))
-        cpu_range = "{}-{}".format(*cpus)
+    def _create_cpuset(self, name: str, cpus: t.List[int]):
+        typecheck(cpus, List(Int()))
+        cpu_range = self._ints_to_str(cpus)
         path = []
         for part in name.split("/"):
             path.append(part)
             self._cset("set --cpu {} {} ".format(cpu_range, "/".join(path)))
 
-    def _set_cpu_affinity_of_set(self, set: str, cpus):
+    def _set_cpu_affinity_of_set(self, set: str, cpus: t.List[int]):
         if set == "root":
             set = ""
         app = "cgroup.procs"  if set == "" else set + "/cgroup.procs"
@@ -257,8 +248,8 @@ class CPUSet:
                     pass
                     #logging.error(str(err))
 
-    def _set_cpu_affinity(self, pid: int, cpus):
-        cmd = "taskset --all-tasks --cpu-list -p {} {}; nice".format(cpus, pid)
+    def _set_cpu_affinity(self, pid: int, cpus: t.List[int]):
+        cmd = "taskset --all-tasks --cpu-list -p {} {}; nice".format(self._ints_to_str(cpus), pid)
         proc = subprocess.Popen(["/bin/sh", "-c", cmd],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,

@@ -92,8 +92,10 @@ def IncludeTree(base_dir: str, include_pattern: t.Union[t.List[str], str] = ["**
 
 
 if __name__ == "__main__":
-    actions << InstallPackage("ls") << IncludeTree(".") \
-        << ExecuteCmd("temci short exec -wd 'ls'") << ExecuteCmd("temci report run_output.yaml")
+    actions << InstallPackage("ls") \
+        << IncludeTree(".") \
+        << ExecuteCmd("temci short exec -wd 'ls'") \
+        << ExecuteCmd("temci report run_output.yaml")
     store("package.tar.xz")
     dry_run()
     #include_file("dsl.py")
