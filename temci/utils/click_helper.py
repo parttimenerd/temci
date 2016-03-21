@@ -1,3 +1,7 @@
+"""
+This module simplifies the creation of click options from settings and type schemes.
+"""
+
 import logging
 import warnings
 
@@ -7,15 +11,17 @@ from temci.utils.settings import Settings, SettingsError
 from temci.utils.registry import AbstractRegistry
 import typing as t
 
+
 def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = False,
-                       callback = None, short: str = None, with_default: bool = True,
-                       default = None):
+                       callback = t.Callable[[str, t.Any], t.Any], short: str = None, with_default: bool = True,
+                       default = None) -> t.Callable[[t.Callable], t.Callable]:
     """
     Is essentially a wrapper around click.option that works with type schemes.
+
     :param option_name: name of the option
     :param type_scheme: type scheme to use
     :param is_flag: is this option a "--ABC/--no-ABC" like flag
-    :param callback: callback that is called with the parameter and the argument and has to return its argument
+    :param callback: callback that is called with the parameter and the argument and has to returns its argument
     :param short: short name of the option (ignored if flag=True)
     :param with_default: set a default value for the option if possible?
     :param default: default value (if with_default is true), default: default value of the type scheme
@@ -115,11 +121,12 @@ def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = Fals
     return func
 
 
-def validate(type_scheme):
+def validate(type_scheme: Type) -> t.Callable[[click.Context, str, t.Any], t.Any]:
     """
     Creates a valid click option validator function that can be passed to click via the callback
     parameter.
     The validator function expects the type of the value to be the raw type of the type scheme.
+
     :param type_scheme: type scheme the validator validates against
     :return: the validator function
     """
@@ -138,32 +145,41 @@ class CmdOption:
     Represents a command line option.
     """
 
-    def __init__(self, option_name, settings_key: str = None, type_scheme: Type = None,
-                 short: str = None, completion_hints: dict = None, is_flag: bool = None):
+    def __init__(self, option_name: str, settings_key: str = None, type_scheme: Type = None,
+                 short: str = None, completion_hints: t.Dict[str, t.Any] = None, is_flag: bool = None):
         """
         Initializes a option either based on a setting (via settings key) or on a type scheme.
         If this is backed by a settings key, the setting is automatically set.
         If is_flag is None, it is set True if type_scheme is an instance of Bool() or BoolOrNone()
 
         :param option_name: name of the option
-        :param settings_key:
+        :param settings_key: settings key of the option
         :param type_scheme: type scheme with default value
         :param short: short version of the option (ignored if is_flag=True)
         :param completion_hints: additional completion hints (dict with keys for each shell)
         :param is_flag: is the option a "--ABC/--no-ABC" flag like option?
-        :return:
         """
         typecheck(option_name, Str())
-        self.option_name = option_name
-        #typecheck([settings_key, short], List(Str() | E(None)))
-        self.settings_key = settings_key
-        self.short = short
-        self.completion_hints = completion_hints
+        self.option_name = option_name  # type: str
+        """ Name of this option """
+        self.settings_key = settings_key  # type: t.Optional[str]
+        """ Settings key of this option """
+        self.short = short  # type: t.Optional[str]
+        """ Short version of the option (ignored if is_flag=True) """
+        self.completion_hints = completion_hints  # type: t.Optional[t.Dict[str, t.Any]]
+        """ Additional completion hints (dict with keys for each shell) """
         if (settings_key is None) == (type_scheme is None):
             raise ValueError("settings_key and type_scheme are both None (or not None)")
-        self.type_scheme = Settings().get_type_scheme(settings_key) if settings_key is not None else type_scheme
+        self.type_scheme = type_scheme  # type: Type
+        """ Type scheme with default value """
+        if not self.type_scheme:
+            self.type_scheme = Settings().get_type_scheme(settings_key)
+        #self.callback = lambda a, b: None
+        #""" Callback that sets the setting """
+        self.callback = None  # type: t.Optional[t.Callable[[click.Option, t.Any], None]]
+        """ Callback that sets the setting """
         if type_scheme is not None and not isinstance(type_scheme, click.ParamType):
-            self.callback = lambda x: None
+            self.callback = lambda a, b: None
         if settings_key is not None and not isinstance(self.type_scheme, click.ParamType):
             def callback(param: click.Option, val):
                 try:
@@ -178,12 +194,16 @@ class CmdOption:
             self.callback = callback
         else:
             self.callback = None
-        self.description = self.type_scheme.description.strip().split("\n")[0]
-        self.has_description = self.description not in [None, ""]
+        self.description = self.type_scheme.description.strip().split("\n")[0]  # type: str
+        """ Description of this option """
+        self.has_description = self.description not in [None, ""]  # type: bool
+        """ Does this option has a description? """
         if not self.has_description:
             warnings.warn("Option {} is without documentation.".format(option_name))
-        self.has_default = True
-        self.default = None
+        self.has_default = True  # type: bool
+        """ Does this option has a default value? """
+        self.default = None  # type: t.Any
+        """ Default value of this option """
         try:
             self.default = self.type_scheme.get_default()
         except ValueError:
@@ -209,8 +229,10 @@ class CmdOption:
                         ))
                 return val
             self.callback = callback
-        self.has_completion_hints = self.completion_hints is not None
-        self.has_short = short is not None
+        self.has_completion_hints = self.completion_hints is not None  # type: bool
+        """ Does this option has completion hints? """
+        self.has_short = short is not None  # type: bool
+        """ Does this option has a short version? """
 
     def __lt__(self, other) -> bool:
         """
@@ -233,10 +255,9 @@ class CmdOption:
         creates for each plugin preference an option with name OPT_PREF. Deeper nesting
         is intentionally not supported.
 
-        :param registry:
+        :param registry: used registry
         :param name_prefix: prefix of each option name (usable to avoid ambiguity problems)
-        :return list of CmdOptions
-        :rtype List[CmdOption]
+        :return: list of CmdOptions
         """
         assert issubclass(registry, AbstractRegistry)
         typecheck_locals(name_prefix=Str()|E(None))
@@ -271,8 +292,7 @@ class CmdOption:
 
         :param settings_domain: settings domain to look into (or "" for the root domain)
         :param exclude: list of sub keys to exclude
-        :return list of CmdOptions
-        :rtype List[CmdOption]
+        :return: list of CmdOptions
         """
         exclude = exclude or []
         name_prefix = name_prefix or ""
@@ -296,16 +316,23 @@ class CmdOptionList:
     A simple list for CmdOptions that supports list flattening.
     """
 
-    def __init__(self, *options: t.Union[CmdOption, 'CmdOptionList']):
+    def __init__(self, *options: t.Tuple[t.Union[CmdOption, 'CmdOptionList']]):
+        """
+        Create an instance.
+
+        :param options: options that this list consists of
+        """
         self.options = []
+        """ Options that build up this list """
         for option in options:
             self.append(option)
 
     def append(self, options: t.Union[CmdOption, 'CmdOptionList']) -> 'CmdOptionList':
         """
         Appends the passed CmdÖptionList or CmdOption and flattens the resulting list.
+
         :param options: CmdÖptionList or CmdOption
-        :return self
+        :return: self
         """
         typecheck_locals(options=T(CmdOptionList)|T(CmdOption))
         if isinstance(options, CmdOption):
@@ -317,10 +344,11 @@ class CmdOptionList:
     def set_short(self, option_name: str, new_short: str) -> 'CmdOptionList':
         """
         Sets the short option name of the included option with the passed name.
+
         :param option_name: passed option name
         :param new_short: new short option name
         :return: self
-        :raises IndexError if the option with the passed name doesn't exist
+        :raises: IndexError if the option with the passed name doesn't exist
         """
         self[option_name].short = new_short
         return self
@@ -328,9 +356,10 @@ class CmdOptionList:
     def __getitem__(self, key: t.Union[int, str]) -> CmdOption:
         """
         Get the included option with the passed name or at the passed index.
+
         :param key: passed name or index
         :return: found cmd option
-        :raises IndexError if the option doesn't exist
+        :raises: IndexError if the option doesn't exist
         """
         if isinstance(key. int):
             return self.options[key]
@@ -349,7 +378,8 @@ class CmdOptionList:
         return repr(self.options)
 
 
-def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = None):
+def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = None) \
+        -> t.Callable[[t.Callable], t.Callable]:
     """
     Wrapper around click.option that works with CmdOption objects.
     If option is a list of CmdOptions then the type_scheme_option decorators are chained.
@@ -357,7 +387,7 @@ def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = Non
 
     :param option: CmdOption or (possibly nested) list of CmdOptions
     :param name_prefix: prefix of all options
-    :return click.option(...) like decorator
+    :return: click.option(...) like decorator
     """
     typecheck(option, T(CmdOption) | T(CmdOptionList))
     name_prefix = name_prefix or ""

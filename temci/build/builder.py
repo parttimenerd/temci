@@ -75,6 +75,7 @@ class Builder:
     def build(self, thread_count: t.Optional[int] = None) -> t.List[str]:
         """
         Build the program block in parallel with at maximum `thread_count` threads in parallel.
+
         :param thread_count: number of threads to use at maximum to build the configured number of time,
                defaults to `build/threads`
         :return: list of base directories for the different builds
@@ -133,6 +134,7 @@ BuilderQueueItem = namedtuple("BuilderQueueItem", ["id", "tmp_build_dir", "tmp_d
 def env_variables_for_rand_conf(rand_conf: t.Dict) -> t.Dict[str, str]:
     """
     Creates a dictionary of environment variables to use the assembler randomisation.
+
     :param rand_conf: configuration (@see Builder.rand_conf_type)
     """
     typecheck_locals(rand_conf=Builder.rand_conf_scheme)
@@ -158,6 +160,7 @@ class BuilderThread(threading.Thread):
     def __init__(self, id: int, submit_queue: queue.Queue):
         """
         Creates a new builder thread
+
         :param id: id of the thread
         :param submit_queue: used queue
         """

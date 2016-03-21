@@ -28,6 +28,7 @@ class Line:
     def __init__(self, content: str, number: int):
         """
         Constructs a new Line object.
+
         :param content: content of the line (without line separator)
         :param number: line number (starting at 0)
         """
@@ -81,6 +82,7 @@ class Line:
     def startswith(self, other_str: str) -> bool:
         """
         Does this line start with the given string (omitting all trailing whitespace and tabs and multiple whitespace)?
+
         :param other_str: string to check against
         """
         return re.sub(r"\s+", " ", self.content.strip()).startswith(other_str)
@@ -96,7 +98,7 @@ class StatementLine(Line):
         Creates a new statement line object.
         :param content: content of the line
         :param number: line number (starting at zero)
-        :raises ValueError if the content doesn't represent a valid assembly statement
+        :raises: ValueError if the content doesn't represent a valid assembly statement
         """
         super().__init__(content, number)
         if not self.is_statement():
@@ -116,6 +118,7 @@ class Section:
     def __init__(self, lines: t.Optional[t.List[Line]] = None):
         """
         Creates a new assembly section.
+
         :param lines: initial set of lines of this section, default is an empty list
         """
         self.lines = lines or []  # type: t.List[Line]
@@ -124,6 +127,7 @@ class Section:
     def append(self, line: Line):
         """
         Append the passed line to the lines of this section.
+
         :param line: appended line
         """
         typecheck(line, Line)
@@ -180,6 +184,7 @@ class Section:
         """
         Randomizes the segment part in the current section by splitting it into label induced subsections
         and shuffling them.
+
         :param segment_name: bss, data or rodata (text doesn't make any sense)
         """
         typecheck(segment_name, ExactEither("bss", "data", "rodata"))
@@ -212,6 +217,7 @@ class Section:
         """
         Randomizes the `[c|m]alloc` and `new` method calls (and thereby the heap)
         by adding the given padding to each malloc call.
+
         :param padding: given range of bytes to pad
         """
         def rand() -> int:
@@ -251,6 +257,7 @@ class AssemblyFile:
     def __init__(self, lines: t.List[t.Union[Line, str]]):
         """
         Creates a new assembly file object from the passed assembly lines.
+
         :param lines: assembly line objects or strings
         """
         self._lines = []  # type: t.List[Line]
@@ -263,7 +270,8 @@ class AssemblyFile:
         """
         Initialize the sections of this assembly file.
         Currently only works well for CParser/libFirm produced assembler and quirky for GCC produced assembler.
-        :raises ValueError if an unknown assembler format (not libFirm or GCC) is encountered.
+
+        :raises: ValueError if an unknown assembler format (not libFirm or GCC) is encountered.
         """
         self.sections.clear()
         libfirm_begin_pattern = re.compile("#[-\ ]* Begin ")
@@ -291,6 +299,7 @@ class AssemblyFile:
     def add_lines(self, lines: t.List[t.Union[Line, str]]):
         """
         Add the passed assembly lines.
+
         :param lines: either list of Lines or strings
         """
         typecheck(lines, List(T(Line)|Str()))
@@ -306,6 +315,7 @@ class AssemblyFile:
     def randomize_file_structure(self, small_changes = True):
         """
         Randomizes the sections relative positions but doesn't change the first section.
+
         :param small_changes: only make small random changes
         """
         if len(self.sections) == 0:
@@ -330,6 +340,7 @@ class AssemblyFile:
     def randomize_sub_segments(self, segment_name: str):
         """
         Randomize the segments of the given name.
+
         :param segment_name: segment name, e.g. "bss", "data" or "rodata"
         """
         for section in self.sections:
@@ -339,6 +350,7 @@ class AssemblyFile:
         """
         Randomizes the `[c|m]alloc` and `new` method calls (and thereby the heap)
         by adding the given padding to each malloc call.
+
         :param padding: given range of bytes to pad
         """
         for section in self.sections:
@@ -353,6 +365,7 @@ class AssemblyFile:
     def from_file(cls, file: str):
         """
         Create an assembly file object from the contents of a file.
+
         :param file: name of the parsed file
         :return: created assembly file object
         """
@@ -362,6 +375,7 @@ class AssemblyFile:
     def to_file(self, file: str):
         """
         Store the textual representation of this assembly file object into a file.
+
         :param file: name of the destination file
         """
         with open(file, "w") as f:
@@ -390,6 +404,7 @@ class AssemblyProcessor:
     def __init__(self, config: t.Dict[str, t.Union[int, bool]]):
         """
         Creates an AssemblyProcessor from the passed configuration dictionary.
+
         :param config: passed configuration dictionary
         """
         self.config = self.config_scheme.get_default()  # type: t.Dict[str, t.Union[int, bool]]
@@ -399,6 +414,7 @@ class AssemblyProcessor:
     def process(self, file: str, small_changes: bool = False):
         """
         Processes the passed assembly file according to its configuration and stores the randomized file contents back.
+
         :param file: name of the passed file
         :param small_changes: don't randomize the file structure fully
         """
@@ -422,6 +438,7 @@ def process_assembler(call: t.List[str]):
     """
     Process the passed `as` wrapper arguments and randomize the assembly file.
     This function is called directly by the `as` wrapper.
+
     :param call: arguments passed to the `as` wrapper (call[0] is the name of the wrapper itself)
     """
     input_file = os.path.abspath(call[-1])

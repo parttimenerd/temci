@@ -9,23 +9,23 @@ class VCSDriver:
     Abstract version control system driver class used to support different vcss.
     """
 
-    dir = "."
-    branch = None
-
     id_type = Str()|Int()
 
-    def __init__(self, dir=".", branch: str = None):
+    def __init__(self, dir: str = ".", branch: str = None):
         """
         Initializes the VCS driver for a given base directory.
         It also sets the current branch if it's defined in the Settings
+
         :param dir: base directory
         :param branch: used branch
         """
         typecheck_locals(dir=Str(), branch=Optional(Str()))
         self._exec_command_cache = {}
         self._exec_err_code_cache = {}
-        self.dir = os.path.abspath(dir)
-        self.branch = branch or self.get_branch()
+        self.dir = os.path.abspath(dir)  # type: str
+        """ Base directory """
+        self.branch = branch or self.get_branch()  # type: str
+        """ Used branch """
 
     @classmethod
     def get_suited_vcs(cls, mode="auto", dir=".", branch: str = None) -> 'VCSDriver':
@@ -34,11 +34,12 @@ class VCSDriver:
         If mode is "auto" the best suited vcs driver is chosen. If mode is "git" or "file",
         the GitDriver or the FileDriver is chosen. If the chosen driver isn't applicable than
         a VCSError is raised.
+
         :param mode: passed mode
         :param dir: base directory
         :param branch: used branch
         :return: vcs driver for the base directory
-        :raises VCSError if the selected driver isn't applicable
+        :raises: VCSError if the selected driver isn't applicable
         """
         typecheck_locals(mode=ExactEither("file", "git", "auto"), dir=Str(), branch=Optional(Str()))
         if mode is "file" and FileDriver.is_suited_for_dir(dir):
@@ -52,9 +53,10 @@ class VCSDriver:
             raise NoSuchVCSError("No such vcs driver for mode {0} and directory {1}".format(mode, dir))
 
     @classmethod
-    def is_suited_for_dir(cls, dir=".") -> bool:
+    def is_suited_for_dir(cls, dir: str = ".") -> bool:
         """
         Checks whether or not this vcs driver can work with the passed base directory.
+
         :param dir: passed base directory path
         """
         raise NotImplementedError()
@@ -62,16 +64,18 @@ class VCSDriver:
     def set_branch(self, new_branch: str):
         """
         Sets the current branch and throws an error if the branch doesn't exist.
+
         :param new_branch: new branch to set
-        :raises VCSError if new_branch doesn't exist
+        :raises: VCSError if new_branch doesn't exist
         """
         raise NotImplementedError()
 
     def get_branch(self) -> t.Optional[str]:
         """
         Gets the current branch.
+
         :return: current branch name
-        :raises VCSError if something goes terribly wrong
+        :raises: VCSError if something goes terribly wrong
         """
         raise None
 
@@ -84,26 +88,26 @@ class VCSDriver:
     def has_uncommitted(self) -> bool:
         """
         Check for uncommitted changes in the repository.
-        :return:
         """
         raise NotImplementedError()
 
-    def number_of_revisions(self):
+    def number_of_revisions(self) -> int:
         """
         Number of committed revisions in the current branch (if branches are supported).
-        :return number of revisions
+        :return: number of revisions
         """
         raise NotImplementedError()
 
-    def validate_revision(self, id_or_num):
+    def validate_revision(self, id_or_num: t.Union[int, str]) -> bool:
         """
         Validate the existence of the referenced revision.
+
         :param id_or_num: id or number of the reverenced revision
         :return: does it exists?
         """
         raise NotImplementedError()
 
-    def get_info_for_revision(self, id_or_num):
+    def get_info_for_revision(self, id_or_num: t.Union[int, str]) -> dict:
         """
         Get an info dict for the given commit (-1 and 'HEAD' represent the uncommitted changes).
         Structure of the info dict::
@@ -116,8 +120,8 @@ class VCSDriver:
             "branch": … # branch name or empty string if this commit belongs to no branch
 
         :param id_or_num: id or number of the commit
-        :return info dict
-        :raises VCSError if the number or id isn't valid
+        :return: info dict
+        :raises: VCSError if the number or id isn't valid
         """
         raise NotImplementedError()
 
@@ -150,20 +154,22 @@ class VCSDriver:
         return info_dicts
 
 
-    def copy_revision(self, id_or_num, sub_dir, dest_dirs):
+    def copy_revision(self, id_or_num: t.Union[int, str], sub_dir: str, dest_dirs: t.List[str]):
         """
         Copy the sub directory of the current vcs base directory into all of the destination directories.
+
         :param id_or_num: id or number of the revision (-1 and 'HEAD' represent the uncommitted changes)
         :param sub_dir: sub directory of the current vcs base directory relative to it
         :param dest_dirs: list of destination directories in which the content of the sub dir is placed or dest dir string
-        :raises VCSError if something goes wrong while copying the directories
+        :raises: VCSError if something goes wrong while copying the directories
         """
         raise NotImplementedError()
 
-    def _copy_dir(self, src_dir: str, dest_dirs):
+    def _copy_dir(self, src_dir: str, dest_dirs: t.List[str]):
         """
         Helper method to copy a directory to many destination directories.
         It also works if for files.
+
         :param src_dir: source directory relative to the current base directory
         :param dest_dirs: list of destination directories or just one destination directory string
         """
@@ -187,14 +193,15 @@ class VCSDriver:
                 except OSError as exc2:
                     raise VCSError(str(exc2))
 
-    def _exec_command(self, command, error: str = "Error executing {cmd}: {err}", cacheable: bool = False):
+    def _exec_command(self, command: str, error: str = "Error executing {cmd}: {err}", cacheable: bool = False):
         """
         Executes the given external command and returns the resulting output.
+
         :param command: given external command, list or string (uses /bin/sh)
         :param error: error message with can have a placeholder `cmd` for the command and `èrr` for stderr
         :param cacheable: can the result of the command be cached to reduce the number of needed calls?
-        :return output as string
-        :raises VCSError if the external command hasn't exit code 0
+        :return: output as string
+        :raises: VCSError if the external command hasn't exit code 0
         """
         typecheck_locals(command=List()|Str(), error=Str(), cacheable=Bool())
         args = command
@@ -217,12 +224,13 @@ class VCSDriver:
 
         return str(out)
 
-    def _exec_err_code(self, command, cacheable=False):
+    def _exec_err_code(self, command: str, cacheable: bool = False):
         """
         Executes the given external command and returns its error code.
+
         :param command: given external command (as string or list)
         :param cacheable: can the result of the command be cached to reduce the number of needed calls?
-        :return error code of the command (or 0 if no error occurred)
+        :return: error code of the command (or 0 if no error occurred)
         """
         typecheck_locals(command=List(Str())|Str(), cacheable=Bool())
         args = []
@@ -256,7 +264,7 @@ class FileDriver(VCSDriver):
     """
 
     @classmethod
-    def is_suited_for_dir(cls, dir="."):
+    def is_suited_for_dir(cls, dir: str = "."):
         typecheck_locals(dir=Str())
         return os.path.exists(dir) and os.path.isdir(dir)
 
@@ -266,19 +274,19 @@ class FileDriver(VCSDriver):
             return
         raise VCSError("No branch support in FileDriver")
 
-    def get_branch(self):
+    def get_branch(self) -> t.Optional[str]:
         return None
 
-    def has_uncommitted(self):
+    def has_uncommitted(self) -> bool:
         return True
 
-    def number_of_revisions(self):
+    def number_of_revisions(self) -> int:
         return 0
 
-    def validate_revision(self, id_or_num):
+    def validate_revision(self, id_or_num: t.Union[int, str]) -> bool:
         return id_or_num == -1 or id_or_num == 'HEAD'
 
-    def get_info_for_revision(self, id_or_num):
+    def get_info_for_revision(self, id_or_num: t.Union[int, str]) -> dict:
         typecheck_locals(id_or_num=self.id_type)
         if not self.validate_revision(id_or_num):
             raise NoSuchRevision(id_or_num)
@@ -291,28 +299,29 @@ class FileDriver(VCSDriver):
             "branch": ""
         }
 
-    def copy_revision(self, id_or_num, sub_dir, dest_dirs):
+    def copy_revision(self, id_or_num: t.Union[int, str], sub_dir: str, dest_dirs: t.List[str]):
         typecheck_locals(id_or_num=self.id_type, dest_dirs=List(Str())|Str())
         if not self.validate_revision(id_or_num):
             raise NoSuchRevision(id_or_num)
         self._copy_dir(sub_dir, dest_dirs)
+
 
 class GitDriver(VCSDriver):
     """
     The driver for git repositories.
     """
 
-    def __init__(self, dir=".", branch: str = None):
+    def __init__(self, dir: str = ".", branch: str = None):
         super().__init__(dir, branch)
         self.base_path = self._get_git_base_dir(dir)
 
     @classmethod
-    def is_suited_for_dir(cls, dir="."):
+    def is_suited_for_dir(cls, dir: str = ".") -> bool:
         typecheck_locals(dir=Str())
         return cls._get_git_base_dir(dir) is not None
 
     @classmethod
-    def _get_git_base_dir(cls, dir=".") -> str:
+    def _get_git_base_dir(cls, dir: str = ".") -> str:
         path = os.path.abspath(dir).split("/")
         if path[-1] == "":
             path = path[0:-1]
@@ -322,7 +331,7 @@ class GitDriver(VCSDriver):
                 return os.path.join(*path[i:])
         return None
 
-    def get_branch(self):
+    def get_branch(self) -> t.Optional[str]:
         if self.branch is not None:
             return self.branch
         return self._exec_command("git rev-parse --abbrev-ref HEAD",
@@ -346,13 +355,13 @@ class GitDriver(VCSDriver):
                 branches.append(line)
         return branches
 
-    def has_uncommitted(self):
+    def has_uncommitted(self) -> bool:
         return self._exec_err_code("git diff --cached --quiet", cacheable=True) == 1
 
-    def _list_of_commit_tuples(self):
+    def _list_of_commit_tuples(self) -> t.List[t.Tuple[str, str]]:
         """
         Executes `git log BRANCH` and parses it's output lines into tuples (hash, msg).
-        :return list of tuples
+        :return: list of tuples
         """
         res = self._exec_command("git log --oneline {}".format(self.branch), cacheable=True).split("\n")
         list = []
@@ -361,15 +370,16 @@ class GitDriver(VCSDriver):
                 list.append(line.strip().split(" ", 1))
         return list
 
-    def number_of_revisions(self):
+    def number_of_revisions(self) -> str:
         return len(self._list_of_commit_tuples())
 
-    def _commit_number_to_id(self, num):
+    def _commit_number_to_id(self, num: int) -> str:
         """
         Returns a commit id for the given commit number and normalizes passed commit ids.
+
         :param num: commit number
-        :return commit id (string)
-        :raises VCSError if the commit number isn't valid
+        :return: commit id (string)
+        :raises: VCSError if the commit number isn't valid
         """
         typecheck_locals(num=self.id_type)
         if not isinstance(num, int):
@@ -379,16 +389,16 @@ class GitDriver(VCSDriver):
         cid, __ = self._list_of_commit_tuples()[num]
         return cid
 
-    def _normalize_commit_id(self, id):
+    def _normalize_commit_id(self, id: str) -> str:
         """
         Normalizes the given commit id.
-        :return normalized commit id
-        :raises VCSError if something goes wrong
+        :return: normalized commit id
+        :raises: VCSError if something goes wrong
         """
         out = self._exec_command("git show {} | head -n 1".format(id), cacheable=True).strip()
         return out.split(" ")[1]
 
-    def validate_revision(self, id_or_num):
+    def validate_revision(self, id_or_num: t.Union[int, str]) -> bool:
         typecheck_locals(id_or_num=self.id_type)
         if id_or_num is -1 or id_or_num == "HEAD":
             return self.has_uncommitted()
@@ -400,7 +410,7 @@ class GitDriver(VCSDriver):
         except VCSError:
             return False
 
-    def _get_branch_for_revision(self, id_or_num):
+    def _get_branch_for_revision(self, id_or_num: t.Union[int, str]) -> str:
         if id_or_num == -1 or id_or_num == "HEAD":
             return self.get_branch()
         id = self._commit_number_to_id(id_or_num)
@@ -408,7 +418,7 @@ class GitDriver(VCSDriver):
         out = out.split("\n")[0].strip()
         return out.split(" ")[-1]
 
-    def get_info_for_revision(self, id_or_num):
+    def get_info_for_revision(self, id_or_num: t.Union[int, str]) -> dict:
         typecheck_locals(id_or_num=self.id_type)
         if id_or_num == -1 or id_or_num == "HEAD":
             return {
@@ -441,7 +451,7 @@ class GitDriver(VCSDriver):
             "branch": branch
         }
 
-    def copy_revision(self, id_or_num, sub_dir: str, dest_dirs):
+    def copy_revision(self, id_or_num: t.Union[int, str], sub_dir: str, dest_dirs: t.List[str]):
         typecheck_locals(id_or_num=self.id_type, dest_dirs=List(Str())|Str())
         if isinstance(dest_dirs, str):
             dest_dirs = [dest_dirs]
@@ -466,14 +476,17 @@ class GitDriver(VCSDriver):
             raise VCSError(str(err))
         os.remove(tar_file)
 
+
 class VCSError(EnvironmentError):
-    """
-    Error for everything that goes fataly wrong with vcs handling.
-    """
+    """ Base error for the errors that occur during vcs handling """
     pass
+
 
 class NoSuchVCSError(VCSError):
+    """ Thrown if there isn't a vcs with the specific name """
     pass
 
+
 class NoSuchRevision(VCSError):
+    """ Thrown if a specific revision doesn't exist """
     pass

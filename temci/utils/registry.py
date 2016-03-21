@@ -1,6 +1,6 @@
 from .settings import Settings
-from .util import Singleton
 from .typecheck import *
+import typing as t
 
 
 class AbstractRegistry:
@@ -13,21 +13,26 @@ class AbstractRegistry:
     Important: Be sure to have a "_register = {}" line in your extending class.
     """
 
-    settings_key_path = ""
-    use_key = None
-    use_list = False
-    default = []
+    settings_key_path = ""  # type: str
+    """ Used settings key path """
+    use_key = None  # type: t.Optional[str]
+    """ Used key that sets which registered class is currently used """
+    use_list = False  # type: bool
+    """ Allow more than one class to used at a specific moment in time """
+    default = None  # type: t.Optional[t.Union[str, t.List[str]]]
+    """ Name(s) of the class(es) used by default. Type depends on the `use_list` property."""
 
-    registry = {}
+    registry = {}  # type: t.Dict[str, type]
+    """ Registered classes (indexed by their name) """
 
     @classmethod
-    def get_for_name(cls, name: str, *args, **kwargs):
+    def get_for_name(cls, name: str, *args, **kwargs) -> t.Any:
         """
         Creates a plugin with the given name.
 
         :param name: name of the registered class
         :return: object of the registered class
-        :raises ValueError if there isn't such a class
+        :raises: ValueError if there isn't such a class
         """
         if name not in cls.registry:
             raise ValueError("No such registered class {}".format(name))
@@ -35,7 +40,7 @@ class AbstractRegistry:
         return cls.registry[name](misc_settings, *args, **kwargs)
 
     @classmethod
-    def get_used(cls):
+    def get_used(cls) -> t.Union[str, t.List[str]]:
         """
         Get the list of name of the used plugins (use_list=True)
         or the names of the used plugin (use_list=False).
@@ -63,6 +68,7 @@ class AbstractRegistry:
         """
         Registers a new class.
         The constructor of the class gets as first argument the misc settings.
+
         :param name: common name of the registered class
         :param klass: actual class
         :param misc_type: type scheme of the {name}_misc settings
@@ -87,7 +93,7 @@ class AbstractRegistry:
                     or isinstance(Settings().get_type_scheme(use_key_path), Any):
                 t = (StrList() | Exact(name))
                 t.typecheck_default = False
-                Settings().modify_setting(use_key_path, t // Default(cls.default))
+                Settings().modify_setting(use_key_path, t // Default(cls.default) if cls.default else t)
             else:
                 use_key_list = Settings().get_type_scheme(use_key_path)
                 assert isinstance(use_key_list, StrList)
@@ -104,7 +110,7 @@ class AbstractRegistry:
                     or not isinstance(Settings().get_type_scheme(use_key_path), ExactEither):
                 t = ExactEither(name)
                 t.typecheck_default = False
-                Settings().modify_setting(use_key_path, t // Default(cls.default))
+                Settings().modify_setting(use_key_path, t // Default(cls.default) if cls.default else t)
             else:
                 Settings().modify_setting(use_key_path, Settings().get_type_scheme(use_key_path) | Exact(name))
             t = Settings().get_type_scheme(use_key_path)
@@ -113,20 +119,21 @@ class AbstractRegistry:
         cls.registry[name] = klass
 
     @classmethod
-    def __getitem__(cls, name: str):
+    def __getitem__(cls, name: str) -> type:
         """
         Alias for get_for_name(name).
         """
         return cls.get_for_name(name)
 
     @classmethod
-    def get_class(cls, name: str):
+    def get_class(cls, name: str) -> type:
         return cls.registry[name]
 
 
 def register(registry: type, name: str, misc_type: Type):
     """
     Class decorator that calls the register method for the decorated method.
+
     :param registry: the registry class to register the class in
     :param name: common name of the registered class
     :param misc_type: type scheme of the {name}_misc settings (each dict key must have a default value)

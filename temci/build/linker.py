@@ -15,6 +15,7 @@ import os, json, subprocess
 def link(argv: t.List[str], randomize: bool = True, ld_tool: str = "/usr/bin/ld"):
     """
     Function that gets all argument the `ld` wrapper gets passed, randomized their order and executes the original `ld`.
+
     :param argv: `ld` arguments
     :param randomize: actually randomize the order of the arguments?
     :param ld_tool: used `ld` tool
@@ -50,6 +51,7 @@ def process_linker(call: t.List[str]):
     """
     Uses the passed `ld` arguments to randomize the link order during linking.
     It's configured by environment variables.
+
     :param call: arguments for `ld`
     """
     config = json.loads(os.environ["RANDOMIZATION"]) if "RANDOMIZATION" in os.environ else {}

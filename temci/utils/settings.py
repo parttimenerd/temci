@@ -7,16 +7,22 @@ from temci.utils.typecheck import *
 import multiprocessing
 import typing as t
 
-def ValidCPUCoreNumber():
+
+def ValidCPUCoreNumber() -> Int:
+    """
+    Creates a Type instance that matches all valid CPU core numbers.
+    """
     return Int(range=range(0, multiprocessing.cpu_count()))
 
 class SettingsError(ValueError):
+    """ Error raised if something with the settings goes wrong """
     pass
 
 
 class Settings(metaclass=Singleton):
     """
     Manages the Settings.
+    The settings keys and sub keys are combined by a slash, e.g. "report/in".
     """
 
     type_scheme = Dict({  # type: Dict
@@ -86,8 +92,6 @@ class Settings(metaclass=Singleton):
             "rand": Dict({
                 "heap": NaturalNumber() // Default(0)
                         // Description("0: don't randomize, > 0 randomize with paddings in range(0, x)"),
-                "stack": NaturalNumber() // Default(0)
-                        // Description("0: don't randomize, > 0 randomize with paddings in range(0, x)"),
                 "bss": Bool() // Default(False)
                         // Description("Randomize the bss sub segments?"),
                 "data": Bool() // Default(False)
@@ -127,22 +131,27 @@ class Settings(metaclass=Singleton):
                         // Description("Name of the produced file to reverse the actions of a package.")
         })
     }, all_keys=False)
-    config_file_name = "temci.yaml"
+    """ Type scheme of the settings """
+    config_file_name = "temci.yaml"  # type: str
+    """ Default name of the configuration files """
 
     def __init__(self):
         """
-         Inits a Settings singleton object and thereby loads the Settings files.
+        Initializes a Settings singleton object and thereby loads the Settings files.
         It loads the settings files from the app folder (config.yaml) and
         the current working directory (temci.yaml) if they exist.
-        :raises SettingsError if some of the settings aren't in the format described via the type_scheme class property
+
+        :raises: SettingsError if some of the settings aren't in the format described via the type_scheme class property
         """
-        self.prefs = copy.deepcopy(self.type_scheme.get_default())
+        self.prefs = copy.deepcopy(self.type_scheme.get_default())  # type: t.Dict[str, t.Any]
+        """ The set sonfigurations """
         res = self._validate_settings_dict(self.prefs, "default settings")
         if not res:
             raise SettingsError(str(res))
         self._setup()
 
     def load_files(self):
+        """ Loads the configuration files from the current and the config directory """
         self.load_from_config_dir()
         self.load_from_current_dir()
         self._setup()
@@ -171,21 +180,22 @@ class Settings(metaclass=Singleton):
         """
         self.prefs = copy.deepcopy(self.type_scheme.get_default())
 
-    def _validate_settings_dict(self, data, description: str):
+    def _validate_settings_dict(self, data: t.Dict[str, t.Any], description: str):
         """
         Check whether the passed dictionary matches the settings type scheme.
 
         :param data: passed dictionary
         :param description: short description of the passed dictionary
-        :return True like object if valid, else string like object which is the error message
+        :return: True like object if valid, else string like object which is the error message
         """
         return verbose_isinstance(data, self.type_scheme, description)
 
     def load_file(self, file: str):
         """
-        Loads the settings from the settings yaml file.
+        Loads the configuration from the configuration YAML file.
+
         :param file: path to the file
-        :raises SettingsError if the settings file is incorrect or doesn't exist
+        :raises: SettingsError if the settings file is incorrect or doesn't exist
         """
         self.prefs = self.type_scheme.get_default()
         tmp = copy.deepcopy(self.prefs)
@@ -206,7 +216,12 @@ class Settings(metaclass=Singleton):
             raise SettingsError(str(res))
         self._setup()
 
-    def load_from_dict(self, config_dict: dict):
+    def load_from_dict(self, config_dict: t.Dict[str, t.Any]):
+        """
+        Load the configuration from the passed dictionary.
+
+        :param config_dict: passed configuration dictionary
+        """
         self.prefs = self.type_scheme.get_default()
         tmp = copy.deepcopy(self.prefs)
 
@@ -222,15 +237,15 @@ class Settings(metaclass=Singleton):
 
     def load_from_dir(self, dir: str):
         """
-        Loads the settings from the `config.yaml` file inside the passed directory.
+        Load the configuration from the configuration file inside the passed directory.
+
         :param dir: path of the directory
         """
         self.load_file(os.path.join(dir, "config.yaml"))
 
     def load_from_config_dir(self):
         """
-        Loads the config file from the application directory (e.g. in the users home folder).
-        If it exists.
+        Load the config file from the application directory (e.g. in the users home folder) if it exists.
         """
         conf = os.path.join(click.get_app_dir("temci"), "config.yaml")
         if os.path.exists(conf) and os.path.isfile(conf):
@@ -238,17 +253,18 @@ class Settings(metaclass=Singleton):
 
     def load_from_current_dir(self):
         """
-        Loads the settings from the `temci.yaml` file from the current working directory if it exists.
+        Load the configuration from the `configuration file in the current working directory if it exists.
         """
         if os.path.exists(self.config_file_name) and os.path.isfile(self.config_file_name):
             self.load_file(self.config_file_name)
 
-    def get(self, key: str):
+    def get(self, key: str) -> t.Any:
         """
         Get the setting with the given key.
+
         :param key: name of the setting
-        :return value of the setting
-        :raises SettingsError if the setting doesn't exist
+        :return: value of the setting
+        :raises: SettingsError if the setting doesn't exist
         """
         path = key.split("/")
         if not self.validate_key_path(path):
@@ -258,13 +274,19 @@ class Settings(metaclass=Singleton):
             data = data[sub]
         return data
 
-    def __getitem__(self, key: str):
+    def __getitem__(self, key: str) -> t.Any:
         """
         Alias for self.get(self, key).
         """
         return self.get(key)
 
-    def _set(self, path: list, value):
+    def _set(self, path: t.List[str], value):
+        """
+        Set the setting at the passed path.
+
+        :param path: passed key path
+        :param value: new value
+        """
         tmp_pref = self.prefs
         tmp_type = self.type_scheme
         for key in path[0:-1]:
@@ -279,12 +301,13 @@ class Settings(metaclass=Singleton):
         if path == ["settings_file"] and value is not "":
             self.load_file(value)
 
-    def set(self, key, value):
+    def set(self, key: str, value):
         """
         Sets the setting key to the passed new value
+
         :param key: settings key
         :param value: new value
-        :raises SettingsError if the setting isn't valid
+        :raises: SettingsError if the setting isn't valid
         """
         tmp = copy.deepcopy(self.prefs)
         path = key.split("/")
@@ -298,15 +321,16 @@ class Settings(metaclass=Singleton):
     def __setitem__(self, key: str, value):
         """
         Alias for self.set(key, value).
-        :raises SettingsError if the setting isn't valid
+
+        :raises: SettingsError if the setting isn't valid
         """
         self.set(key, value)
 
-    def validate_key_path(self, path: list):
+    def validate_key_path(self, path: t.List[str]) -> bool:
         """
         Validates a path into in to the settings trees,
         :param path: list of sub keys
-        :return Is this key path valid?
+        :return: Is this key path valid?
         """
         tmp = self.prefs
         for item in path:
@@ -316,19 +340,27 @@ class Settings(metaclass=Singleton):
         return True
 
     def has_key(self, key: str) -> bool:
+        """ Does the passed key exist? """
         return self.validate_key_path(key.split("/"))
 
     def _set_default(self, path: t.List[str], value):
+        """
+        Set the default value of the setting with the passed path
+
+        :param path: passed key path
+        :param value: new default value
+        """
         self.modify_type_scheme("/".join(path), lambda t: t // Default(value))
 
     def modify_setting(self, key: str, type_scheme: Type):
         """
         Modifies the setting with the given key and adds it if it doesn't exist.
+
         :param key: key of the setting
         :param type_scheme: Type of the setting
         :param default_value: default value of the setting
-        :raises SettingsError if the settings domain (the key without the last element) doesn't exist
-        :raises TypeError if the default value doesn't adhere the type scheme
+        :raises: SettingsError if the settings domain (the key without the last element) doesn't exist
+        :raises: TypeError if the default value doesn't adhere the type scheme
         """
         path = key.split("/")
         domain = "/".join(path[:-1])
@@ -352,9 +384,10 @@ class Settings(metaclass=Singleton):
     def get_type_scheme(self, key: str) -> Type:
         """
         Returns the type scheme of the given key.
+
         :param key: given key
         :return: type scheme
-        :raises SettingsError if the setting with the given key doesn't exist
+        :raises: SettingsError if the setting with the given key doesn't exist
         """
         if not self.validate_key_path(key.split("/")):
             raise SettingsError("Setting {} doesn't exist".format(key))
@@ -366,9 +399,10 @@ class Settings(metaclass=Singleton):
     def modify_type_scheme(self, key: str, modificator: t.Callable[[Type], Type]):
         """
         Modifies the type scheme of the given key via a modificator function.
+
         :param key: given key
         :param modificator: gets the type scheme and returns its modified version
-        :raises SettingsError if the setting with the given key doesn't exist
+        :raises: SettingsError if the setting with the given key doesn't exist
         """
         if not self.validate_key_path(key.split("/")):
             raise SettingsError("Setting {} doesn't exist".format(key))
@@ -379,40 +413,32 @@ class Settings(metaclass=Singleton):
         tmp_typ[subkeys[-1]] = modificator(tmp_typ[subkeys[-1]])
         assert isinstance(tmp_typ[subkeys[-1]], Type)
 
-    def get_default_value(self, key: str):
+    def default(self, value: t.Optional[t.Any], key: str):
         """
-        Returns the default value of the given key.
-        :param key: given key
-        :return: default value
-        :raises SettingsError if the setting with the given key doesn't exist
-        """
-        if not self.validate_key_path(key.split("/")):
-            raise SettingsError("Setting {} doesn't exist".format(key))
-        tmp_def = self.defaults
-        for subkey in key.split("/"):
-            tmp_def = tmp_def[subkey]
-        return tmp_def
+        Returns the passed value if isn't None else the settings value under the passed key.
 
-    def default(self, value, key: str):
-        """
-
-        :param value:
-        :param key:
-        :return:
+        :param value: passed value
+        :param key: passed settings key
         """
         if value is None:
             return self[key]
         typecheck(value, self.get_type_scheme(key))
         return value
 
-    def store_into_file(self, file_name):
+    def store_into_file(self, file_name: str):
         """
         Stores the current settings into a yaml file with comments.
+
         :param file_name: name of the resulting file
         """
         with open(file_name, "w") as f:
             print(self.type_scheme.get_default_yaml(defaults=self.prefs), file=f)
 
     def has_log_level(self, level: str) -> bool:
+        """
+        Is the current log level the passed level?
+
+        :param level: passed level (in ["error", "warn", "info", "debug"])
+        """
         levels = ["error", "warn", "info", "debug"]
         return levels.index(level) <= levels.index(self["log_level"])

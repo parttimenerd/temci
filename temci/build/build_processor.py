@@ -36,6 +36,7 @@ class BuildProcessor:
     def __init__(self, build_blocks: t.Optional[t.List[t.Dict[str, t.Any]]] = None):
         """
         Creates a build processor for the passed build block configurations.
+
         :param build_blocks: passed build block configurations
         """
         if build_blocks is None:

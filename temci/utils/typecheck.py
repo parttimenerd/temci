@@ -72,119 +72,185 @@ import itertools, os, yaml, click, inspect
 
 
 class ConstraintError(ValueError):
+    """
+    Error that is thrown if a constraint isn't met.
+    """
     pass
 
 
-class Info(object):
+class Info:
+    """
+    Information object that is used to produce meaningful type check error messages.
+    """
 
-    def __init__(self, value_name: str = None, _app_str: str = None, value = None):
-        self.value_name = value_name
-        self._app_str = _app_str if _app_str is not None else ""
+    def __init__(self, value_name: str = None, value = None, _app_str: str = None):
+        """
+        Creates a new info object.
+
+        :param value_name: name of the value that is type checked
+        :param value: value that is type checked
+        """
+        self.value_name = value_name  # type: str
+        """ Name of the value that is typechecked """
+        self._app_str = _app_str or ""  # type: str
         if value_name is None:
             self._value_name = "value {{!r}}{}".format(self._app_str)
         else:
             self._value_name = "{}{} of value {{!r}}".format(self.value_name, self._app_str)
-        if value is None:
-            self.value = None
-            self.has_value = False
-        else:
+        self.value = None
+        """ Main value that is type checked """
+        self.has_value = False  # type: bool
+        """ Is the value property of this info object set to a meaningful value? """
+        if value is not None:
             self.value = value
             self.has_value = True
 
     def set_value(self, value):
+        """ Set the main value of this object """
         self.value = value
         self.has_value = True
 
-    def get_value(self):
+    def get_value(self) -> t.Any:
+        """
+        Get the main value of this object.
+        :raises: ValueError if the main value isn't set
+        """
         if not self.has_value:
             raise ValueError("value is not defined")
         return self.value
 
-    def add_to_name(self, app_str: str):
+    def add_to_name(self, app_str: str) -> 'Info':
         """
-        Creates a new info object based on this one.
+        Creates a new info object based on this one with the given appendix to it's value representation.
+        It's used to give information about what part of the main value is currently examined.
+
         :param app_str: app string appended to the own app string to create the app string for the new info object
         :return: new info object
-        :rtype Info
         """
-        return Info(self.value_name, self._app_str + app_str, self.value)
+        return Info(self.value_name, self.value, self._app_str + app_str)
 
     def _str(self):
         return self._value_name.format(self.get_value())
 
-    def errormsg(self, constraint, msg: str = None):
+    def errormsg(self, constraint: 'Type', msg: str = None) -> 'InfoMsg':
+        """
+        Creates an info message object with the passed expected type and the optional message.
+
+        :param constraint: passed expected type
+        :param msg: additional message, it should give more information about why the constraint isn't met
+        """
         app = ": " + msg if msg is not None else ""
         return InfoMsg("{} hasn't the expected type {}{}".format(self._str(), constraint, app))
 
-    def errormsg_cond(self, cond, constraint, value):
+    def errormsg_cond(self, cond: bool, constraint: 'Type', msg: str = None) -> 'InfoMsg':
+        """
+        Creates an info message object with the passed expected type and the optional message.
+
+        :param cond: if this is false `InfoMsg(True)` is returned.
+        :param constraint: passed expected type
+        :param msg: additional message, it should give more information about why the constraint isn't met
+        """
         if cond:
             return InfoMsg(True)
         else:
-            return InfoMsg(self.errormsg(constraint))
+            return self.errormsg(constraint, msg)
 
-    def errormsg_non_existent(self, constraint):
+    def errormsg_non_existent(self, constraint: 'Type') -> 'InfoMsg':
+        """
+        Creates an info message object with the passed expected type that contains the message that
+        currently examined part of the value is unexpected.
+
+        :param constraint: passed expected type
+        """
         return InfoMsg("{} is non existent, expected value of type {}".format(self._str(), constraint))
 
-    def errormsg_too_many(self, constraint, value_len, constraint_len):
+    def errormsg_too_many(self, constraint: 'Type', value_len: int, constraint_len: int) -> 'InfoMsg':
+        """
+        Creates an info message object with the passed expected type that contains the message that
+        currently examined part of the value has to many elements.
+
+        :param constraint: passed expected type
+        :param value_len: actual number of elements
+        :param constraint_len: expected number of elements
+        """
         return InfoMsg("{} has to many elements ({}), " \
                "expected value of type {} with {} elements".format(self._str(), value_len, constraint, constraint_len))
 
-    def wrap(self, result: bool):
+    def wrap(self, result: bool) -> 'InfoMsg':
+        """
+        Wrap the passed bool into a InfoMsg object.
+        """
         return InfoMsg(result)
 
     def __getitem__(self, item):
+        """ This method isn't implemented """
         raise NotImplementedError()
 
     def __setitem__(self, key, value):
+        """ This method isn't implemented """
         raise NotImplementedError()
 
 
 class NoInfo(Info):
+    """
+    A dumb version of the information class that is used when meaningful error messages aren't needed.
+    It has better performance characteristics as it doesn't store any values or create strings.
+    """
 
     def __init__(self, value_name: str = None, _app_str: str = None, value=None):
         if False:
             super().__init__(value_name, _app_str, value)
         self.has_value = True
 
-    def get_value(self):
+    def get_value(self) -> None:
         return None
 
     def set_value(self, value):
         pass
 
-    def add_to_name(self, app_str):
+    def add_to_name(self, app_str: str) -> 'NoInfo':
         return self
 
-    def errormsg(self, constraint, msg: str = None):
-        return False
+    def errormsg(self, constraint: 'Type', msg: str = None) -> 'InfoMsg':
+        return InfoMsg(False)
 
-    def errormsg_cond(self, cond, constraint, value):
-        return cond
+    def errormsg_cond(self, cond: bool, constraint: 'Type', msg: str = None) -> 'InfoMsg':
+        return InfoMsg(cond)
 
-    def errormsg_non_existent(self, constraint):
-        return False
+    def errormsg_non_existent(self, constraint: 'Type') -> 'InfoMsg':
+        return InfoMsg(False)
 
-    def errormsg_too_many(self, constraint, value_len, constraint_len):
-        return False
+    def errormsg_too_many(self, constraint: 'Type', value_len: int, constraint_len: int) -> 'InfoMsg':
+        return InfoMsg(False)
 
-    def wrap(self, result: bool):
-        return result
+    def wrap(self, result: bool) -> 'InfoMsg':
+        return InfoMsg(result)
 
 
-class InfoMsg(object):
+class InfoMsg:
+    """
+    Simple message class used by the Info class.
+    """
 
-    def __init__(self, msg_or_bool):
-        self.success = msg_or_bool is True
-        self.msg = msg_or_bool if isinstance(msg_or_bool, str) else str(self.success)
+    def __init__(self, msg_or_bool: t.Union[str, bool]):
+        """
+        Creates an message object.
 
-    def __str__(self):
+        :param msg_or_bool: if the value isn't true than is expected to be unsuccessful
+        """
+        self.success = msg_or_bool is True  # type: bool
+        """ Was the type checking succesfull? """
+        self.msg = msg_or_bool if isinstance(msg_or_bool, str) else str(self.success)  # type: str
+        """ The error message or true if the type checking was successful """
+
+    def __str__(self) -> str:
         return self.msg
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return self.success
 
 
-class Description(object):
+class Description:
     """
     A description of a Type, that annotates it.
     Usage example::
@@ -195,12 +261,13 @@ class Description(object):
     def __init__(self, description: str):
         typecheck(description, str)
         self.description = description
+        """ Description string """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.description
 
 
-class Default(object):
+class Default:
     """
     A default value annotation for a Type.
     Usage example::
@@ -213,8 +280,11 @@ class Default(object):
 
     def __init__(self, default):
         self.default = default
+        """ Default value of the annotated type """
 
-YAML_FILE_COMPLETION_HINT = "_files -g '*\.yaml'"
+
+YAML_FILE_COMPLETION_HINT = "_files -g '*\.yaml'"  # type: str
+""" YAML file name completion hint for ZSH """
 
 class CompletionHint(object):
     """
@@ -226,6 +296,7 @@ class CompletionHint(object):
 
     def __init__(self, **hints):
         self.hints = hints
+        """ Completion hints for every supported shell """
 
 
 class Type(object):
@@ -234,48 +305,66 @@ class Type(object):
     """
 
     def __init__(self):
-        self.description = None
-        self.default = None
-        self.typecheck_default = True
-        self.completion_hints = {}
+        self.description = None  # type: t.Optional[Description]
+        """ Description of this type instance """
+        self.default = None  # type: t.Optional[Default]
+        """ Default value of this type instance """
+        self.typecheck_default = True  # type: bool
+        """ Type check the default value """
+        self.completion_hints = {}  # type: t.Dict[str, t.Any]
+        """ Completion hints for supported shells for this type instance """
 
-    def __instancecheck__(self, value, info: Info = NoInfo()):
+    def __instancecheck__(self, value, info: Info = NoInfo()) -> InfoMsg:
         """
         Checks whether or not the passed value has the type specified by this instance.
+
         :param value: passed value
+        :param info: info object for creating error messages
         """
         if not info.has_value:
             info.set_value(value)
         return self._instancecheck_impl(value, info)
 
-    def _instancecheck_impl(self, value, info: Info):
-        return False
+    def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
+        """
+        This method should be implemented by all sub classes.
+        It checks whether or not the passed value has the type specified by this type instance.
 
-    def __str__(self):
-        return "Type[]"
+        :param value: passed value
+        :param info: info object used to produce (meaningful) error or success messages
+        """
+        return info.wrap(False)
 
-    def _validate_types(self, *types):
+    def __str__(self) -> str:
+        return "Type()"
+
+    def _validate_types(self, *types: t.Tuple['Type']):
+        """
+        Checks if all the passed values are instance of the Type class (or a sub class)
+        :param types: passed values
+        :raises: ConstraintError if this isn't the case
+        """
         for t in types:
             if not isinstance(t, Type):
                 raise ConstraintError("{} is not an instance of a Type subclass".format(t))
 
-    def __and__(self, other):
+    def __and__(self, other: 'Type') -> 'Type':
         """
         Alias for All(self, other)
         """
         return All(self, other)
 
-    def __or__(self, other):
+    def __or__(self, other: 'Type') -> 'Type':
         """
         Alias for Either(self, other).
-        The only difference is that it flattens trees of Either instances
+        The only difference is that it flattens trees of Either instances.
         """
         if isinstance(other, Either):
             other.types.index(other, 0)
             return other
         return Either(self, other)
 
-    def __floordiv__(self, other):
+    def __floordiv__(self, other: t.Union[str, Description, Default, CompletionHint]) -> 'Type':
         """
         Alias for Constraint(other, self). Self mustn't be a Type.
         If other is a string the description property of this Type object is set.
@@ -297,23 +386,39 @@ class Type(object):
             raise ConstraintError("{} mustn't be an instance of a Type subclass".format(other))
         return Constraint(other, self)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if type(other) == type(self):
             return self._eq_impl(other)
         return False
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'Type') -> bool:
         return False
 
-    def get_default(self):
+    def get_default(self) -> t.Any:
+        """
+        Returns the default value of this type
+        :raises: ValueError if the default value isn't set
+        """
         if self.default is None:
             raise ValueError("{} has no default value.".format(self))
         return self.default.default
 
     def has_default(self) -> bool:
+        """
+        Does this type instance have an default value?
+        """
         return self.default is not None
 
-    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> str:
+    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) \
+            -> t.Union[str, t.List[str]]:
+        """
+        Produce a YAML string that contains the default value and the description of this type and it's possible sub types.
+
+        :param indents: number of indents in front of each produced line
+        :param indentation: indentation width in number of white spaces
+        :param str_list: return a list of lines instead of a combined string?
+        :param defaults: default value that should be used instead of the default value of this instance
+        """
         if defaults is None:
             defaults = self.get_default()
         else:
@@ -326,8 +431,13 @@ class Type(object):
         return strs if str_list else "\n".join(strs)
 
     def dont_typecheck_default(self) -> 'Type':
+        """
+        Disable type checking the default value.
+        :return: self
+        """
         self.typecheck_default = False
         return self
+
 
 class Exact(Type):
     """
@@ -336,12 +446,15 @@ class Exact(Type):
 
     def __init__(self, exp_value):
         """
+        Creates an Exact object.
+
         :param exp_value: value to check for
         """
         super().__init__()
         self.exp_value = exp_value
+        """ Expected value """
 
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+    def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         """
         Is the value the same as the expected one?
         """
@@ -351,10 +464,10 @@ class Exact(Type):
     def __str__(self):
         return "Exact({!r})".format(self.exp_value)
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'Exact') -> bool:
         return other.exp_value == self.exp_value
 
-    def __or__(self, other):
+    def __or__(self, other) -> t.Union['ExactEither', 'Either']:
         if isinstance(other, ExactEither):
             other.exp_values.insert(0, self.exp_value)
             return other
@@ -363,7 +476,7 @@ class Exact(Type):
         return Either(self, other)
 
 
-def E(exp_value):
+def E(exp_value) -> Exact:
     """
     Alias for Exact.
     """
@@ -375,16 +488,19 @@ class Either(Type):
     Checks for the value to be of one of several types.
     """
 
-    def __init__(self, *types: list):
+    def __init__(self, *types: tuple):
         """
+        Creates an Either instance.
+
         :param types: list of types (or SpecialType subclasses)
-        :raises ConstraintError if some of the contraints aren't (typechecker) Types
+        :raises: ConstraintError if some of the contraints aren't (typechecker) Types
         """
         super().__init__()
         self._validate_types(*types)
         self.types = list(types)
+        """ Possible types """
 
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+    def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         """
         Does the type of the value match one of the expected types?
         """
@@ -397,11 +513,11 @@ class Either(Type):
     def __str__(self):
         return "Either({})".format("|".join(str(type) for type in self.types))
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'Either') -> bool:
         return len(other.types) == len(self.types) \
                and all(other.types[i] == self.types[i] for i in range(len(self.types)))
 
-    def __or__(self, other):
+    def __or__(self, other) -> 'Either':
         if isinstance(other, Either):
             self.types += other.types
             return self
@@ -413,16 +529,19 @@ class ExactEither(Type):
     Checks for the value to be of one of several exact values.
     """
 
-    def __init__(self, *exp_values: list):
+    def __init__(self, *exp_values: tuple):
         """
+        Creates an ExactEither instance.
+
         :param exp_values: list of types (or SpecialType subclasses)
-        :raises ConstraintError if some of the contraints aren't (typechecker) Types
+        :raises: ConstraintError if some of the contraints aren't (typechecker) Types
         """
         super().__init__()
         self.exp_values = list(exp_values)
+        """ Expected values """
         self._update_completion_hints()
 
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+    def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         """
         Does the type of the value match one of the expected types?
         """
@@ -430,14 +549,14 @@ class ExactEither(Type):
             return info.wrap(True)
         return info.errormsg(self)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "ExactEither({})".format("|".join(repr(val) for val in self.exp_values))
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'ExactEither') -> bool:
         return len(other.exp_values) == len(self.exp_values) \
                and all(other.exp_values[i] == self.exp_values[i] for i in range(len(self.exp_values)))
 
-    def __or__(self, other):
+    def __or__(self, other) -> t.Union['ExactEither', Either]:
         if isinstance(other, ExactEither):
             self.exp_values += other.exp_values
             self._update_completion_hints()
@@ -456,6 +575,7 @@ class ExactEither(Type):
             }
         }
 
+
 class Union(Either):
     """
     Alias for Either. Checks for the value to be of one of several types.
@@ -467,16 +587,19 @@ class All(Type):
     Checks for the value to be of all of several types.
     """
 
-    def __init__(self, *types):
+    def __init__(self, *types: t.Tuple[Type]):
         """
+        Creates an All instance.
+
         :param types: list of types (or SpecialType subclasses)
-        :raises ConstraintError if some of the contraints aren't (typechecker) Types
+        :raises: ConstraintError if some of the contraints aren't (typechecker) Types
         """
         super().__init__()
         self._validate_types(*types)
         self.types = types
+        """ Expected types """
 
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+    def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         """
         Does the type of the value match all of the expected types?
         """
@@ -486,24 +609,25 @@ class All(Type):
                 return res
         return info.wrap(True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "All[{}]".format("|".join(str(type) for type in self.types))
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'All') -> bool:
         return len(other.types) == len(self.types) \
                and all(other.types[i] == self.types[i] for i in range(len(self.types)))
+
 
 class Any(Type):
     """
     Checks for the value to be of any type.
     """
-    def __instancecheck__(self, value, info: Info = NoInfo()):
+    def __instancecheck__(self, value, info: Info = NoInfo()) -> InfoMsg:
         return info.wrap(True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Any"
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'Any') -> bool:
         return True
 
 
@@ -512,22 +636,28 @@ class T(Type):
     Wrapper around a native type.
     """
 
-    def __init__(self, native_type):
+    def __init__(self, native_type: type):
+        """
+        Creates an isntance.
+
+        :param native_type: wrapped native type
+        """
         super().__init__()
         if not isinstance(native_type, type):
             raise ConstraintError("{} is not a native type".format(type))
         self.native_type = native_type
+        """ Native type that is wrapped """
 
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+    def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         """
         Does the passed value be an instance of the wrapped native type?
         """
         return info.errormsg_cond(isinstance(value, self.native_type), self, info)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "T({})".format(self.native_type)
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'T'):
         return other.native_type == self.native_type
 
 
@@ -537,13 +667,16 @@ class Optional(Either):
     Alias for Either(Exact(None), other_type)
     """
 
-    def __init__(self, other_type):
+    def __init__(self, other_type: Type):
         """
-        :raises ConstraintError if other_type isn't a (typechecker) Types
+        Creates an Optional instance.
+
+        :param other_type: type to make optional
+        :raises: ConstraintError if other_type isn't a (typechecker) Types
         """
         super().__init__(Exact(None), other_type)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Optional({})".format(self.types[1])
 
 
@@ -552,20 +685,25 @@ class Constraint(Type):
     Checks the passed value by an user defined constraint.
     """
 
-    def __init__(self, constraint, constrained_type: Type = Any(), description: str = None):
+    def __init__(self, constraint: t.Callable[[t.Any], bool], constrained_type: Type = Any(), description: str = None):
         """
+        Creates an Constraint instance.
+
         :param constraint: function that returns True if the user defined constraint is satisfied
-        :param constrained_type: Type that the constrain is applied on
+        :param constrained_type: Type that the constraint is applied on
         :param description: short description of the constraint (e.g. ">0")
-        :raises ConstraintError if constrained_type isn't a (typechecker) Types
+        :raises: ConstraintError if constrained_type isn't a (typechecker) Types
         """
         super().__init__()
         self._validate_types(constrained_type)
-        self.constraint = constraint
-        self.constrained_type = constrained_type
-        self.description = description
+        self.constraint = constraint  # type: t.Callable[[t.Any], bool]
+        """ Function that returns True if the user defined constraint is satisfied """
+        self.constrained_type = constrained_type  # type: Type
+        """ Type that the constraint is applied on """
+        self.description = description  # type: str
+        """ Short description of the constraint (e.g. ">0") """
 
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+    def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         """
         Checks the passed value to be of the constrained type and to
         adhere the user defined constraint.
@@ -577,7 +715,7 @@ class Constraint(Type):
             return info.errormsg(self)
         return info.wrap(True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         descr = self.description
         if self.description is None:
             #if isinstance(self.constraint, type(fn._)):
@@ -589,25 +727,32 @@ class Constraint(Type):
 
 class NonErrorConstraint(Type):
     """
-    Checks the passed value by an user defined constraint that fails if it raise an error.
+    Checks the passed value by an user defined constraint that fails if it raises an error.
     """
 
-    def __init__(self, constraint, error_cls, constrained_type: Type = Any(), description: str = None):
+    def __init__(self, constraint: t.Callable[[t.Any], t.Any], error_cls: type, constrained_type: Type = Any(),
+                 description: str = None):
         """
+        Creates a new instance
+
         :param constraint: function that doesn't raise an error if the user defined constraint is satisfied
-        :param error_cls: class of the errors the constraint method throws
-        :param constrained_type: Type that the constrain is applied on
+        :param error_cls: class of the errors the constraint method raises
+        :param constrained_type: Type that the constraint is applied on
         :param description: short description of the constraint (e.g. ">0")
-        :raises ConstraintError if constrained_type isn't a (typechecker) Types
+        :raises: ConstraintError if constrained_type isn't a (typechecker) Types
         """
         super().__init__()
         self._validate_types(constrained_type)
-        self.constraint = constraint
-        self.error_cls = error_cls
-        self.constrained_type = constrained_type
-        self.description = description
+        self.constraint = constraint  # type: t.Callable[[t.Any], t.Any]
+        """ Function that returns True if the user defined constraint is satisfied """
+        self.error_cls = error_cls  # type: type
+        """ Class of the errors the constraint method raises """
+        self.constrained_type = constrained_type  # type: Type
+        """ Type that the constraint is applied on """
+        self.description = description  # type: str
+        """ Short description of the constraint (e.g. ">0") """
 
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+    def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         """
         Checks the passed value to be of the constrained type and to
         adhere the user defined constraint (that the method doesn't
@@ -622,12 +767,9 @@ class NonErrorConstraint(Type):
             return info.errormsg(self, msg=str(err))
         return info.wrap(True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         descr = self.description
         if self.description is None:
-            #if isinstance(self.constraint, type(fn._)):
-            #    descr = str(self.constraint)
-            #else:
             descr = "<function>"
         return "{}:{}".format(self.constrained_type, descr)
 
@@ -637,17 +779,19 @@ class List(Type):
     Checks for the value to be a list with elements of a given type.
     """
 
-    def __init__(self, elem_type=Any()):
+    def __init__(self, elem_type: Type = Any()):
         """
-        :param elem_type: type of elements
-        :param must_contain: the elements the value has to contain at least
-        :raises ConstraintError if elem_type isn't a (typechecker) Types
+        Creates a new instance.
+
+        :param elem_type: type of the list elements
+        :raises: ConstraintError if elem_type isn't a (typechecker) Types
         """
         super().__init__()
         self._validate_types(elem_type)
-        self.elem_type = elem_type
+        self.elem_type = elem_type  # type: Type
+        """ Expected type of the list elements """
 
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+    def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         if not isinstance(value, list):
             return info.errormsg(self)
         for (i, elem) in enumerate(value):
@@ -657,10 +801,10 @@ class List(Type):
                 return res
         return info.wrap(True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "List({})".format(self.elem_type)
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'List') -> bool:
         return other.elem_type == self.elem_type
 
 
@@ -669,17 +813,19 @@ class ListOrTuple(Type):
     Checks for the value to be a list or tuple with elements of a given type.
     """
 
-    def __init__(self, elem_type=Any()):
+    def __init__(self, elem_type: Type = Any()):
         """
-        :param elem_type: type of elements
-        :param must_contain: the elements the value has to contain at least
-        :raises ConstraintError if elem_type isn't a (typechecker) Types
+        Creates an instance.
+
+        :param elem_type: type of the list or tuple elements
+        :raises: ConstraintError if elem_type isn't a (typechecker) Types
         """
         super().__init__()
         self._validate_types(elem_type)
-        self.elem_type = elem_type
+        self.elem_type = elem_type  # type: Type
+        """ Expected type of the list or tuple elements """
 
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+    def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         if not isinstance(value, T(list) | T(tuple)):
             return info.errormsg(self)
         for (i, elem) in enumerate(list(value)):
@@ -689,10 +835,10 @@ class ListOrTuple(Type):
                 return res
         return info.wrap(True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "ListOrTuple({})".format(self.elem_type)
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'ListOrTuple') -> bool:
         return other.elem_type == self.elem_type
 
 
@@ -701,17 +847,20 @@ class Tuple(Type):
     Checks for the value to be a tuple (or a list) with elements of the given types.
     """
 
-    def __init__(self, *elem_types):
+    def __init__(self, *elem_types: t.Tuple[Type]):
         """
-        :param elem_types: types of elements
-        :raises ConstraintError if elem_type isn't a (typechecker) Types
+        Creates a new instance.
+
+        :param elem_types: types of each tuple element
+        :raises: ConstraintError if elem_type isn't a (typechecker) Types
         """
         super().__init__()
         for elem_type in elem_types:
             self._validate_types(elem_type)
-        self.elem_types = elem_types
+        self.elem_types = elem_types  # type: t.Tuple[Type]
+        """ Expected type of each tuple element """
 
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+    def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         if not (isinstance(value, list) or isinstance(value, tuple)) or len(self.elem_types) != len(value):
             return info.errormsg(self)
         if len(self.elem_types) == 0:
@@ -723,10 +872,10 @@ class Tuple(Type):
                 return res
         return info.wrap(True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Tuple({})".format(", ".join(str(t) for t in self.elem_types))
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'Tuple') -> bool:
         return len(other.elem_types) == len(self.elem_types) and \
                all(a == b for (a, b) in itertools.product(self.elem_types, other.elem_types))
 
@@ -736,10 +885,10 @@ class _NonExistentVal(object):
     Helper class for NonExistent Type.
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "<non existent>"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
 _non_existent_val = _NonExistentVal()
@@ -750,13 +899,13 @@ class NonExistent(Type):
     Checks a key of a dictionary for existence if its associated value has this type.
     """
 
-    def _instancecheck_impl(self, value, info: Info):
+    def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         return info.errormsg_cond(type(value) == _NonExistentVal, self, "[value]")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "non existent"
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'NonExistent') -> bool:
         return True
 
 
@@ -765,23 +914,29 @@ class Dict(Type):
     Checks for the value to be a dictionary with expected keys and values satisfy given type constraints.
     """
 
-    def __init__(self, data: dict = None, all_keys=True, key_type: Type = Any(), value_type: Type = Any()):
+    def __init__(self, data: t.Dict[t.Any, Type] = None, all_keys: bool = True, key_type: Type = Any(),
+                 value_type: Type = Any()):
         """
+        Creates a new instance.
+
         :param data: dictionary with the expected keys and the expected types of the associated values
         :param all_keys: does the type checking fail if more keys are present in the value than in data?
         :param key_type: expected Type of all dictionary keys
         :param value_type: expected Type of all dictionary values
-        :raises ConstraintError if one of the given types isn't a (typechecker) Types
+        :raises: ConstraintError if one of the given types isn't a (typechecker) Types
         """
         super().__init__()
-        self.data = data if data is not None else {}
+        self.data = data if data is not None else {}  # type: t.Dict[t.Any, Type]
         self._validate_types(*self.data.values())
         self._validate_types(key_type, value_type)
-        self.all_keys = all_keys
-        self.key_type = key_type
-        self.value_type = value_type
+        self.all_keys = all_keys  # type: bool
+        """ Does the type checking fail if more keys are present in the value than in data? """
+        self.key_type = key_type  # type: Type
+        """ Expected Type of all dictionary keys """
+        self.value_type = value_type  # type: Type
+        """ Expected Type of all dictionary values """
 
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+    def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         if not isinstance(value, dict):
             return info.errormsg(self)
         non_existent_val_num = 0
@@ -812,7 +967,7 @@ class Dict(Type):
             return info.errormsg_too_many(self, len(value), len(self.data))
         return info.wrap(True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         fmt = "Dict({data}, keys={key_type}, values={value_type})"
         data_str = ", ".join("{!r}: {}".format(key, self.data[key]) for key in self.data)
         if self.all_keys:
@@ -830,9 +985,10 @@ class Dict(Type):
             return self.value_type
         return NonExistent()
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value: Type):
         """
         Sets the Type of the keys values.
+        :raises: ValueError if the key or the value have the wrong types (don't match key_type and value_type)
         """
         if (key in self.data and isinstance(value, self.value_type)) or\
             (isinstance(key, self.key_type) and isinstance(value, self.value_type)):
@@ -843,6 +999,7 @@ class Dict(Type):
     def get_description(self, key: str) -> str:
         """
         Returns the description for the passed key or None if there isn't one.
+
         :param key: passed key
         """
         return self[key].description
@@ -908,67 +1065,72 @@ class Dict(Type):
         ret_strs = list(map(lambda x: i_str + x, strs))
         return ret_strs if str_list else "\n".join(ret_strs)
 
+
 class Int(Type):
     """
     Checks for the value to be of type int and to adhere to some constraints.
     """
 
-    def __init__(self, constraint = None, range: range = None, description: str = None):
+    def __init__(self, constraint: t.Callable[[t.Any], bool] = None, range: range = None, description: str = None):
         """
-        :param constraint: user defined constrained function
-        :param range. range (or list) that the value has to be part of
+        Creates an instance.
+
+        :param constraint: function that returns True if the user defined constraint is satisfied
+        :param range: range (or list) that the value has to be part of
         :param description: description of the constraints
         """
         super().__init__()
-        self.constraint = constraint
-        self.range = range
-        self.description = description
+        self.constraint = constraint  # type: t.Optional[t.Callable[[t.Any], bool]]
+        """ Function that returns True if the user defined constraint is satisfied """
+        self.range = range  # type: range
+        """ Range (or list) that the value has to be part of """
+        self.description = description  # type: str
+        """ Description of the constraints """
         if range is not None and len(range) <= 20:
-            self.completion_hints = {
+            self.completion_hints = {  # type: t.Dict[str, t.Any]
                 "zsh": "({})".format(" ".join(str(x) for x in range)),
                 "fish": {
                     "hint": list(self.range)
                 }
             }
+            """ Completion hints for supported shells for this type instance """
 
-    def _instancecheck_impl(self, value, info: Info):
+    def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         if not isinstance(value, int) or (self.constraint is not None and not self.constraint(value)) \
                 or (self.range is not None and value not in self.range):
             return info.errormsg(self)
         return info.wrap(True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         arr = []
         if self.description is not None:
             arr.append(self.description)
         else:
             if self.constraint is not None:
-                descr = ""
-                #if isinstance(self.constraint, type(fn._)):
-                #    descr = str(self.constraint)
-                #else:
                 descr = "<function>"
                 arr.append("constraint={}".format(descr))
             if self.range is not None:
                 arr.append("range={}".format(self.range))
         return "Int({})".format(",".join(arr))
 
-    def _eq_impl(self, other):
+    def _eq_impl(self, other: 'Int') -> bool:
         return other.constraint == self.constraint and other.range == self.range
 
 
 class StrList(Type, click.ParamType):
     """
-    A comma separated string list which contains elements from a fixed of allowed values.
+    A comma separated string list which contains elements from a fixed set of allowed values.
     """
 
-    name = "coma_sep_str_list"
+    name = "comma_sep_str_list"  # type: str
+    """ click.ParamType name, that makes this class usable as a click type """
 
     def __init__(self):
         super().__init__()
-        self.allowed_values = None
+        self.allowed_values = None  # type: t.Optional[t.List[str]]
+        """ Possible values that can appear in the string list, if None all values are allowed. """
 
-    def __or__(self, other):
+    def __or__(self, other) -> t.Union[Either, 'StrList']:
         if isinstance(other, Exact) and isinstance(other.exp_value, Str()):
             if self.allowed_values is None:
                 self.allowed_values = [other.exp_value]
@@ -977,7 +1139,7 @@ class StrList(Type, click.ParamType):
             return self
         return super().__or__(other)
 
-    def _instancecheck_impl(self, value, info: Info):
+    def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         res = List(Str()).__instancecheck__(value, info)
         if not res:
             return info.errormsg(self, "Not a list of strings")
@@ -985,7 +1147,10 @@ class StrList(Type, click.ParamType):
             return info.wrap(True)
         return info.errormsg(self, "Does contain invalid elements")
 
-    def convert(self, value, param, ctx):
+    def convert(self, value, param, ctx: click.Context) -> t.List[str]:
+        """
+        Convert method that makes this class usable as a click type.
+        """
         if isinstance(value, self):
             return value
         elif isinstance(value, str):
@@ -993,7 +1158,7 @@ class StrList(Type, click.ParamType):
             return value.split(",")
         self.fail("{} is no valid comma separated string list".format(value), param, ctx)
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.allowed_values is None:
             return "StrList()"
         else:
@@ -1008,25 +1173,40 @@ class StrList(Type, click.ParamType):
         ret_str = i_str + "[{}]".format(", ".join(defaults))
         return [ret_str] if str_list else ret_str
 
+    def _eq_impl(self, other: 'StrList') -> bool:
+        return self.allowed_values == other.allowed_values
+
 
 class Str(Type):
+    """
+    Checks for the value to be a string an optionally meet some constraints.
+    """
 
-    def __init__(self, constraint = None):
+    def __init__(self, constraint: t.Callable[[t.Any], bool] = None):
+        """
+        Creates an instance.
+
+        :param constraint: function that returns True if the user defined constraint is satisfied
+        """
         super().__init__()
-        self.constraint = constraint
+        self.constraint = constraint  # type: t.Optional[t.Callable[[t.Any], bool]]
+        """ Function that returns True if the user defined constraint is satisfied """
 
-    def _instancecheck_impl(self, value, info: Info):
+    def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         if not isinstance(value, str):
             return info.errormsg(self)
         if self.constraint is not None and not self.constraint(value):
             return info.errormsg(self)
         return info.wrap(True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.constraint is not None:
             return "Str({})".format(repr(self.constraint))
         else:
             return "Str()"
+
+    def _eq_impl(self, other: 'Str') -> bool:
+        return self.constraint == other.constraint
 
 
 class FileName(Str):
@@ -1035,19 +1215,31 @@ class FileName(Str):
     and the file must be creatable.
     """
 
-    def __init__(self, constraint = None, allow_std: bool = False, allow_non_existent: bool = True):
+    def __init__(self, constraint: t.Callable[[t.Any], bool] = None, allow_std: bool = False,
+                 allow_non_existent: bool = True):
+        """
+        Creates an instance.
+
+        :param constraint: function that returns True if the user defined constraint is satisfied
+        :param allow_std: allow '-' as standard out or in
+        :param allow_non_existent: allow files that don't exist
+        """
         super().__init__()
-        self.constraint = constraint
-        self.completion_hints = {
+        self.constraint = constraint  # type: t.Optional[t.Callable[[t.Any], bool]]
+        """ Function that returns True if the user defined constraint is satisfied """
+        self.completion_hints = {   # type: t.Dict[str, t.Any]
             "zsh": "_files",
             "fish": {
                 "files": True
             }
         }
-        self.allow_std = allow_std
-        self.allow_non_existent = allow_non_existent
+        """ Completion hints for supported shells for this type instance """
+        self.allow_std = allow_std  # type: bool
+        """ Allow '-' as standard out or in """
+        self.allow_non_existent = allow_non_existent  # type: bool
+        """ Allow files that don't exist """
 
-    def _instancecheck_impl(self, value, info: Info):
+    def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         if not isinstance(value, str) or value == "":
             return info.errormsg(self)
         value = os.path.expanduser(value)
@@ -1068,11 +1260,15 @@ class FileName(Str):
             return info.wrap(True)
         return info.errormsg(self)
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.constraint is not None:
             return "FileName({}, allow_std={})".format(repr(self.constraint), self.allow_std)
         else:
             return "FileName(allow_std={})".format(self.allow_std)
+
+    def _eq_impl(self, other: 'FileName') -> bool:
+        return self.constraint == other.constraint and self.allow_std == other.allow_std \
+               and self.allow_non_existent == other.allow_non_existent
 
 
 class ValidYamlFileName(Str):
@@ -1081,16 +1277,23 @@ class ValidYamlFileName(Str):
     """
 
     def __init__(self, allow_non_existent: bool = False):
+        """
+        Create an instance.
+
+        :param allow_non_existent: allow files that don't exist
+        """
         super().__init__()
-        self.completion_hints = {
+        self.completion_hints = {  # type: t.Dict[str, t.Any]
             "zsh": "_files",
             "fish": {
                 "files": True
             }
         }
-        self.allow_non_existent = allow_non_existent
+        """ Completion hints for supported shells for this type instance """
+        self.allow_non_existent = allow_non_existent  # type: bool
+        """ Allow files that don't exist """
 
-    def _instancecheck_impl(self, value, info: Info):
+    def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         if not isinstance(value, str):
             return info.errormsg(self, "isn't a string")
         if not os.path.exists(value):
@@ -1106,8 +1309,11 @@ class ValidYamlFileName(Str):
             return info.errormsg(self, "YAML parse error: " + str(ex))
         return info.wrap(True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "ValidYamlFileName()"
+
+    def _eq_impl(self, other: 'ValidYamlFileName') -> bool:
+        return self.allow_non_existent == other.allow_non_existent
 
 
 class DirName(Str):
@@ -1115,17 +1321,24 @@ class DirName(Str):
     A valid directory name. If the directory doesn't exist, at least the parent directory must exist.
     """
 
-    def __init__(self, constraint = None):
+    def __init__(self, constraint: t.Callable[[t.Any], bool] = None):
+        """
+        Creates an instance.
+
+        :param constraint: function that returns True if the user defined constraint is satisfied
+        """
         super().__init__()
-        self.constraint = constraint
-        self.completion_hints = {
+        self.constraint = constraint  # type: t.Optional[t.Callable[[t.Any], bool]]
+        """ Function that returns True if the user defined constraint is satisfied """
+        self.completion_hints = {  # type: t.Dict[str, t.Any]
             "zsh": "_directories",
             "fish": {
                 "files": True
             }
         }
+        """ Completion hints for supported shells for this type instance """
 
-    def _instancecheck_impl(self, value, info: Info):
+    def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         if not isinstance(value, str):
             return info.errormsg(self)
         is_valid = True
@@ -1141,11 +1354,14 @@ class DirName(Str):
             return info.wrap(True)
         return info.errormsg(self)
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.constraint is not None:
             return "DirName({})".format(repr(self.constraint))
         else:
             return "DirName()"
+
+    def _eq_impl(self, other: 'DirName') -> bool:
+        return self.constraint == other.constraint
 
 
 class BoolOrNone(Type, click.ParamType):
@@ -1154,23 +1370,29 @@ class BoolOrNone(Type, click.ParamType):
     It has None as its default value (by default).
     """
 
-    name = "bool_or_none"
+    name = "bool_or_none"  # type: str
+    """ click.ParamType name, that makes this class usable as a click type """
 
     def __init__(self):
         super().__init__()
-        self.completion_hints = {
+        self.completion_hints = {  # type: t.Dict[str, t.Any]
             "zsh": "(true, false, none)",
             "fish": {
                 "hint": ["true", "false", "none"]
             }
         }
-        self.default = None
+        """ Completion hints for supported shells for this type instance """
+        self.default = None  # type: None
+        """ The default value of this instance """
 
-    def _instancecheck_impl(self, value, info: Info):
+    def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         res = ExactEither(True, False, None).__instancecheck__(value, info)
         return info.errormsg_cond(self, bool(res), str(res))
 
-    def convert(self, value, param, ctx):
+    def convert(self, value, param, ctx: click.Context) -> t.Optional[bool]:
+        """
+        Convert method that makes this class usable as a click type.
+        """
         if isinstance(value, self):
             return value
         elif isinstance(value, str):
@@ -1183,8 +1405,11 @@ class BoolOrNone(Type, click.ParamType):
                 return None
         self.fail("{} is no valid bool or 'none'".format(value), param, ctx)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "BoolOrNone()"
+
+    def _eq_impl(self, other: 'BoolOrNone') -> bool:
+        return True
 
 
 class Bool(Type, click.ParamType):
@@ -1193,23 +1418,28 @@ class Bool(Type, click.ParamType):
     It has None as its default value (by default).
     """
 
-    name = "bool"
+    name = "bool"  # type: str
+    """ click.ParamType name, that makes this class usable as a click type """
 
     def __init__(self):
         super().__init__()
-        self.completion_hints = {
+        self.completion_hints = {  # type: t.Dict[str, t.Any]
             "zsh": "(true, false)",
             "fish": {
                 "hint": ["true", "false"]
             }
         }
+        """ Completion hints for supported shells for this type instance """
 
-    def _instancecheck_impl(self, value, info: Info):
+    def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         res = ExactEither(True, False).__instancecheck__(value, info)
         return info.errormsg_cond(self, bool(res), str(res))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Bool()"
+
+    def _eq_impl(self, other: 'Bool') -> bool:
+        return True
 
 
 class ValidTimeSpan(Type, click.ParamType):
@@ -1218,59 +1448,75 @@ class ValidTimeSpan(Type, click.ParamType):
     E.g. "32m" or "2h 32m".
     """
 
-    name = "valid_timespan"
+    name = "valid_timespan"  # type: str
+    """ click.ParamType name, that makes this class usable as a click type """
 
     def __init__(self):
         super().__init__()
 
-    def _instancecheck_impl(self, value, info: Info):
+    def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         res = Str().__instancecheck__(value, info)
-        return info.errormsg_cond(self, res and pytimeparse.parse(value), value)
+        wrong = not bool(res) or pytimeparse.parse(value) == None
+        if wrong:
+            return info.errormsg(self, value)
+        return info.wrap(True)
 
-    def convert(self, value, param, ctx):
+    def convert(self, value, param, ctx: click.Context) -> int:
+        """
+        Convert method that makes this class usable as a click type.
+        """
         if isinstance(value, self):
             return value
         self.fail("{} is no valid time span".format(value), param, ctx)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "ValidTimespan()"
 
+    def _eq_impl(self, other: 'ValidTimeSpan') -> bool:
+        return True
 
-def NaturalNumber(constraint = None):
+
+def NaturalNumber(constraint: t.Callable[[t.Any], bool] = None) -> Int:
     """
     Matches all natural numbers (ints >= 0) that satisfy the optional user defined constrained.
+
+    :param constraint: function that returns True if the user defined constraint is satisfied
     """
     if constraint is not None:
         return Int(lambda x: x >= 0 and constraint(x))
     return Int(lambda x: x >= 0)
 
 
-def PositiveInt(constraint = None):
+def PositiveInt(constraint: t.Callable[[t.Any], bool] = None) -> Int:
     """
     Matches all positive integers that satisfy the optional user defined constrained.
+
+    :param constraint: function that returns True if the user defined constraint is satisfied
     """
     if constraint is not None:
         return Int(lambda x: x > 0 and constraint(x))
     return Int(lambda x: x > 0)
 
 
-def Float(constraint = None):
+def Float(constraint: t.Callable[[t.Any], bool] = None) -> t.Union[T, Constraint]:
     """
     Alias for Constraint(constraint, T(float)) or T(float)
+
+    :param constraint: function that returns True if the user defined constraint is satisfied
     """
     if constraint is not None:
         return Constraint(constraint, T(float))
     return T(float)
 
 
-def FileNameOrStdOut():
+def FileNameOrStdOut() -> FileName:
     """
     A valid file name or "-" for standard out.
     """
     return FileName(allow_std=True)
 
 
-def verbose_isinstance(value, type, value_name: str = None):
+def verbose_isinstance(value, type: t.Union[Type, type], value_name: str = None) -> InfoMsg:
     """
     Verbose version of isinstance that returns a InfoMsg object.
 
@@ -1285,20 +1531,22 @@ def verbose_isinstance(value, type, value_name: str = None):
     return InfoMsg(True)
 
 
-def typecheck(value, type, value_name: str = None):
+def typecheck(value, type: t.Union[Type, type], value_name: str = None):
     """
     Like verbose_isinstance but raises an error if the value hasn't the expected type.
 
     :param value: passed value
     :param type: expected type of the value
     :param value_name: optional description of the value
-    :raises TypeError
+    :raises: TypeError
     """
-    if not isinstance(value, type):
-        raise TypeError(str(verbose_isinstance(value, type, value_name)))
+    if not bool(isinstance(value, type)):
+        ret = verbose_isinstance(value, type, value_name)
+        if not ret:
+            raise TypeError(str(ret))
 
 
-def typecheck_locals(locals: dict = None, **variables: dict):
+def typecheck_locals(locals: t.Dict[str, t.Any] = None, **variables: t.Dict[str, t.Union[Type, type]]):
     """
     Like typecheck but checks several variables for their associated expected type.
     The advantage against typecheck is that it sets the value descriptions properly.
@@ -1309,7 +1557,7 @@ def typecheck_locals(locals: dict = None, **variables: dict):
 
     :param locals: directory to get the variable values from
     :param variables: variable names with their associated expected types
-    :raises TypeError
+    :raises: TypeError
     """
     if locals is None:
         locals = inspect.currentframe().f_back.f_locals
