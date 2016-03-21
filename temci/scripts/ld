@@ -1,5 +1,9 @@
 #! /usr/bin/python3
 
+"""
+`ld` wrapper implemented in python
+"""
+
 import sys
 from temci.build.linker import process_linker
 

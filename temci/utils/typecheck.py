@@ -23,6 +23,8 @@ The native type wrappers also support custom constraints. With help of the fn mo
 For more examples look into the test_typecheck.py file.
 """
 
+import typing as t
+
 __all__ = [
     "Type",
     "Exact",
@@ -1315,6 +1317,58 @@ def typecheck_locals(locals: dict = None, **variables: dict):
         typecheck(locals, Dict(all_keys=False, key_type=Str()))
     for var in variables:
         typecheck(locals[var], variables[var], value_name=var)
+
+
+#class Callable(Type):
+#    """
+#    Checks for the value to be a callable or function.
+#    WOrks only with simple types.
+#    """
+#
+#    def __init__(self, arg_types: t.List[Type] = None, ret_type: Type = None):
+#        super().__init__()
+#        if arg_types:
+#            self._validate_types(*arg_types)
+#        if ret_type:
+#            self._validate_types(ret_type)
+#        self.arg_types = arg_types
+#        self.ret_type = ret_type
+#
+#    def _instancecheck_impl(self, value, info: Info):
+#        if type(value).__name__ != "function":
+#            return info.errormsg(self)
+#
+#        def check_type(key: str, expected_type: Type) -> InfoMsg:
+#            if key not in value.__annotations__:
+#                return info.errormsg(self, "No type annotation for {!r}".format(key))
+#            actual = typing_to_typecheck_type(value.__annotations__[key])
+#            if actual != expected_type:
+#                return info.errormsg(self, "Expected type {}, but got {} for {!r}".format(expected_type, actual, key))
+#        if self.ret_type:
+#            ret = check_type("return", self.ret_type)
+#            if not ret:
+#                return ret
+#        if self.arg_types:
+#            if len(self.arg_types) != len()
+#
+#
+#def typing_to_typecheck_type(t_type: t.Union[t.List[t.Any], t.Any]) -> t.Union[Type, t.Iterable[Type]]:
+#    if isinstance(t_type, list):
+#        return [typing_to_typecheck_type(sub) for sub in t_type]
+#    if isinstance(t_type, t.AnyMeta):
+#        return Any()
+#    elif isinstance(t_type, t.UnionMeta):
+#        return Union(*typing_to_typecheck_type(*t_type.__union_params__))
+#    elif isinstance(t_type, t.TupleMeta):
+#        return Tuple(*typing_to_typecheck_type(*t_type.__tuple_params__))
+#    elif isinstance(t_type, t.CallableMeta):
+#        return Callable(typing_to_typecheck_type(t_type.__args__),
+#                        typing_to_typecheck_type(t_type.__result__))
+#    else:
+#        return T(t_type)
+#
+#if __name__ == "__main__":
+#    typecheck(None, typing_to_typecheck_type(t.Optional[int]))
 
 
 """

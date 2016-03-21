@@ -33,7 +33,7 @@ class StatMessageType(Enum):
 class StatMessageValueFormat(Enum):
 
     INT = "{}"
-    FLOAT = "{:5.5f}"
+    FLOAT = "{:5.3f}"
     PERCENT = "{:5.3%}"
 
 class StatMessage:
@@ -139,7 +139,7 @@ class StatError(StatWarning, StatMessage):
 
 class StdDeviationToHighWarning(StatWarning):
 
-    message = "The standard deviation per mean of {props} is to high it should be <= {b_val}."
+    message = "The standard deviation per mean of {props} is too high it should be <= {b_val}."
     hint = "With the exec run driver you can probably use the stop_start plugin, preheat and sleep plugins. " \
            "Also consider to increase the number of measured runs."
     border_value = 0.01

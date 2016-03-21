@@ -63,9 +63,9 @@ class RunProcessor:
                 raise
         else:
             self.stats_helper = RunDataStatsHelper.init_from_dicts(copy.deepcopy(runs))
-        if Settings()["run/remote"]:
-            self.pool = RemoteRunWorkerPool(Settings()["run/remote"], Settings()["run/remote_port"])
-        elif Settings()["run/cpuset/parallel"] == 0:
+        #if Settings()["run/remote"]:
+        #    self.pool = RemoteRunWorkerPool(Settings()["run/remote"], Settings()["run/remote_port"])
+        if Settings()["run/cpuset/parallel"] == 0:
             self.pool = RunWorkerPool()
         else:
             self.pool = ParallelRunWorkerPool()

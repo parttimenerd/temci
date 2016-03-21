@@ -818,7 +818,7 @@ class CPUSpecExecRunner(ExecRunner):
                  // Description("File patterns (the newest file will be used)"),
         "randomize": Bool() // Default(False)
                 // Description("Randomize the assembly during compiling?"),
-        "rand_conf": Builder.rand_conf_type // Default(Settings()["build/rand"])
+        "rand_conf": Builder.rand_conf_scheme // Default(Settings()["build/rand"])
                  // Description("Randomisation ")
     })
 

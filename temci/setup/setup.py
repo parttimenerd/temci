@@ -36,6 +36,7 @@ def make_scripts():
     try:
         exec("hadori", "make")
         exec("rusage", "make")
+        exec("linker", "make")
     except ExecError as err:
         logging.error(err)
         exit(1)

@@ -341,8 +341,8 @@ def prompt_build_dict(with_header: bool = True, whole_config: bool = True) -> di
             build_dict["revision"] = int(build_dict["revision"])
         default_description = vcs.get_info_for_revision(build_dict["revision"])["commit_message"]
 
-    if prompt_yesno("Randomize program binaries (works with gcc built programs)? ", default=True):
-        rand_dict = dict()
+    rand_dict = dict()
+    if prompt_yesno("Randomize program binaries (works with gcc and cparser built programs)? ", default=True):
         meta_dict = {str(get_cache_line_size()): "Current cache line size", "0": "No padding"}
         size_completer = WordCompleter(sorted(list(meta_dict.keys())), meta_dict=meta_dict)
         rand_dict["heap"] = int(default_prompt("Maximum size of the random padding of each heap allocation? ",
@@ -356,6 +356,9 @@ def prompt_build_dict(with_header: bool = True, whole_config: bool = True) -> di
         rand_dict["rodata"] = prompt_yesno("Randomize rodata segment? ", default=True)
         rand_dict["file_structure"] = prompt_yesno("Randomize the file structure (location of functions)? ",
                                                    default=True)
+    if prompt_yesno("Randomize the link order (works with gcc and cparser)?", default=True):
+        rand_dict["linker"] = True
+    if rand_dict:
         build_dict["randomization"] = rand_dict
 
     build_dict["number"] = int(prompt("How many times should the program be built? ", validator=TypeValidator(Int())))

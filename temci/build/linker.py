@@ -1,15 +1,24 @@
 """
-Enables the linker randomization (the order in which the libraries are linked).
+Enables the randomization of the link order during the building of programs.
+It's used to create a wrapper for `ld` (@see ../scripts/ld).
 
-Currently only tested on 64 bit systems.
+An implementation of this wrapper in C++ is given in the ../scripts/linker directory.
+This python implementation is only the fall back solution if the C++ version isn't available.
+
+The link order randomization only works for compilers that use the `ld` tool.
 """
+
 import random
 import typing as t
-import os, json, subprocess, shutil
-import temci.utils.settings
-
+import os, json, subprocess
 
 def link(argv: t.List[str], randomize: bool = True, ld_tool: str = "/usr/bin/ld"):
+    """
+    Function that gets all argument the `ld` wrapper gets passed, randomized their order and executes the original `ld`.
+    :param argv: `ld` arguments
+    :param randomize: actually randomize the order of the arguments?
+    :param ld_tool: used `ld` tool
+    """
     args = argv[1:] # type: t.List[str]
     arg_groups = [] # type: t.List[t.Tuple[bool, t.List[str]]]
 
@@ -38,6 +47,11 @@ def link(argv: t.List[str], randomize: bool = True, ld_tool: str = "/usr/bin/ld"
 
 
 def process_linker(call: t.List[str]):
+    """
+    Uses the passed `ld` arguments to randomize the link order during linking.
+    It's configured by environment variables.
+    :param call: arguments for `ld`
+    """
     config = json.loads(os.environ["RANDOMIZATION"]) if "RANDOMIZATION" in os.environ else {}
     randomize = "linker" in config and config["linker"]
     ld_tool = config["used_ld"] if "used_ld" in config else "/usr/bin/ld"
