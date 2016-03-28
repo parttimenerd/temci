@@ -649,7 +649,7 @@ class HTMLReporter2(AbstractReporter):
              </div>
           </div>
         </div>
-        {self.app_html}
+        {self._app_html}
         <script>
             $(function () {{
                 $('[data-toggle="popover"]').popover({{"content": function(){{
@@ -1684,7 +1684,7 @@ def _color_class(obj: BaseStatObject) -> str:
 
 
 def _color_explanation(obj: BaseStatObject) -> str:
-    _color_class = "div_" + _color_class(obj)
+    color_class = "div_" + _color_class(obj)
     msg = ""
     if obj.has_errors():
         msg = "This color means that the corresponding data set is erroneous " \
@@ -1699,7 +1699,7 @@ def _color_explanation(obj: BaseStatObject) -> str:
         msg = "Everything seems to be okay."
     if msg != "":
         return """
-            <p class='{_color_class}'>
+            <p class='{color_class}'>
                 {msg}
             </p>
         """.format(**locals())
