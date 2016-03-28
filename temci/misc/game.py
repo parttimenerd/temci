@@ -37,6 +37,7 @@ import os, shutil, copy
 from pprint import pprint
 from temci.report import report
 import scipy as sp
+import  scipy.stats as stats
 
 from temci.utils.util import InsertionTimeOrderedDict, geom_std
 

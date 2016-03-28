@@ -38,8 +38,11 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
-    'sphinx_autodoc_typehints'
 ]
+
+if not on_rtd:
+    extensions.append('sphinx_autodoc_typehints')
+
 autoclass_content = 'both'
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

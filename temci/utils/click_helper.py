@@ -406,7 +406,7 @@ class CmdOptionList:
             if option.has_default:
                 ret += """
 
-    :Default: {!r}
+    :Default: :python:`{!r}`
 
                 """.format(option.default)
             return ret
@@ -476,6 +476,8 @@ def document_func(description: str, *options: t.Tuple[t.Union[CmdOptionList, Cmd
         if not f.__doc__:
             f.__doc__ = ""
         f.__doc__ += """
+    .. role:: python(code)
+    :language: python
 
     :Command: ``{full_cmd}``
 

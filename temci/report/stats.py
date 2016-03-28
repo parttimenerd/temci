@@ -271,11 +271,12 @@ class BaseStatObject:
         """ Does this stat object has any statistical errors? """
         return any([x.type == StatMessageType.WARNING for x in self.get_stat_messages()])
 
-    def get_data_frame(self, **kwargs) -> 'pd.DataFrame':
+    def get_data_frame(self, **kwargs):
         """
         Get the data frame that is associated with this stat object.
 
         Implemented by sub classes of BaseStatObject.
+        :return pd.DataFrame instance
         """
         raise NotImplementedError()
 
@@ -668,7 +669,7 @@ class Single(BaseStatObject):
         msgs = [x for prop in self.properties for x in self.properties[prop].get_stat_messages()]
         return msgs
 
-    def get_data_frame(self) -> 'pd.DataFrame':
+    def get_data_frame(self):
         series_dict = {}
         for prop in self.properties:
             series_dict[prop] = pd.Series(self.properties[prop].data, name=prop)
@@ -827,7 +828,7 @@ class SingleProperty(BaseStatObject):
     def description(self) -> str:
         return self.rundata.description()
 
-    def get_data_frame(self) -> 'pd.DataFrame':
+    def get_data_frame(self):
         series_dict = {self.property: pd.Series(self.data, name=self.property)}
         frame = pd.DataFrame(series_dict, columns=[self.property])
         return frame
@@ -1233,7 +1234,7 @@ class TestedPairProperty(BaseStatObject):
         """ Calculates the maximum of the standard deviations of the first and the second. """
         return max(self.first.std_dev(), self.second.std_dev())
 
-    def get_data_frame(self, show_property = True) -> 'pd.DataFrame':
+    def get_data_frame(self, show_property = True):
         columns = []
         if show_property:
             columns = ["{}: {}".format(self.first, self.property),
@@ -1294,7 +1295,7 @@ class SinglesProperty(BaseStatObject):
     def __str__(self) -> str:
         return "SinglesProperty(property={prop})".format(prop=self.property)
 
-    def get_data_frame(self, **kwargs) -> 'pd.DataFrame':
+    def get_data_frame(self, **kwargs):
         columns = []
         data = {}
         min_len = min(len(single.data) for single in self.singles)

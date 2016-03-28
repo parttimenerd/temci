@@ -8,8 +8,11 @@ import temci.utils.util as util
 import typing as t
 if util.can_import("scipy"):
     import scipy.stats as st
+    import scipy.optimize as opti
+    import numpy as np
 from temci.utils.typecheck import *
 from temci.utils.registry import AbstractRegistry, register
+import logging
 
 Number = t.Union[int, float]
 
