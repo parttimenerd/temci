@@ -8,11 +8,16 @@ from temci.utils.util import has_root_privileges
 from temci.utils.typecheck import *
 import typing as t
 
-CPUSET_DIR = '/cpuset'
-NEW_ROOT_SET = 'bench.root'
-BENCH_SET = 'temci.set'
-CONTROLLER_SUB_BENCH_SET = 'temci.set.controller'
-SUB_BENCH_SET = 'temci.set.{}'
+CPUSET_DIR = '/cpuset'  # type: str
+""" Location that the cpu set pseudo file system is mounted at """
+NEW_ROOT_SET = 'bench.root'  # type: str
+""" Name of the new root cpu set that contains most of the processes of the original root set """
+BENCH_SET = 'temci.set'  # type: str
+""" Name of the base cpu set used by temci for benchmarking purposes """
+CONTROLLER_SUB_BENCH_SET = 'temci.set.controller'  # type: str
+""" Name of the cpu set used by the temci control process """
+SUB_BENCH_SET = 'temci.set.{}'  # type: str
+""" Format of cpu sub set names for benchmarking """
 
 
 class CPUSet:
@@ -27,22 +32,27 @@ class CPUSet:
         """
         Initializes the cpu sets an determines the number of parallel programs (parallel_number variable).
 
-        :param base_core_number:
-        :param parallel:
-        :param sub_core_number:
-        :raises ValueError if the passed parameters don't work together on the current platform
-        :raises EnvironmentError if the environment can't be setup properly (e.g. no root privileges)
+        :param active: are cpu sets actually used?
+        :param base_core_number: number of cpu cores for the base (remaining part of the) system
+        :param parallel: 0: benchmark sequential, > 0: benchmark parallel with n instances, -1: determine n automatically
+        :param sub_core_number: number of cpu cores per parallel running program
+        :raises ValueError: if the passed parameters don't work together on the current platform
+        :raises EnvironmentError: if the environment can't be setup properly (e.g. no root privileges)
         """
         #self.bench_set = "bench.set"
-        self.active = active and has_root_privileges()
-        self.own_set = ''
-        self.base_core_number = Settings().default(base_core_number, "run/cpuset/base_core_number")
-        self.parallel = Settings().default(parallel, "run/cpuset/parallel")
-        self.sub_core_number = Settings().default(sub_core_number, "run/cpuset/sub_core_number")
-        self.av_cores = len(self._cpus_of_set("")) if active else multiprocessing.cpu_count()
-        if self.parallel == 0:
-            self.parallel_number = 0
-        else:
+        self.active = active and has_root_privileges()  # type: bool
+        """ Are cpu sets actually used? """
+        self.base_core_number = Settings().default(base_core_number, "run/cpuset/base_core_number")  # type: int
+        """ Number of cpu cores for the base (remaining part of the) system """
+        self.parallel = Settings().default(parallel, "run/cpuset/parallel")  # type: int
+        """ 0: benchmark sequential, > 0: benchmark parallel with n instances, -1: determine n automatically """
+        self.sub_core_number = Settings().default(sub_core_number, "run/cpuset/sub_core_number")  # type: int
+        """ Number of cpu cores per parallel running program """
+        self.av_cores = len(self._cpus_of_set("")) if active else multiprocessing.cpu_count()  # zype: int
+        """ Number of available cpu cores """
+        self.parallel_number = 0  # type: int
+        """ Number of used parallel instances, zero if the benchmarking is done sequentially """
+        if self.parallel != 0:
             if self.parallel == -1:
                 self.parallel_number = self._number_of_parallel_sets(self.base_core_number,
                                                                      True, self.sub_core_number)
@@ -74,6 +84,7 @@ class CPUSet:
     def move_process_to_set(self, pid: int, set_id: int):
         """
         Moves the process with the passed id to the parallel sub cpuset with the passed id.
+
         :param pid: passed process id
         :param set_id: passed parallel sub cpuset id
         """
@@ -89,6 +100,7 @@ class CPUSet:
             raise
 
     def get_sub_set(self, set_id: int) -> str:
+        """ Gets the name of the benchmarking cpu set with the given id / number (starting at zero). """
         if self.active:
             typecheck(set_id, Int(range=range(0, self.parallel_number)))
         return SUB_BENCH_SET.format(set_id)
@@ -109,6 +121,9 @@ class CPUSet:
                 raise
 
     def _number_of_parallel_sets(self, base_core_number: int, parallel: bool, sub_core_number: int) -> int:
+        """
+        Calculates the number of possible parallel sets.
+        """
         typecheck([base_core_number, parallel, sub_core_number], List(Int()))
         if base_core_number + 1 + sub_core_number > self.av_cores and self.active:
             raise ValueError("Invalid values for base_core_number and sub_core_number "
@@ -121,8 +136,7 @@ class CPUSet:
 
     def _init_cpuset(self):
         """
-        Mounts the cpuset pseudo filesystem at "/cpuset" and creates the necessary cpusets.
-        :return:
+        Mounts the cpuset pseudo filesystem at ``CPUSET_DIR`` and creates the necessary cpusets.
         """
         if not os.path.exists(CPUSET_DIR + "/cgroup.procs"):
             if not os.path.exists(CPUSET_DIR):
@@ -149,6 +163,7 @@ class CPUSet:
             self._create_cpuset(SUB_BENCH_SET.format(i), self._get_av_cpus()[start:start + self.sub_core_number])
 
     def _cpus_of_set(self, name: str) -> t.Optional[t.List[int]]:
+        """ Gets all cpu cores that are assigned to the set with the passed name. """
         name = self._relname(name)
         if self._has_set(name):
             res = self._cset("set {}".format(name))
@@ -164,19 +179,29 @@ class CPUSet:
         return None
 
     def _get_av_cpus(self) -> t.List[int]:
+        """ Gets the number of available cpu cores """
         return self._cpus_of_set("")
 
     def _ints_to_str(self, ints: t.List[int]) -> str:
+        """ Turns a list of integers comma separated into a string """
         return ",".join(map(str, ints))
 
     def _has_set(self, name: str):
+        """ Does the set with the given name exist? """
         name = self._relname(name)
         return name + "   " in self._cset("set -rl")
 
     def _delete_set(self, name: str):
+        """ Delete the set with the given name """
         self._cset("set -r --force -d %s" % NEW_ROOT_SET)
 
     def _move_all_to_new_root(self, name: str = 'root', _count: int = 100):
+        """
+        Move all process from the root cpu set into the ``NEW_ROOT_SET``
+
+        :param name: name of the root cpu set
+        :param _count: maximum cpu set tree depth
+        """
         cpus =  self._get_av_cpus()[0:self.base_core_number]
         self._set_cpu_affinity_of_set(name, cpus)
         if _count > 0:
@@ -196,6 +221,7 @@ class CPUSet:
         """
         Move all processes from the first to the second cpuset.
         Only some kernel threads are left behind.
+
         :param from_set: name of the first cpuset
         :param to_set: name of the second cpuset
         """
@@ -203,9 +229,16 @@ class CPUSet:
         self._cset("proc --move --kthread --force --threads --fromset %s --toset %s" % (from_set, to_set))
 
     def _move_process_to_set(self, cpuset: str, pid: int = os.getpid()):
+        """
+        Move the process with the given id into the passed cpu set.
+
+        :param cpuset: name of the passed cpu set
+        :param pid: id of the process to move, default is the own process
+        """
         self._cset("proc --move --force --pid %d --threads %s" % (pid, cpuset))
 
     def _absname(self, relname: str):
+        """ Get the absolute set name for the given relative """
         if "/" in relname:
             return relname
         res = self._cset("set %s" % relname)
@@ -214,11 +247,13 @@ class CPUSet:
         return arr[7]
 
     def _relname(self, absname: str):
+        """ Get the realtive set name for the given absolute """
         if not "/" in absname:
             return absname
         return absname.split("/")[-1]
 
-    def _child_sets(self, name: str):
+    def _child_sets(self, name: str) -> t.List[str]:
+        """ Get the list of child set for the set with the given name """
         name = self._relname(name)
         res = self._cset("set %s" % name)
         arr = []
@@ -228,6 +263,7 @@ class CPUSet:
         return arr
 
     def _create_cpuset(self, name: str, cpus: t.List[int]):
+        """ Create the cpuset with the given name and assign the given cpu cores to it """
         typecheck(cpus, List(Int()))
         cpu_range = self._ints_to_str(cpus)
         path = []
@@ -236,6 +272,7 @@ class CPUSet:
             self._cset("set --cpu {} {} ".format(cpu_range, "/".join(path)))
 
     def _set_cpu_affinity_of_set(self, set: str, cpus: t.List[int]):
+        """ Set the cpu affinity for all processes that belong to the given set """
         if set == "root":
             set = ""
         app = "cgroup.procs"  if set == "" else set + "/cgroup.procs"
@@ -249,6 +286,7 @@ class CPUSet:
                     #logging.error(str(err))
 
     def _set_cpu_affinity(self, pid: int, cpus: t.List[int]):
+        """ Set the cpu affinity for the given process to the given cpu cores """
         cmd = "taskset --all-tasks --cpu-list -p {} {}; nice".format(self._ints_to_str(cpus), pid)
         proc = subprocess.Popen(["/bin/sh", "-c", cmd],
                                 stdout=subprocess.PIPE,
@@ -262,6 +300,13 @@ class CPUSet:
         return str(out)
 
     def _cset(self, argument: str):
+        """
+        Execute the passed argument with the cset tool.
+
+        :param passed argument for the tool
+        :return: output of executing the combined command
+        :raises EnvironmentError: if something goes wrong
+        """
         #cmd = ["/bin/sh", "-c", "sudo cset {}".format(argument)]
         cmd = ["/bin/sh", "-c", "python3 -c 'import cpuset.main; print(cpuset.main.main())' " + argument]
         proc = subprocess.Popen(cmd,
@@ -270,7 +315,7 @@ class CPUSet:
                                 universal_newlines=True)
         out, err = proc.communicate()
         if proc.poll() > 0:
-            raise EnvironmentError (
+            raise EnvironmentError(
                 "Error with cset tool. "
                 " More specific error (cmd = 'cset {}'): ".format(argument) + str(err) + str(out)
             )

@@ -10,21 +10,183 @@ import time
 import yaml, copy
 from colorlog import logging
 
-from temci.package.util import abspath, normalize_path, _new_id
+from temci.package.util import abspath, normalize_path, hashed_name_of_file
 from temci.utils.mail import send_mail
 from temci.utils.settings import Settings
 from temci.utils.typecheck import *
-from temci.package.database import Database, FileId
-from temci.utils.util import has_root_privileges, get_distribution_name, join_strs, get_distribution_release
+from temci.utils.util import has_root_privileges, get_distribution_name, join_strs, get_distribution_release, \
+    does_command_succeed
+
+Key = t.Union[str, 'Action']
+KeySubKey = t.Tuple[Key, str]
+FileId = str
+
+class Database:
+    """
+    A database that can store files and other data and can be stored in a compressed archive.
+    """
+
+    _entry_types = {
+        "any": Dict(all_keys=False)
+    }  # type: t.Dict[str, Dict]
+
+    def __init__(self, data: t.Dict[str, t.Dict[str, Any]] = None, tmp_dir: str = None):
+        """
+        Creates an instance.
+
+        :param data: data per entry type
+        :param tmp_dir: temporary directory to temporary store all included files in
+        """
+        self.tmp_dir = tmp_dir or os.path.join(Settings()["tmp_dir"], "package" + str(time.time()))  # type: str
+        if os.path.exists(self.tmp_dir):
+            shutil.rmtree(self.tmp_dir)
+        os.mkdir(self.tmp_dir)
+        self._data_yaml_file_name = os.path.join(self.tmp_dir, "data.yaml")  # type: str
+        self._data = data or {}  # type: t.Dict[str, t.Dict[str, Any]]
+
+    def __setitem__(self, key: t.Union[Key, KeySubKey], value: dict):
+        key, subkey = self._key_subkey(key, normalize=False)
+        key_n = self._normalize_key(key)
+        if key_n not in self._data:
+            #from temci.package.action import Action
+            self._data[key_n] = {
+                "value": {},
+                "entry_type": "any"
+            }
+            if not isinstance(key, str):
+                if key.name not in self._entry_types:
+                    self.add_entry_type(key.name, key.db_entry_type)
+                self._data[key_n]["entry_type"] = key.name
+                if key.db_entry_type.has_default():
+                    self._data[key_n]["value"] = key.db_entry_type.get_default()
+        entry_type = self._entry_types[self._data[key_n]["entry_type"]]
+        if subkey:
+            typecheck_locals(value=entry_type[subkey])
+            self._data[key_n]["value"][subkey] = value
+        else:
+            val = entry_type.get_default() if entry_type.has_default() else {}
+            val.update(value)
+            typecheck(val, entry_type)
+            self._data[key_n]["value"] = val
+
+    def __getitem__(self, key: t.Union[Key, KeySubKey]):
+        key, subkey = self._key_subkey(key)
+        if subkey:
+            return self._data[key]["value"][subkey]
+        return self._data[key]["value"]
+
+    def store_file(self, key: Key, subkey: str, file_path: str):
+        """
+        Stores a file in the database and stores the files id under the passed key as an string.
+        It uses the hashed (sha512 + md5) file contents as the id. A file can't be deleted by storing
+        another file under the same key.
+
+        :param key: passed key
+        :param file_path: path of the file to store
+        """
+        file_path = abspath(file_path)
+        typecheck_locals(file_path=FileName())
+        file_id = hashed_name_of_file(file_path)
+        shutil.copy(file_path, self._storage_filename(file_id))
+        self[key, subkey] = file_id
+
+    def retrieve_file(self, key: Key, subkey: str, destination: str):
+        """
+        Copies the stored file under the passed key to its new destination.
+        """
+        destination = abspath(destination)
+        source = self._storage_filename(self[key, subkey])
+        shutil.copy(source, destination)
+
+    def _storage_filename(self, id: FileId) -> str:
+        return os.path.join(self.tmp_dir, id)
+
+    def _store_yaml(self):
+        with open(self._data_yaml_file_name, "w") as f:
+            yaml.dump(self._data, f)
+
+    def _load_yaml(self):
+        with open(self._data_yaml_file_name, "r") as f:
+            self._data = yaml.load(f)
+
+    def store(self, filename: str, compression_level: int = None):
+        """
+        Store the whole database as a compressed archive under the given file name.
+
+        :param filename: passed file name
+        :param compression_level: used compression level, from -1 (low) to -9 (high)
+        """
+        compression_level = compression_level or Settings()["package/compression/level"]
+        self._store_yaml()
+        filename = abspath(filename)
+        used_prog = "gzip"
+        av_programs = ["pixz", "xz"] if Settings()["package/compression/program"] == "xz" else ["pigz", "gzip"]
+        for prog in av_programs:
+            if does_command_succeed(prog + " --version"):
+                used_prog = prog
+                break
+        cmd = "cd {dir}; XZ={l} GZIP={l} tar cf '{dest}' . --use-compress-program={prog}"\
+            .format(l=compression_level, dest=filename, dir=self.tmp_dir, prog=used_prog)
+        res = subprocess.check_output(["/bin/sh", "-c", cmd])
+
+    def load(self, filename: str):
+        """
+        Cleans the database and then loads the database from the compressed archive.
+
+        :param filename: name of the compressed archive
+        """
+        os.system("tar xf '{file}' -C '{dest}'".format(file=abspath(filename), dest=self.tmp_dir))
+        self._data.clear()
+        self._load_yaml()
+
+    def clean(self):
+        """
+        Removes the used temporary directory.
+        """
+        shutil.rmtree(self.tmp_dir)
+
+    @classmethod
+    def _key_subkey(cls, key: KeySubKey, normalize: bool = True) -> t.Tuple[str, str]:
+        def norm(key: Key):
+            return cls._normalize_key(key) if normalize else key
+        if isinstance(key, tuple):
+            return norm(key[0]), key[1]
+        return norm(key), None
+
+    @classmethod
+    def add_entry_type(cls, key: str, entry_type: Type):
+        """
+        Add another entry type.
+
+        :param key: name of this entries type
+        :param entry_type: type of this entry
+        """
+        #typecheck_locals(entry_type=T(Dict))
+        cls._entry_types[key] = entry_type
+
+    @classmethod
+    def _normalize_key(cls, key: Key) -> str:
+        #from temci.package.action import Action
+        if not isinstance(key, str):
+            return key.id
+        return key
 
 
 class ActionRegistry:
 
     registered = {}  # type: t.Dict[str, type]
-
+    """ Registered action types """
 
     @classmethod
     def action_for_config(cls, id: str, action_name: str, config: t.Dict[str, t.Any]) -> 'Action':
+        """
+        Create an action suited for the passed arguments.
+
+        :param id: id of the created action
+        :param action_name: name of the action type
+        :param config: configuration of the action
+        :return: created action
+        """
         assert action_name in cls.registered
         action_class = cls.registered[action_name]
         cfg = action_class.config_type.get_default() if action_class.config_type.has_default() else {}
@@ -34,7 +196,13 @@ class ActionRegistry:
         return action
 
     @classmethod
-    def add_action_class(cls, action_class):
+    def add_action_class(cls, action_class: type):
+        """
+        Add an action type.
+
+        :param action_class: action class, has to be a sub class of Action
+        """
+        #assert issubclass(action_class, Action)
         config_type = action_class.config_type
         typecheck_locals(config_type=T(Dict))
         has_default = config_type.has_default()
@@ -42,34 +210,70 @@ class ActionRegistry:
 
 
 def register_action(cls: type) -> type:
+    """
+    Decorator to register an action type in the ActionRegistry and the Database.
+
+    :param cls: class to register.
+    :return: passed class
+    """
     ActionRegistry.add_action_class(cls)
     Database.add_entry_type(cls.name, cls.db_entry_type)
     return cls
 
 
 class Actions:
+    """
+    Deduplicating list of actions that can execute methods on all actions.
+    """
 
     def __init__(self, actions: t.List['Action'] = None):
+        """
+        Creates an instance.
+
+        :param actions: included actions
+        """
         self.actions = []  # type: t.List['Action']
-        self.action_reprs = set()  # type: t.Set[str]
+        """ Included actions """
+        self._action_reprs = set()  # type: t.Set[str]
+        """ String representations of all included actions used for deduplication """
         if actions:
             for action in actions:
                 self.add(action)
 
     def load_from_config(self, config: t.List[t.Dict[str, t.Any]]):
+        """
+        Load actions from the passed list.
+
+        :param config: passed list of dictionaries that represent actions
+        """
         typecheck_locals(config=List(Dict({"id": Str(), "action": Str(), "config": Dict(key_type=Str(), all_keys=False)})))
         for conf in config:
             self.add(ActionRegistry.action_for_config(conf["id"], conf["action"], conf["config"]))
 
     def load_from_file(self, file: str):
+        """
+        Load the actions from the passed file.
+
+        :param file: name of the passed file
+        """
         with open(file, "r") as f:
             self.load_from_config(yaml.load(f))
 
     def store_all(self, db: Database):
+        """
+        Stores all actions data in the passed database.
+
+        :param db: passed database
+        """
         for action in self.actions:
             action.store(db)
 
     def execute_all(self, db: Database):
+        """
+        Executes all actions using the passed database.
+
+        :param db: passed database
+        """
         for action in self.actions:
             action.execute(db)
 
@@ -80,35 +284,76 @@ class Actions:
         return Actions(actions)
 
     def reverse_and_store_all_in_db(self, new_db: Database) -> 'Actions':
+        """
+        Create the reverse actions for all actions and store their data in the passed database.
+
+        :param new_db: passed database
+        :return: Actions instance containing the newly created actions
+        """
         actions = self._reverse_all()
         actions.store_all_in_db(new_db)
         return actions
 
     def serialize(self) -> t.List[t.Dict[str, t.Any]]:
+        """
+        Serialize this instance into a data structure that is processable by the ``load_from_dict`` method.
+
+        :return: serialization of this instance
+        """
         ret = []
         for action in self.actions:
             ret.append({
                 "id": action.id,
                 "action": action.name,
-                "config": action.serialize(exclude_id=True)
+                "config": self._serialize_action(action, exclude_id=True)
             })
         return ret
 
+    def _serialize_action(self, action: 'Action', exclude_id: bool) -> str:
+        properties = vars(action)
+        ret = {}
+        for key in properties:
+            if key == "id" and exclude_id:
+                continue
+            if not key.startswith("_"):
+                ret[key] = properties[key]
+        return ret
+
     def store_in_file(self, filename: str):
+        """
+        Store the serialization of this instance in the YAML format in the passed file.
+
+        :param filename: name of the passed file
+        """
         with open(filename, "w") as f:
             yaml.dump(self.serialize(), f)
 
     def store_in_db(self, db: Database):
+        """
+        Serializes this instance into a file and includes this file in the passed database.
+
+        :param db: passed database
+        """
         filename = os.path.join(Settings()["tmp_dir"], "actions.yaml")
         self.store_in_file(filename)
         db.store_file("actions", "file", filename)
         os.remove(filename)
 
     def store_all_in_db(self, db: Database):
+        """
+        Stores this instance and all actions data into the passed database.
+
+        :param db: passed database
+        """
         self.store_in_db(db)
         self.store_all(db)
 
     def load_from_db(self, db: Database):
+        """
+        Load the actions from the passed database.
+
+        :param db: passed database
+        """
         filename = os.path.join(Settings()["tmp_dir"], "actions.yaml")
         db.retrieve_file("actions", "file", filename)
         self.load_from_file(filename)
@@ -117,6 +362,7 @@ class Actions:
     def add(self, action: t.Union['Action', t.List['Action']]):
         """
         Adds the passed action(s) and ignores base and duplicate actions.
+
         :param action: passed action(s)
         """
         typecheck_locals(action=T(Action)|List(T(Action)))
@@ -124,19 +370,21 @@ class Actions:
             for a in action:
                 self.add(a)
         elif not action.name == Action.name:
-            action_repr = repr([action.name, action.serialize(exclude_id=True)])
-            if action_repr not in self.action_reprs:
+            action_repr = repr([action.name, self._serialize_action(action, exclude_id=True)])
+            if action_repr not in self._action_reprs:
                 self.actions.append(action)
-                self.action_reprs.add(action_repr)
+                self._action_reprs.add(action_repr)
 
     def __lshift__(self, action: t.Union['Action', t.List['Action']]) -> 'Actions':
         """
-        Like add(…) but returns the actions object.
+        Like ``add(…)`` but returns the actions object.
+
         :param other: action to be added
         :return: self
         """
         self.add(action)
         return self
+
 
 @register_action
 class Action:
@@ -159,16 +407,21 @@ class Action:
     """ Type of the database entry. """
     config_type = Dict(all_keys=False)
     """ Type of the configuration. """
+    _id_counter = 0  # type: int
+
 
     def __init__(self):
         """
         Creates a new base action.
         """
-        self.id = _new_id()
+        self.id = self._id_counter  # type: int
+        """ Id of this action """
+        self._id_counter += 1
 
     def store(self, db: Database):
         """
         Store all valid information (like files) in the database.
+
         :param db: used database
         """
         pass
@@ -176,6 +429,7 @@ class Action:
     def execute(self, db: Database):
         """
         Execute this action.
+
         :param db: used database
         """
         if Settings()["package/dry_run"]:
@@ -194,46 +448,66 @@ class Action:
     def reverse(self) -> t.List['Action']:
         """
         Creates an action that reverts the changes made by executing this action.
-        :return reverse action
+
+        :return: reverse action
         """
         return []
 
-    def serialize(self, exclude_id: bool = False) -> t.Dict[str, t.Any]:
-        properties = vars(self)
-        ret = {}
-        for key in properties:
-            if key == "id" and exclude_id:
-                continue
-            if not key.startswith("_"):
-                ret[key] = properties[key]
-        return ret
-
     def typecheck(self):
+        """
+        Check that the own properties not starting with ``_`` and excluding the ``id``` property
+        match the ``config_type``.
+
+        :raises TypeError: if the check fails
+        """
         typecheck(self.serialize(exclude_id=True), self.config_type)
 
     def _fail(self, message: str):
+        """
+        Fail with the given error message and send an error mail if configured to do so
+
+        :param message: given error message
+        """
         logging.error(message)
         send_mail(Settings()["package/send_mail"], "Error", message)
         exit(1)
 
     def _exec(self, cmd: str, fail_on_error: bool = False,
-              error_message: str = "Failed executing {cmd}: out={out}, err={err}",
+              error_message: str = "Failed executing {cmd!r}: out={out!r}, err={err!r}",
               timeout: int = 10) -> bool:
+        """
+        Execute the passed command.
+
+        :param cmd:
+        :param fail_on_error:
+        :param error_message: error message format
+        :param timeout: time in seconds after which the command is aborted
+        :return: Was the command executed successfully?
+        """
         out_mode = subprocess.PIPE if fail_on_error else subprocess.DEVNULL
         proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=out_mode, stderr=out_mode,
                                 universal_newlines=True)
         out, err = proc.communicate(timeout=timeout)
         if proc.wait() > 0:
             if fail_on_error:
-                self._fail(error_message.format(cmd=repr(cmd), out=repr(out), err=repr(err)))
+                self._fail(error_message.format(cmd=cmd, out=out, err=err))
             else:
                 return False
         return True
 
 
-def copy_tree_actions(base: str, include_pattern: t.Union[t.List[str], str] = ["**", "**/.*"],
+def copy_tree_actions(base: str, include_patterns: t.Union[t.List[str], str] = ["**", "**/.*"],
                       exclude_patterns: t.List[str] = None) -> t.List[Action]:
-    paths = matched_paths(base, include_pattern, exclude_patterns)
+    """
+    Actions for all files and directories in the base directory that match the given patterns.
+    It's used to copy a whole directory tree.
+
+    :param base: base directory
+    :param include_pattern: patterns that match the paths that should be included
+    :param exclude_patterns: patterns that match the paths that should be excluded
+    :return: list of actions
+    """
+    paths = matched_paths(base, include_patterns, exclude_patterns)
     files = set()  # type: t.Set[str]
     dirs = set()  # type: t.Set[str]
     ret = []  # type: t.List[Action]
@@ -244,12 +518,21 @@ def copy_tree_actions(base: str, include_pattern: t.Union[t.List[str], str] = ["
             ret.append(CopyFile(normalize_path(path)))
     return ret
 
-def matched_paths(base: str, include_pattern: t.Union[t.List['str']] = ["**", "**/.*"],
+
+def matched_paths(base: str, include_patterns: t.Union[t.List['str'], str] = ["**", "**/.*"],
                   exclude_patterns: t.List[str] = None) -> t.List[str]:
+    """
+    All matching paths in base directory and it's child directories.
+
+    :param base: base directory
+    :param include_patterns: patterns that match the paths that should be included
+    :param exclude_patterns: patterns that match the paths that should be excluded
+    :return: matching paths
+    """
     typecheck_locals(base=str, include_pattern=List(Str())|Str(), exclude_patterns=Optional(List(Str())))
-    if isinstance(include_pattern, list):
+    if isinstance(include_patterns, list):
         ret = []
-        for pattern in include_pattern:
+        for pattern in include_patterns:
             ret.extend(matched_paths(base, pattern, exclude_patterns))
         return ret
     cwd = os.getcwd()
@@ -262,7 +545,14 @@ def matched_paths(base: str, include_pattern: t.Union[t.List['str']] = ["**", "*
     names = list(map(abspath, names))
     return names
 
-def actions_for_dir_path(path: str, create: bool = True, path_acc: t.Set[str] = set()) -> t.List[Action]:
+
+def actions_for_dir_path(path: str, path_acc: t.Set[str] = set()) -> t.List[Action]:
+    """
+    Returns a list of actions that is needed to create a folder and it's parent folders.
+
+    :param path:
+    :param path_acc: paths already examined
+    """
     path = abspath(path)
     typecheck_locals(path=FileName(allow_non_existent=False)|DirName(), create=Bool())
     assert os.path.exists(path)
@@ -276,10 +566,7 @@ def actions_for_dir_path(path: str, create: bool = True, path_acc: t.Set[str] = 
         subpath_norm = normalize_path(subpath)
         if subpath_norm in path_acc:
             continue
-        if create:
-            ret.append(CreateDir(subpath_norm))
-        else:
-            ret.append(RemoveDir(subpath_norm))
+        ret.append(CreateDir(subpath_norm))
         path_acc.add(subpath_norm)
     return ret
 
@@ -301,6 +588,15 @@ class ExecuteCmd(Action):
 
     def __init__(self, cmd: str, working_dir: str = normalize_path("."), send_mail: bool = None,
                  mail_address: str = None, mail_header: str = None):
+        """
+        Creates an instance.
+
+        :param cmd: command to execute
+        :param working_dir: directory in which the command is executed
+        :param send_mail: send a mail after the execution of the program?
+        :param mail_address: recipient of the mail
+        :param mail_header: header of the mail
+        """
         super().__init__()
         if send_mail == None:
             send_mail = Settings()["package/send_mail"] != ""
@@ -309,11 +605,16 @@ class ExecuteCmd(Action):
             if mail_address == "":
                 mail_address = None
         assert mail_address or not send_mail
-        self.cmd = cmd
-        self.working_dir = working_dir
-        self.send_mail = send_mail
-        self.mail_address = mail_address
-        self.mail_header = mail_header or "Executed command {!r}".format(self.cmd)
+        self.cmd = cmd  # type: str
+        """ Command to execute """
+        self.working_dir = working_dir  # type: str
+        """ Directory in which the command is executed """
+        self.send_mail = send_mail  # type: bool
+        """ Send a mail after the execution of the program? """
+        self.mail_address = mail_address  # type: str
+        """ Recipient of the mail """
+        self.mail_header = mail_header or "Executed command {!r}".format(self.cmd)  # type: str
+        """ Header of the mail """
         self.typecheck()
 
     def _dry_run_message(self) -> str:
@@ -353,9 +654,17 @@ class CopyFile(Action):
     })
 
     def __init__(self, source: str, dest: str = None):
+        """
+        Creates an instance.
+
+        :param source: name of the file to copy
+        :param dest: copy destination or None if ``source`` should be used
+        """
         super().__init__()
-        self.source = source
-        self.dest = dest or normalize_path(self.source)
+        self.source = source  # type: str
+        """ Name of the file to copy """
+        self.dest = dest or normalize_path(self.source)  # type: str
+        """ Copy destination """
         self.typecheck()
 
     def store(self, db: Database):
@@ -385,8 +694,14 @@ class RemoveFile(Action):
     })
 
     def __init__(self, file: str):
+        """
+        Creates an instance.
+
+        :param file: name of the file to remove
+        """
         super().__init__()
-        self.file = file
+        self.file = file  # type: str
+        """ Name of the file to remove """
         self.typecheck()
 
     def _dry_run_message(self) -> str:
@@ -415,8 +730,14 @@ class CreateDir(Action):
     })
 
     def __init__(self, directory: str):
+        """
+        Creates an instance
+
+        :param directory: name of the directory to create
+        """
         super().__init__()
-        self.directory = directory
+        self.directory = directory  # type: str
+        """ Name of the directory to create """
         self.typecheck()
 
     def _dry_run_message(self) -> str:
@@ -446,8 +767,14 @@ class RemoveDir(Action):
     })
 
     def __init__(self, directory: str):
+        """
+        Creates an instance.
+
+        :param directory: name of the directory to remove
+        """
         super().__init__()
-        self.directory = directory
+        self.directory = directory  # type: str
+        """ Name of the directory to remove """
         self.typecheck()
 
     def _dry_run_message(self) -> str:
@@ -486,8 +813,14 @@ class Sleep(Action):
     config_type = Dict({"seconds": Optional(NaturalNumber())})
 
     def __init__(self, seconds: int = Settings()["package/actions/sleep"]):
+        """
+        Creates an instance.
+
+        :param seconds: seconds to sleep
+        """
         super().__init__()
-        self.seconds = seconds
+        self.seconds = seconds  # type: int
+        """ Seconds to sleep """
         self.typecheck()
 
     def _dry_run_message(self) -> str:
@@ -515,7 +848,7 @@ class Sync(Action):
 @register_action
 class RequireDistribution(Action):
     """
-    Require one of the passed distributions to be the current distribution.
+    Require one of the passed linux distributions to be the current distribution.
     """
 
     name = "require_distribution"
@@ -524,8 +857,14 @@ class RequireDistribution(Action):
     })
 
     def __init__(self, possible_distributions: t.List[str] = [get_distribution_name()]):
+        """
+        Creates an instance.
+
+        :param possible_distributions: names of the allowed linux distributions
+        """
         super().__init__()
-        self.possible_distributions = possible_distributions
+        self.possible_distributions = possible_distributions  # type: t.List[str]
+        """ Names of the allowed linux distributions """
         self.typecheck()
 
     def _unsupported_distribution(self) -> bool:
@@ -543,7 +882,7 @@ class RequireDistribution(Action):
 @register_action
 class RequireDistributionRelease(Action):
     """
-    Require one of the passed distributions to be the current distribution. Also require a specific release.
+    Require one of the passed linux distributions to be the current distribution. Also require a specific release.
     """
 
     name = "require_distribution_release"
@@ -553,8 +892,14 @@ class RequireDistributionRelease(Action):
 
     def __init__(self, possible_distributions: t.List[t.Tuple[str, str]] = [(get_distribution_name(),
                                                                              get_distribution_release())]):
+        """
+        Creates an instance.
+
+        :param possible_distributions: allowed (distribution, release) tuples
+        """
         super().__init__()
-        self.possible_distributions = possible_distributions
+        self.possible_distributions = possible_distributions  # type: t.List[t.Tuple[str, str]]
+        """ Allowed (distribution, release) tuples """
         self.typecheck()
 
     def _unsupported_distribution(self) -> bool:
@@ -584,32 +929,41 @@ class InstallPackage(Action):
     """
 
     name = "install_package"
-    config_type = Dict({
+    config_type = Dict({  # type: Type
         "package": Str(),
         "name_in_distros": Dict(all_keys=False, key_type=Str(), value_type=Str())
     })
-    supported_distributions = ["Ubuntu", "Debian"]
+    supported_distributions = ["Ubuntu", "Debian"]  # type: t.List[str]
     """ Supported linux distributions """
-    install_cmds = {
+    install_cmds = {  # type: t.Dict[str, str]
         "Debian": "yes | apt-get install {}",
         "Ubuntu": "yes | apt-get install {}"
     }
     """ Commands to install a package """
-    check_cmds = {
+    check_cmds = {  # type: t.Dict[str, str]
         "Debian": "dpkg -s {}",
         "Ubuntu": "dpkg -s {}"
     }
     """ Commands that only succeed if the package is already installed """
-    uninstall_cmds = {
+    uninstall_cmds = {  # type: t.Dict[str, str]
         "Debian": "yes | apt-get remove {}",
         "Ubuntu": "yes | apt-get remove {}"
     }
     """ Commands to uninstall (or remove) a package """
 
     def __init__(self, package: str, name_in_distros: t.Dict[str, str] = None):
+        """
+        Creates an instance.
+
+        :param package: name of the package
+        :param name_in_distros: name in each supported linux distribution if it differs
+        from the already given name
+        """
         super().__init__()
         self.package = package  # type: str
+        """ Name of the package """
         self.name_in_distros = name_in_distros or {}  # type: t.Dict[str, str]
+        """ Name in each supported linux distribution if it differs from the package name """
         pkg = {}
         for distro in self.name_in_distros:
             if distro not in self.supported_distributions:

@@ -11,6 +11,8 @@ from temci.utils.settings import Settings, SettingsError
 from temci.utils.registry import AbstractRegistry
 import typing as t
 
+from temci.utils.util import sphinx_doc
+
 
 def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = False,
                        callback = t.Callable[[str, t.Any], t.Any], short: str = None, with_default: bool = True,
@@ -212,7 +214,8 @@ class CmdOption:
             self.default = Settings()[settings_key]
         if hasattr(self.type_scheme, "completion_hints") and self.completion_hints is None:
             self.completion_hints = self.type_scheme.completion_hints
-        self.is_flag = is_flag is True or (is_flag is None and type(self.type_scheme) in [Bool, BoolOrNone])
+        self.is_flag = is_flag is True or (is_flag is None and type(self.type_scheme) in [Bool, BoolOrNone])  # type: bool
+        """ Is this option flag like? """
         if self.is_flag:
             self.completion_hints = None
             self.short = None
@@ -377,6 +380,38 @@ class CmdOptionList:
     def __repr__(self) -> str:
         return repr(self.options)
 
+    def __len__(self) -> int:
+        return len(self.options)
+
+    def get_sphinx_doc(self) -> str:
+        """ Returns the documentation string for the enclosed options """
+        def format_option(option: CmdOption) -> str:
+            names = ["--" + option.option_name]
+            if option.has_short:
+                names.append("-" + option.short)
+            if option.is_flag:
+                names.append("--no-" + option.option_name)
+            name_str =  "|".join(names)
+
+            ret = """
+``{name}``:
+
+    :Description: {descr}
+            """.format(name=name_str, descr=option.description)
+            if not option.is_flag:
+                ret += """
+
+    :Argument type: {}
+                """.format(str(option.type_scheme).strip())
+            if option.has_default:
+                ret += """
+
+    :Default: {!r}
+
+                """.format(option.default)
+            return ret
+        return "\n".join([format_option(x) for x in self.options])
+
 
 def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = None) \
         -> t.Callable[[t.Callable], t.Callable]:
@@ -402,11 +437,68 @@ def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = Non
                                   default=option.default
                                   )
 
-    def func(f):
+    def func(f: t.Callable):
+        name = f.__name__
+        #args = f.__arguments__
+        annotations = f.__annotations__
+        module = f.__module__
+        doc = f.__doc__
+        qname = f.__qualname__
         for opt in sorted(option.options):
             f = cmd_option(opt, name_prefix)(f)
+        f.__name__ = name[0:-2] if name.endswith("_") else name
+        f.__qualname__ = qname[0:-2] if qname.endswith("_") else qname
+        #f.__args__ = args
+        f.__annotations__ = annotations
+        f.__module__ = module
+        f.__doc__ = doc
         return f
     return func
+
+
+def document_func(description: str, *options: t.Tuple[t.Union[CmdOptionList, CmdOption]],
+                  argument: str = None, only_if_sphinx_doc: bool = True) -> t.Callable[[t.Callable], t.Callable]:
+    """
+    Function decorator that appends an command documentation to the functions __doc__ attribute.
+
+
+    :param description: description of the command
+    :param options: options to generate a documentation for
+    :param argument: optional argument description of the command
+    :param only_if_sphinx_doc: only generate the documentation if the file is executed for documentation generation
+    """
+    options = CmdOptionList(*options)
+    options_str = options.get_sphinx_doc()
+    def func(f):
+        if not sphinx_doc():
+            return f
+        full_cmd = f.__name__.replace("__", " ")
+        if not f.__doc__:
+            f.__doc__ = ""
+        f.__doc__ += """
+
+    :Command: ``{full_cmd}``
+
+    :Description: {description}
+
+        """.format(full_cmd=full_cmd, description=description)
+        if argument:
+            f.__doc__ += """
+
+    :Argument: {argument}
+    """.format(argument=argument)
+        if len(options) > 0:
+            f.__doc__ += """
+
+    **Options**:
+
+        {options}
+            """.format(options="\n        ".join(options_str.split("\n")))
+        return f
+    return func
+
+
+
 
 #@annotate(Dict({"count": Int(), "abc": Str(), "d": Dict({
 #    "abc": NaturalNumber()

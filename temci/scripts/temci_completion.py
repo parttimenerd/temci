@@ -11,6 +11,7 @@ Usage:
 ```
 This returns the location of the completion file.
 """
+
 import os
 
 import click
@@ -18,7 +19,7 @@ import subprocess
 
 from temci.scripts.version import version
 from sys import argv
-from os.path import realpath, dirname, exists, join
+from os.path import exists
 
 SUPPORTED_SHELLS = ["zsh", "bash"]
 
@@ -40,19 +41,23 @@ This will return the completion file name.
 
 
 def create_completion_dir() -> str:
+    """ Create the directory for the completion files if it doesn't already exist. """
     subprocess.check_output(["/bin/mkdir", "-p", completion_dir()])
 
 
 def completion_dir() -> str:
+    """ Get the name of the completion directory """
     return click.get_app_dir("temci")
 
 
 def completion_file_name(shell: str) -> str:
+    """ Get the completion file name for the passed shell and the current temci version """
     assert shell in SUPPORTED_SHELLS
     return os.path.join(completion_dir(), "{shell}.{version}.sh".format(shell=shell, version=version))
 
 
 def cli():
+    """ Process the command line arguments and call ``temci completion`` if needed. """
 
     if len(argv) != 2 or argv[1] not in SUPPORTED_SHELLS:
         print_help()

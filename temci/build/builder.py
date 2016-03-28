@@ -31,8 +31,8 @@ class Builder:
                               // Description("Randomize the file structure."),
             "linker": (Bool() | NonExistent())
                               // Description("Randomize the linking order"),
-            "used_as": (Bool() | NonExistent()) // Description("Used gnu assembler, default is /usr/bin/as"),
-            "used_ld": (Bool() | NonExistent()) // Description("Used gnu linker, default is /usr/bin/ld")
+            "used_as": (Str() | NonExistent()) // Description("Used gnu assembler, default is /usr/bin/as"),
+            "used_ld": (Str() | NonExistent()) // Description("Used gnu linker, default is /usr/bin/ld")
         }, all_keys=False)
     """ Type scheme of the randomization configuration for a program block """
 

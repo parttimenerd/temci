@@ -6,19 +6,8 @@ import base64
 import hashlib
 import os
 
-HOME_DIR = os.path.expanduser("~")
-
-_id_counter = 0
-
-
-def _new_id() -> str:
-    global _id_counter
-    _id_counter += 1
-    return str(_id_counter)
-
-
-def _bytes_to_filename(bytes: bytes) -> str:
-    return base64.b64encode(bytes).decode().replace("/", "_")[:-2]
+HOME_DIR = os.path.expanduser("~")  # type: str
+""" Home directory of the current user """
 
 
 def hashed_name_of_file(filename: str, block_size: int = 2**20) -> str:
@@ -28,6 +17,9 @@ def hashed_name_of_file(filename: str, block_size: int = 2**20) -> str:
     :param block_size: number of bytes that are read at once
     :return: unique filename for the file based on its content
     """
+    def bytes_to_filename(bytes: bytes) -> str:
+        return base64.b64encode(bytes).decode().replace("/", "_")[:-2]
+
     md5 = hashlib.md5()
     sha512 = hashlib.sha512()
     with open(filename , "rb") as f:
@@ -37,7 +29,7 @@ def hashed_name_of_file(filename: str, block_size: int = 2**20) -> str:
                 break
             md5.update(data)
             sha512.update(data)
-    return _bytes_to_filename(sha512.digest()) + _bytes_to_filename(md5.digest())
+    return bytes_to_filename(sha512.digest()) + bytes_to_filename(md5.digest())
 
 
 def abspath(path: str) -> str:

@@ -139,7 +139,7 @@ class Info:
         :param constraint: passed expected type
         :param msg: additional message, it should give more information about why the constraint isn't met
         """
-        app = ": " + msg if msg is not None else ""
+        app = ": " + (msg or "")
         return InfoMsg("{} hasn't the expected type {}{}".format(self._str(), constraint, app))
 
     def errormsg_cond(self, cond: bool, constraint: 'Type', msg: str = None) -> 'InfoMsg':
@@ -304,8 +304,13 @@ class Type(object):
     A simple type checker type class.
     """
 
-    def __init__(self):
-        self.description = None  # type: t.Optional[Description]
+    def __init__(self, completion_hints: t.Dict[str, t.Any] = None):
+        """
+        Creates an instance.
+
+        :param completion_hints: completion hints for supported shells for this type instance
+        """
+        self.description = None  # type: t.Optional[str]
         """ Description of this type instance """
         self.default = None  # type: t.Optional[Default]
         """ Default value of this type instance """
@@ -364,7 +369,8 @@ class Type(object):
             return other
         return Either(self, other)
 
-    def __floordiv__(self, other: t.Union[str, Description, Default, CompletionHint]) -> 'Type':
+    def __floordiv__(self, other: t.Union[str, Description, Default, CompletionHint,
+                                          t.Callable[[t.Any], bool]]) -> 'Type':
         """
         Alias for Constraint(other, self). Self mustn't be a Type.
         If other is a string the description property of this Type object is set.
@@ -412,7 +418,7 @@ class Type(object):
     def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) \
             -> t.Union[str, t.List[str]]:
         """
-        Produce a YAML string that contains the default value and the description of this type and it's possible sub types.
+        Produce a YAML like string that contains the default value and the description of this type and it's possible sub types.
 
         :param indents: number of indents in front of each produced line
         :param indentation: indentation width in number of white spaces
@@ -429,6 +435,40 @@ class Type(object):
             y_str = y_str[0:-4]
         strs = list(map(lambda x: i_str + x, y_str.split("\n")))
         return strs if str_list else "\n".join(strs)
+
+    def string_representation(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) \
+            -> t.Union[str, t.List[str]]:
+        """
+        Produce a YAML string that contains the default value (if possible), the description of this type
+        and more and it's possible sub types.
+
+        :param indents: number of indents in front of each produced line
+        :param indentation: indentation width in number of white spaces
+        :param str_list: return a list of lines instead of a combined string?
+        :param defaults: default value that should be used instead of the default value of this instance
+        """
+        def pad(text: t.Union[str, t.List[str]], offset: int) -> t.Union[str, t.List[str]]:
+            os = " " * (offset * indentation)
+            if isinstance(text, str):
+                return os + "\n".join(pad(text.split("\n"), offset))
+            return list(map(lambda x: os + x, text))
+
+        if defaults is None:
+            if self.has_default():
+                defaults = self.get_default()
+
+        default_str = None
+        if defaults:
+            default_str = yaml.dump(defaults).strip()
+            if default_str.endswith("\n..."):
+                default_str = default_str[0:-4]
+        y_str = str(self)
+        #if self.description:
+        #    y_str += "\n" + pad("description: " + pad(self.description, 1), 1)
+        if default_str:
+            y_str += "\n" + pad("default: " + pad(default_str, 0), 1)
+        text = pad(y_str, indents)
+        return text.split("\n") if str_list else text
 
     def dont_typecheck_default(self) -> 'Type':
         """
@@ -652,7 +692,7 @@ class T(Type):
         """
         Does the passed value be an instance of the wrapped native type?
         """
-        return info.errormsg_cond(isinstance(value, self.native_type), self, info)
+        return info.errormsg_cond(isinstance(value, self.native_type), self)
 
     def __str__(self) -> str:
         return "T({})".format(self.native_type)
@@ -926,7 +966,7 @@ class Dict(Type):
         :raises: ConstraintError if one of the given types isn't a (typechecker) Types
         """
         super().__init__()
-        self.data = data if data is not None else {}  # type: t.Dict[t.Any, Type]
+        self.data = data or {}  # type: t.Dict[t.Any, Type]
         self._validate_types(*self.data.values())
         self._validate_types(key_type, value_type)
         self.all_keys = all_keys  # type: bool
@@ -1005,7 +1045,8 @@ class Dict(Type):
         return self[key].description
 
     def _eq_impl(self, other) -> bool:
-        return all(self.data[key] == other.data[key] and self.get_description(key) == other.get_description(key)
+        return all(key in self.data and key in other.data and self.data[key] == other.data[key]
+                   and self.get_description(key) == other.get_description(key)
                    for key in itertools.chain(self.data.keys(), other.data.keys()))
 
     def get_default(self) -> dict:
@@ -1065,6 +1106,62 @@ class Dict(Type):
         ret_strs = list(map(lambda x: i_str + x, strs))
         return ret_strs if str_list else "\n".join(ret_strs)
 
+    def string_representation(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) \
+            -> t.Union[str, t.List[str]]:
+        """
+        Produce a YAML string that contains the default value (if possible), the description of this type
+        and more and it's possible sub types.
+
+        :param indents: number of indents in front of each produced line
+        :param indentation: indentation width in number of white spaces
+        :param str_list: return a list of lines instead of a combined string?
+        :param defaults: default value that should be used instead of the default value of this instance
+        """
+        if len(self.data.keys()) == 0:
+            return super().string_representation(indents, indentation, str_list, defaults)
+
+        def pad(text: t.Union[str, t.List[str]], offset: int) -> t.Union[str, t.List[str]]:
+            os = " " * (offset * indentation)
+            if isinstance(text, str):
+                return os + "\n".join(pad(text.split("\n"), offset))
+            return list(map(lambda x: os + x, text))
+
+        if defaults is None:
+            if self.has_default():
+                defaults = self.get_default()
+
+        strs = []
+        groups = {
+            "simple": [],
+            "misc": []
+        }
+        for key in self.data:
+            if isinstance(self.data[key], Dict):
+                groups["misc"].append(key)
+            else:
+                groups["simple"].append(key)
+        keys = sorted(groups["simple"]) + sorted(groups["misc"])
+        for i in range(0, len(keys)):
+            #if i != 0:
+            strs.append("")
+            key = keys[i]
+            if self.data[key].description is not None:
+                comment_lines = self.data[key].description.split("\n")
+                comment_lines = map(lambda x: "# " + x, comment_lines)
+                strs.extend(comment_lines)
+            key_yaml = yaml.dump(key).split("\n")[0]
+            if len(self.data[key].string_representation(str_list=True, defaults=defaults[key])) == 1 and \
+                    (not isinstance(self.data[key], Dict) or len(self.data[key].data.keys()) == 0):
+                value_yaml = self.data[key].string_representation(1, indentation, str_list=False, defaults=defaults[key])
+                strs.append("{}: {}".format(key_yaml, value_yaml))
+            else:
+                value_yaml = self.data[key].string_representation(1, indentation, str_list=True, defaults=defaults[key])
+                strs.append("{}: {}".format(key_yaml, value_yaml[0]))
+                if len(value_yaml) > 1:
+                    strs.extend(value_yaml[1:])
+        strs = pad(strs, indents)
+        return strs if str_list else "\n".join(strs)
+
 
 class Int(Type):
     """
@@ -1103,14 +1200,11 @@ class Int(Type):
 
     def __str__(self) -> str:
         arr = []
-        if self.description is not None:
-            arr.append(self.description)
-        else:
-            if self.constraint is not None:
-                descr = "<function>"
-                arr.append("constraint={}".format(descr))
-            if self.range is not None:
-                arr.append("range={}".format(self.range))
+        if self.constraint is not None:
+            descr = "<function>"
+            arr.append("constraint={}".format(descr))
+        if self.range is not None:
+            arr.append("range={}".format(self.range))
         return "Int({})".format(",".join(arr))
 
     def _eq_impl(self, other: 'Int') -> bool:
@@ -1252,7 +1346,7 @@ class FileName(Str):
                 return info.wrap(True)
             return info.errormsg(self)
         if not self.allow_non_existent:
-            return info.errormsg("File doesn't exist")
+            return info.errormsg(self, "File doesn't exist")
         abs_name = os.path.abspath(value)
         dir_name = os.path.dirname(abs_name)
         if os.path.exists(dir_name) and os.access(dir_name, os.EX_OK) and os.access(dir_name, os.W_OK) \
@@ -1387,7 +1481,7 @@ class BoolOrNone(Type, click.ParamType):
 
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         res = ExactEither(True, False, None).__instancecheck__(value, info)
-        return info.errormsg_cond(self, bool(res), str(res))
+        return info.errormsg_cond(bool(res), self, str(res))
 
     def convert(self, value, param, ctx: click.Context) -> t.Optional[bool]:
         """
@@ -1433,7 +1527,7 @@ class Bool(Type, click.ParamType):
 
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         res = ExactEither(True, False).__instancecheck__(value, info)
-        return info.errormsg_cond(self, bool(res), str(res))
+        return info.errormsg_cond(bool(res), self, str(res))
 
     def __str__(self) -> str:
         return "Bool()"

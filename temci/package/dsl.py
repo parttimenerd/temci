@@ -3,25 +3,23 @@ The methods in this module provide an easy way to create packages.
 """
 import os
 import typing as t
-from pprint import pprint
-
-import time
 
 from temci.package.util import normalize_path
 from temci.utils.settings import Settings
 from temci.utils.typecheck import *
-from temci.package.database import Database
-from temci.package.action import Actions, Action, CopyFile, ExecuteCmd, actions_for_dir_path, copy_tree_actions, \
+from temci.package.action import Database, Actions, Action, CopyFile, ExecuteCmd, actions_for_dir_path, copy_tree_actions, \
     RequireRootPrivileges, Sleep, RequireDistribution, InstallPackage, UninstallPackage, RequireDistributionRelease
 
 actions = Actions()
 
 def dry_run():
+    """ Set the ``package/dry_run`` setting to true. """
     Settings()["package/dry_run"] = True
 
 def _store_in_db(db: Database = None):
     """
     Store all actions (and their dependencies) in the passed database.
+
     :param db: passed database or None if the default database should be used
     """
     typecheck_locals(db=Optional(T(Database)))
@@ -32,6 +30,7 @@ def _store_in_db(db: Database = None):
 def store(package_file: str, db: Database = None):
     """
     Stores all actions and the database into the passed file and cleans up the temporary directory.
+
     :param package_file: name of the passed file
     :param db: passed database or None if the default database should be used
     """
@@ -43,6 +42,13 @@ def store(package_file: str, db: Database = None):
 
 
 def load(package_file: str, db: Database = None) -> Database:
+    """
+    Loads the package file into the passed database.
+
+    :param package_file: name of the used package file
+    :param db: used database or None if a new database should be used
+    :return: used database
+    """
     typecheck_locals(package_file=FileName(allow_non_existent=False))
     db = db or Database()
     db.load(package_file)
@@ -55,6 +61,10 @@ def load(package_file: str, db: Database = None) -> Database:
 def run(package_file: str, reverse_file: str = None):
     """
     Execute the package and create a package that can be executed afterwards that reverses (most of the) made changes.
+
+    :param package_file: name of the used package file
+    :param reverse_file: name of the reverse package file or None if the setting ``package/reverse_file``
+    should be used.
     """
     reverse_file = reverse_file or Settings()["package/reverse_file"]
     db = load(package_file)
@@ -68,6 +78,8 @@ def run(package_file: str, reverse_file: str = None):
 def execute(package_file: str):
     """
     Execute the package (without creating a reverse package).
+
+    :param package_file: file name of the used package
     """
     db = load(package_file)
     actions.execute_all(db)
@@ -75,8 +87,10 @@ def execute(package_file: str):
 
 def IncludeFile(filename: str) -> t.List[Action]:
     """
-    Include the file with the given name.
-    :param filename: given name
+    Returns the actions to include the file with the given name.
+
+    :param filename: given file name
+    :return: created actions
     """
     typecheck_locals(filename=FileName(allow_non_existent=False))
     ret = []
@@ -85,10 +99,21 @@ def IncludeFile(filename: str) -> t.List[Action]:
     return ret
 
 
-def IncludeTree(base_dir: str, include_pattern: t.Union[t.List[str], str] = ["**", "**/.*"],
-                      exclude_patterns: t.List[str] = None) -> t.List[Action]:
+def IncludeTree(base_dir: str, include_patterns: t.Union[t.List[str], str] = ["**", "**/.*"],
+                exclude_patterns: t.List[str] = None) -> t.List[Action]:
+    """
+    Returns the actions to include the passed directory tree.
+
+    ``*`` in the pattern matches all files in a directory.
+    ``**`` matches all directories and sub directories.
+
+    :param base_dir: directory to include
+    :param include_patterns: include file patterns
+    :param exclude_patterns: exclude file patterns
+    :return: created actions
+    """
     typecheck_locals(base_dir=DirName(), include_pattern=List(Str())|Str(), exclude_patterns=Optional(List(Str())))
-    return copy_tree_actions(base_dir, include_pattern, exclude_patterns)
+    return copy_tree_actions(base_dir, include_patterns, exclude_patterns)
 
 
 if __name__ == "__main__":

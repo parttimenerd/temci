@@ -21,7 +21,7 @@ import zlib
 from collections import defaultdict
 from enum import Enum
 
-from temci.tester.testers import Tester, TTester, TesterRegistry
+from temci.report.testers import Tester, TTester, TesterRegistry
 
 START_TIME = time.time()
 
@@ -29,13 +29,13 @@ import subprocess
 
 import itertools
 
-from temci.tester.rundata import RunData
+from temci.report.rundata import RunData
 
-from temci.tester.stats import SingleProperty, Single, SinglesProperty
+from temci.report.stats import SingleProperty, Single, SinglesProperty
 from temci.utils.typecheck import *
 import os, shutil, copy
 from pprint import pprint
-from temci.tester import report
+from temci.report import report
 import scipy as sp
 
 from temci.utils.util import InsertionTimeOrderedDict, geom_std
@@ -47,7 +47,7 @@ if util.can_import("scipy"):
     #import ruamel.yaml as yaml
     import yaml
 
-from temci.tester.report import HTMLReporter2, html_escape_property
+from temci.report.report import HTMLReporter2, html_escape_property
 from temci.utils.settings import Settings
 Settings().load_files()
 
@@ -252,6 +252,7 @@ class BaseObject:
     def get_x_per_impl(self, property: StatProperty) -> t.Dict[str, t.List[float]]:
         """
         Returns a list of [property] for each implementation.
+
         :param property: property function that gets a SingleProperty object and a list of all means and returns a float
         """
         assert len(self.children) != 0
@@ -582,6 +583,7 @@ class ProgramWithInput(BaseObject):
     def get_x_per_impl(self, property: StatProperty) -> t.Dict[str, t.List[float]]:
         """
         Returns a list of [property] for each implementation.
+
         :param property: property function that gets a SingleProperty object and a list of all means and returns a float
         """
         means = [x.mean() for x in self.impls.values()]  # type: t.List[float]
@@ -782,6 +784,7 @@ class ProgramCategory(BaseObject):
         """
         Filters the programs that make up self.children and self.programs.
         It stores the original set of programs else where.
+
         :param filter: the used filter, the id filter resets the original state
         """
         self.children = InsertionTimeOrderedDict()
@@ -1067,9 +1070,6 @@ class Language(BaseObject):
                                              property: str = "task-clock"):
         """
         First - Second for each measured value
-        :param run_datas:
-        :param app:
-        :return:
         """
         assert len(run_datas) == 2
         first_run_data_list = run_datas[0]
@@ -1388,6 +1388,7 @@ def ref(name: str, value = None, _store={}):
     """
     A simple YAML like reference utility.
     It to easily store a value under a given key and return it.
+
     :param name: name of the reference
     :param value: new value of the reference (if value isn't None)
     :param _store: dict to store everything in
@@ -1678,6 +1679,7 @@ def haskel_config(inputs_per_category: InputsPerCategory, optimisation: str, ghc
                   used_c_compilers: t.List[str] = None) -> ConfigDict:
     """
     Generate a game config comparing all available ghc versions
+
     :param inputs_per_category: 
     :param optimisation: optimisation flags, e.g. '-Odph' or '-O'
     :param ghc_versions: compared ghc versions, if None, AV_GHC_VERSIONS is used
@@ -1749,6 +1751,7 @@ def process(config: ConfigDict, name: str = None, build_dir: str = None, build: 
             report_modes: t.List[Mode] = [Mode.mean_rel_to_first, Mode.geom_mean_rel_to_best]):
     """
     Process a config dict. Simplifies the build, benchmarking and report generating.
+
     :param config: processed config dict
     :param name: the name of the whole configuration (used to generate the file names), default "{config['language]}"
     :param build_dir: build dir that is used to build the programs, default is "/tmp/{name}"
@@ -1881,6 +1884,9 @@ def produce_ttest_comparison_table(datas: t.List[t.List[DataBlock]],
 
     with open(filename + ".tex", "w") as f:
         f.write(tuples_to_tex(tuples))
+
+if __name__ != "__main__":
+    exit(0)
 
 #MODE = "haskell_full"
 MODE = "rustc" # requires multirust

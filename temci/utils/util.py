@@ -11,6 +11,8 @@ import logging
 
 from rainbow_logging_handler import RainbowLoggingHandler
 
+from temci.utils.typecheck import Type
+
 
 def recursive_exec_for_leafs(data: dict, func, _path_prep = []):
     """
@@ -126,6 +128,7 @@ allow_all_imports = False  # type: bool
 def can_import(module: str) -> bool:
     """
     Can a module (like scipy or numpy) be imported without a severe and avoidable performance penalty?
+    The rational behind this is that some parts of temci don't need scipy or numpy.
     :param module: name of the module
     """
     if allow_all_imports:
@@ -135,6 +138,23 @@ def can_import(module: str) -> bool:
     if len(sys.argv) == 1 or sys.argv[1] in ["completion", "version", "assembler"]:
         return False
     return True
+
+_sphinx_doc = os.environ.get("SPHINXDOC", None) == 'True'
+
+def sphinx_doc() -> bool:
+    """ Is the code only loaded to document it with sphinx? """
+    return _sphinx_doc
+
+
+def get_doc_for_type_scheme(type_scheme: Type) -> str:
+    """ Return a class documentation string for the given type scheme. Use the default_yaml method. """
+    return """
+
+    .. code-block:: yaml
+
+        {default_yaml}
+
+    """.format(default_yaml="\n        ".join(type_scheme.get_default_yaml().split("\n")))
 
 
 class Singleton(type):

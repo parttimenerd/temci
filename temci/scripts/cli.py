@@ -1,4 +1,7 @@
 import locale
+
+from temci.utils.util import sphinx_doc, get_doc_for_type_scheme
+
 locale.setlocale(locale.LC_ALL, "en_US.utf8")
 
 import warnings
@@ -24,19 +27,20 @@ from temci.build.assembly import AssemblyProcessor, process_assembler
 from temci.build.build_processor import BuildProcessor
 import temci.run.run_driver as run_driver
 import temci.run.run_driver_plugin
-from temci.tester.report import ReporterRegistry
+from temci.report.report import ReporterRegistry
 from temci.utils.settings import Settings
-from temci.tester.report_processor import ReportProcessor
-import temci.tester.report
-import temci.tester.testers
+from temci.report.report_processor import ReportProcessor
+import temci.report.report
+import temci.report.testers
 import click, sys, yaml, logging, json, os
-from temci.utils.click_helper import type_scheme_option, cmd_option, CmdOption, CmdOptionList
+from temci.utils.click_helper import type_scheme_option, cmd_option, CmdOption, CmdOptionList, document_func
 import temci.scripts.version
 
 Settings().load_files()
 
 @click.group(epilog="""
 temci (version {})  Copyright (C) 2016 Johannes Bechberger
+
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
 under certain conditions.
@@ -44,9 +48,6 @@ For details, see the LICENSE file in the source folder of temci.
 
 This program is still in an alpha stage. It may happen that
 you're system needs to be rebooted to be usable again.
-
-The main workflow is to write config files and use them with the program.
-Although command line options are supported, config files are way easier to use.
 """.format(temci.scripts.version.version))
 def cli():
     pass
@@ -163,32 +164,53 @@ misc_commands_description = {
     }
 }
 
+
 # Register a command for each run driver
 for driver in run_driver.RunDriverRegistry.registry:
+    _options = CmdOptionList(common_options, run_options["common"], run_options["run_driver_specific"][driver])
+
     @cli.command(name=driver, short_help=command_docs[driver])
     @click.argument("run_file")
-    @cmd_option(common_options)
-    @cmd_option(run_options["common"])
-    @cmd_option(run_options["run_driver_specific"][driver])
-    def func(run_file, **kwargs):
+    @cmd_option(_options)
+    def _func(*args, **kwargs):
+        globals()["temci__" + driver](*args, **kwargs)
+
+    def _func2(run_file, **kwargs):
         Settings()["run/driver"] = driver
         Settings()["run/in"] = run_file
         try:
             RunProcessor().benchmark()
         except KeyboardInterrupt:
             logging.error("KeyboardInterrupt. Cleaned up everything.")
+    _func2.__name__ = "temci__" + driver
+    document_func(command_docs[driver], _options, argument="configuration YAML file")(_func2)
+    globals()["temci__" + driver] = _func2
+
+
+
+def temci__short():
+    pass
+temci__short.__doc__ = command_docs["short"]
+
 
 @cli.group(short_help=command_docs["short"])
 @cmd_option(common_options)
-@cmd_option(misc_commands["short"]["common"])
 def short(**kwargs):
     pass
+
 
 @short.command(short_help=misc_commands_description["short"]["exec"])
 @cmd_option(common_options)
 @cmd_option(misc_commands["short"]["sub_commands"]["exec"])
 @cmd_option(run_options["run_driver_specific"]["exec"])
-def exec(with_description: list = None, without_description: list = None, **kwargs):
+def exec(**kwargs):
+    temci__short__exec(**kwargs)
+
+
+@document_func(misc_commands_description["short"]["exec"], common_options,
+               misc_commands["short"]["sub_commands"]["exec"],
+               run_options["run_driver_specific"]["exec"])
+def temci__short__exec(with_description: list = None, without_description: list = None, **kwargs):
     runs = []
     if with_description is not None:
         for (descr, cmd) in with_description:
@@ -216,11 +238,16 @@ def exec(with_description: list = None, without_description: list = None, **kwar
         logging.error("KeyboardInterrupt. Cleaned up everything.")
 
 
-@cli.command(short_help="Generate a report from benchmarking result")
+@cli.command(short_help=command_docs["report"])
 @click.argument('report_file', type=click.Path(exists=True))
 @cmd_option(common_options)
 @cmd_option(report_options)
-def report(report_file: str, **kwargs):
+def report(*args, **kwargs):
+    temci__report(*args, **kwargs)
+
+
+@document_func(command_docs["report"], common_options, report_options)
+def temci__report(report_file: str, **kwargs):
     Settings()["report/in"] = report_file
     ReportProcessor().report()
 
@@ -232,10 +259,22 @@ def init(**kwargs):
     pass
 
 
+def temci__init():
+    pass
+temci__init.__doc__ = short_help=command_docs["init"]
+
+
 @init.command(short_help=misc_commands_description["init"]["settings"])
 @cmd_option(misc_commands["init"]["sub_commands"]["settings"])
 @cmd_option(common_options)
 def settings(**kwargs):
+    temci__init__settings(**kwargs)
+
+
+@document_func(misc_commands_description["init"]["settings"],
+               misc_commands["init"]["sub_commands"]["settings"],
+               common_options)
+def temci__init__settings(**kwargs):
     Settings().store_into_file("temci.yaml")
 
 
@@ -243,6 +282,13 @@ def settings(**kwargs):
 @cmd_option(misc_commands["init"]["sub_commands"]["build_config"])
 @cmd_option(common_options)
 def build_config(**kwargs):
+    temci__init__build_config(**kwargs)
+
+
+@document_func(misc_commands_description["init"]["build_config"],
+               misc_commands["init"]["sub_commands"]["build_config"],
+               common_options)
+def temci__init__build_config(**kwargs):
     prompt_build_config()
 
 
@@ -253,10 +299,22 @@ def run_config(**kwargs):
     prompt_run_config()
 
 
+@document_func(misc_commands_description["init"]["run_config"],
+               misc_commands["init"]["sub_commands"]["run_config"],
+               common_options)
+def temci__init__run_config(**kwargs):
+    prompt_run_config()
+
+
 @cli.command(short_help=command_docs["build"])
 @click.argument('build_file', type=click.Path(exists=True))
 @cmd_option(common_options)
 def build(build_file: str, **kwargs):
+    temci__build(build_file, **kwargs)
+
+
+@document_func(command_docs["build"], common_options, argument="build configuration YAML file")
+def temci__build(build_file: str, **kwargs):
     try:
         Settings()["build/in"] = build_file
         BuildProcessor().build()
@@ -266,9 +324,15 @@ def build(build_file: str, **kwargs):
         print(err)
         logging.error(str(err))
 
+
 @cli.command(short_help=command_docs["clean"])
 @cmd_option(common_options)
 def clean(**kwargs):
+    temci__clean(**kwargs)
+
+
+@document_func(command_docs["clean"], common_options)
+def temci__clean(**kwargs):
     shutil.rmtree(Settings()["tmp_dir"])
 
 
@@ -278,11 +342,22 @@ def version(**kwargs):
     print(temci.scripts.version.version)
 
 
+@document_func(command_docs["version"], common_options)
+def temci__version(**kwargs):
+    print(temci.scripts.version.version)
+
+
 @cli.command(short_help=command_docs["run_package"])
 @click.argument('package', type=click.Path(exists=True))
 @cmd_option(common_options)
 @cmd_option(package_options)
 def run_package(package: str, **kwargs):
+    temci__run_package(package)
+
+
+@document_func(command_docs["run_package"], common_options, package_options,
+               argument="Used temci package")
+def temci__run_package(package: str):
     from temci.package.dsl import run
     run(package)
 
@@ -292,8 +367,20 @@ def run_package(package: str, **kwargs):
 @cmd_option(common_options)
 @cmd_option(package_options)
 def run_package(package: str, **kwargs):
+    temci__exec_package(package)
+
+
+@document_func(command_docs["exec_package"], common_options, package_options,
+               argument="Used temci package")
+def temci__exec_package(package: str):
     from temci.package.dsl import execute
     execute(package)
+
+
+
+def temci__completion():
+    pass
+temci__completion.__doc__ = command_docs["completion"]
 
 
 @cli.group(short_help=command_docs["completion"])
@@ -305,6 +392,11 @@ def completion(**kwargs):
 @completion.command(short_help=misc_commands_description["completion"]["zsh"])
 @cmd_option(common_options)
 def zsh(**kwargs):
+    temci__completion__zsh()
+
+
+@document_func(misc_commands_description["completion"]["zsh"], common_options)
+def temci__completion__zsh():
     subcommands = "\n\t".join(['"{}:{}"'.format(cmd, command_docs[cmd])
                                for cmd in sorted(command_docs.keys())])
 
@@ -559,6 +651,11 @@ _temci(){{
 @completion.command(short_help=misc_commands_description["completion"]["bash"])
 @cmd_option(common_options)
 def bash(**kwargs):
+    temci__completion__bash()
+
+
+@document_func(misc_commands_description["completion"]["bash"], common_options)
+def temci__completion__bash():
     subcommands = "\n\t".join(sorted(command_docs.keys()))
 
     def process_options(options: CmdOptionList) -> str:
@@ -773,7 +870,15 @@ def assembler(call: str):
     process_assembler(call.split(" "))
 
 
+@document_func(command_docs["assembler"])
+def temci__assembler(call: str):
+    process_assembler(call.split(" "))
+
+
 def cli_with_error_catching():
+    """
+    Process the command line arguments and catch (some) errors.
+    """
     try:
         cli()
     except EnvironmentError as err:
@@ -783,8 +888,23 @@ def cli_with_error_catching():
 
 @cli.command(short_help=command_docs["setup"])
 def setup():
+    temci__setup()
+
+
+@document_func(command_docs["setup"])
+def temci__setup():
     from temci.setup.setup import make_scripts
     make_scripts()
+
+
+if sphinx_doc():
+    Settings.__doc__ += """
+
+    The whole configuration file has the following structure:
+
+""" + get_doc_for_type_scheme(Settings().type_scheme)
+
+
 
 if __name__ == "__main__":
     # for testing purposes only

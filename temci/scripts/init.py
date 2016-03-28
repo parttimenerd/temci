@@ -29,6 +29,7 @@ from temci.utils.vcs import VCSDriver
 def is_builtin_type(type, val: str) -> bool:
     """
     Checks whether the passed value is convertable into the given builtin type.
+
     :param type: builtin type (like int)
     :param val: tested value
     """
@@ -45,8 +46,16 @@ class TypeValidator(Validator):
     """
 
     def __init__(self, type_scheme: Type, allow_empty: bool = False):
-        self.type_scheme = type_scheme
-        self.allow_empty = allow_empty
+        """
+        Creates an instance.
+
+        :param type_scheme: expected type scheme
+        :param allow_empty: allow an empty string?
+        """
+        self.type_scheme = type_scheme  # type: Type
+        """ Expected type scheme """
+        self.allow_empty = allow_empty  # type: bool
+        """ Allow an empty string? """
 
     def _int_like(self) -> bool:
         return isinstance(self.type_scheme, Int) or self.type_scheme == int
@@ -83,15 +92,29 @@ class WordValidator(Validator):
     Like the SentenceValidator but accepts only one word.
     """
 
-    def __init__(self, valid_words: list, ignore_case: bool = True, move_cursor_to_end: bool = False,
+    def __init__(self, valid_words: t.List[str], ignore_case: bool = True, move_cursor_to_end: bool = False,
                  error_msg: str = None, allow_empty: bool = False):
-        self.valid_words = valid_words
-        self.ignore_case = ignore_case
+        """
+        Creates an instance.
+
+        :param valid_words: allowed words
+        :param ignore_case: ignore the case of the words?
+        :param move_cursor_to_end: move the cursor to the end of the current line after the validation?
+        :param error_msg: message shown when the validation fails
+        :param allow_empty: allow an empty string?
+        """
+        self.valid_words = valid_words  # type: t.List[str]
+        """ Allowed words """
+        self.ignore_case = ignore_case  # type: bool
+        """ Ignore the case of the words? """
         if ignore_case:
             self.valid_words = [word.lower() for word in self.valid_words]
-        self.move_cursor_to_end = move_cursor_to_end
-        self.allow_empty = allow_empty
-        self.error_msg = error_msg
+        self.move_cursor_to_end = move_cursor_to_end  # type: bool
+        """ Move the cursor to the end of the current line after the validation? """
+        self.error_msg = error_msg  # type: str
+        """ Message shown when the validation fails """
+        self.allow_empty = allow_empty  # type: bool
+        """ Allow an empty string? """
 
     def validate(self, document: Document):
         text = document.text.lower() if self.ignore_case else document.text
@@ -128,8 +151,15 @@ class RevisionValidator(Validator):
     """
 
     def __init__(self, vcs: VCSDriver, allow_empty_string: bool = True):
-        self.vcs = vcs
-        self.allow_empty_string = allow_empty_string
+        """
+        Creates an instance.
+
+        :param vcs: used VCSDriver
+        :param allow_empty_string: allow an empty string?
+        """
+        self.vcs = vcs  # type: VCSDriver
+        self.allow_empty_string = allow_empty_string  # type: bool
+        """ Allow an empty string? """
 
     def validate(self, document: Document):
         val = document.text
@@ -144,6 +174,7 @@ class RevisionValidator(Validator):
 def create_revision_completer(vcs: VCSDriver) -> WordCompleter:
     """
     Creates a WordCompleter for revision ids.
+
     :param vcs: used vcs driver
     :return: WordCompleter
     """
@@ -169,7 +200,13 @@ class StrListValidator(Validator):
     """
 
     def __init__(self, allow_empty: bool = False):
-        self.allow_empty = False
+        """
+        Creates an instance.
+
+        :param allow_empty: allow an empty string?
+        """
+        self.allow_empty = allow_empty
+        """ Allow an empty string? """
 
     def validate(self, document: Document):
         if document.text == "":
@@ -187,7 +224,9 @@ class StrListValidator(Validator):
 def prompt_bash(msg: str, allow_empty: bool) -> str:
     """
     Prompts for bash shell code.
+
     :param msg: shown message
+    :param allow_empty: allow an empty string?
     :return: user input
     """
     from pygments.lexers.shell import BashLexer
@@ -195,9 +234,10 @@ def prompt_bash(msg: str, allow_empty: bool) -> str:
     return prompt(msg, lexer=PygmentsLexer(BashLexer), completer=SystemCompleter())
 
 
-def prompt_python(msg: str, get_globals: t.Callable, get_locals: t.Callable) -> str:
+def prompt_python(msg: str, get_globals: t.Callable[[str], t.Any], get_locals: t.Callable[[str], t.Any]) -> str:
     """
     Prompt for python code.
+
     :param get_globals: function that returns the global variables
     :param get_locals: function that returns the local variables
     :return: user input
@@ -209,9 +249,10 @@ def prompt_python(msg: str, get_globals: t.Callable, get_locals: t.Callable) -> 
                          completer=python_completer)
 
 
-def prompt_yesno(msg: str, default: bool = None, meta_dict=None) -> bool:
+def prompt_yesno(msg: str, default: bool = None, meta_dict: t.Dict[str, str] = None) -> bool:
     """
     Prompt for simple yes or no decision.
+
     :param msg: asked question
     :param default: default value
     :param meta_dict: mapping 'yes' or 'no' to further explanations
@@ -229,9 +270,10 @@ def prompt_yesno(msg: str, default: bool = None, meta_dict=None) -> bool:
     return text.lower().startswith("y")
 
 
-def message(msg: str, default = None) -> str:
+def message(msg: str, default: t.Optional = None) -> str:
     """
     A utility function to a valid message string with an optional default value.
+
     :param msg: original message
     :param default: optional default value
     :return: modified message
@@ -243,10 +285,11 @@ def message(msg: str, default = None) -> str:
     return msg
 
 
-def default_prompt(msg: str, default = None, **kwargs):
+def default_prompt(msg: str, default: t.Optional = None, **kwargs):
     """
     Wrapper around prompt that shows a nicer prompt with a default value that isn't editable.
-    Interpretes the empty string as "use default value"
+    Interpretes the empty string as "use default value".
+
     :param msg: message
     :param default: default value
     :param kwargs: arguments passed directly to the prompt function
@@ -268,6 +311,7 @@ def default_prompt(msg: str, default = None, **kwargs):
 def prompt_dir(msg: str) -> str:
     """
     Prompt a directory path. Default is ".".
+
     :param msg: shown message
     :return: user input
     """
@@ -278,6 +322,7 @@ def prompt_dir(msg: str) -> str:
 def prompt_attributes_dict(default_description: str = None) -> t.Dict[str, str]:
     """
     Prompts for the contents of the attributes dict.
+
     :param default_description: default value for the description attribute
     :return: attributes dict
     """
@@ -302,6 +347,7 @@ def prompt_attributes_dict(default_description: str = None) -> t.Dict[str, str]:
 def prompt_build_dict(with_header: bool = True, whole_config: bool = True) -> dict:
     """
     Prompts for the contents of the build config dictionary.
+
     :param with_header: print "Create the  …" header?
     :param whole_config: prompt for the whole build config (with attributes and run config)
     :return: build config dictionary
@@ -380,6 +426,7 @@ def prompt_run_dict(with_header: bool = True, working_dir: str = None,
                     driver: str = None) -> dict:
     """
     Prompt the contents of the run config dictionary.
+
     :param with_header: print the explanation header
     :param working_dir: current working dir preset
     :param binary_number: number of available binaries
@@ -408,8 +455,7 @@ def prompt_run_dict(with_header: bool = True, working_dir: str = None,
                         validator=WordValidator(ignore_case=False, valid_words=valid,
                                                 error_msg="Invalid run driver name"))
     run_dict = run_drivers[driver]["func"](choose_revision=whole_config,
-                                           working_dir=working_dir,
-                                           binary_number=binary_number)
+                                           working_dir=working_dir)
 
     if whole_config:
         attributes_dict = prompt_attributes_dict()
@@ -420,9 +466,12 @@ def prompt_run_dict(with_header: bool = True, working_dir: str = None,
     return run_dict
 
 
-def prompt_exec_driver_dict(choose_revision: bool, working_dir: str = None, binary_number: int = None) -> dict:
+def prompt_exec_driver_dict(choose_revision: bool, working_dir: str = None) -> dict:
     """
     Prompt for the contents of run config dict for suitable for the exec run driver.
+
+    :param choose_revision: can the user choose a specific vcs revision?
+    :param working_dir: default working dir for the exec driver
     """
     from pygments.lexers.shell import BashLexer
     old_cwd = os.path.realpath(".")
@@ -500,6 +549,7 @@ def prompt_exec_driver_dict(choose_revision: bool, working_dir: str = None, bina
 def prompt_perf_stat_exec_dict(run_dict: dict) -> dict:
     """
     Prompt for the config of the perf stat exec runner.
+
     :param run_dict: run config dict (without the runner part)
     :return: runner config
     """
@@ -531,6 +581,7 @@ def prompt_perf_stat_exec_dict(run_dict: dict) -> dict:
 def prompt_rusage_exec_dict(run_dict: dict) -> dict:
     """
     Prompt for the config of the rusage exec runner.
+
     :param run_dict: run config dict (without the runner part)
     :return: runner config
     """
@@ -556,6 +607,7 @@ def prompt_rusage_exec_dict(run_dict: dict) -> dict:
 def prompt_time_exec_dict(run_dict: dict) -> dict:
     """
     Prompt for the config of the time exec runner.
+
     :param run_dict: run config dict (without the runner part)
     :return: runner config
     """
@@ -581,6 +633,7 @@ def prompt_time_exec_dict(run_dict: dict) -> dict:
 def prompt_spec_exec_dict(run_dict: dict) -> dict:
     """
     Prompt for the config of the spec exec runner.
+
     :param run_dict: run config dict (without the runner part)
     :return: runner config
     """
@@ -614,6 +667,7 @@ def prompt_spec_exec_dict(run_dict: dict) -> dict:
 def prompt_config(name: str, prompt_dict_func: t.Callable[[], dict]):
     """
     Prompt for the whole config file.
+
     :param name: description of the config (i.e. "run config")
     :param prompt_dict_func: function to get a single config dict
     """
@@ -658,14 +712,16 @@ def prompt_config(name: str, prompt_dict_func: t.Callable[[], dict]):
     store_in_file()
 
 def prompt_build_config():
+    """ Prompt for a build configuration and store it. """
     prompt_config("build config", prompt_build_dict)
 
 
 def prompt_run_config():
+    """ Prompt for a run configuration and store it. """
     prompt_config("run config", prompt_run_dict)
 
 
-def main():
+if __name__ == '__main__':
     #print(repr(prompt_attributes_dict("dsfsdf")))
     #print(repr(prompt_build_dict()))
     #print(repr(prompt_python(globals, locals)))
@@ -674,6 +730,3 @@ def main():
     #print(repr(vcs.validate_revision(13)))
     prompt_run_config()
     #print(isinstance("a", ValidYamlFileName(allow_non_existent=True)))
-
-if __name__ == '__main__':
-    main()

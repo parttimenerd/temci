@@ -69,8 +69,8 @@ class Settings(metaclass=Singleton):
             }),
             "cpuset": Dict({
                 "active": Bool() // Description("Use cpuset functionality?") // Default(True),
-                "base_core_number": ValidCPUCoreNumber() // Description("Number of cpu cores for the base "
-                                                                 "(remaining part of the) system") // Default(1),
+                "base_core_number": ValidCPUCoreNumber()
+                                    // Description("Number of cpu cores for the base (remaining part of the) system") // Default(1),
                 "parallel": Int(lambda x: x >= -1) // Description("0: benchmark sequential, "
                                                       "> 0: benchmark parallel with n instances, "
                                                       "-1: determine n automatically") // Default(0),
@@ -102,9 +102,9 @@ class Settings(metaclass=Singleton):
                                   // Description("Randomize the file structure."),
                 "linker": (Bool() | NonExistent()) // Default(False)
                               // Description("Randomize the linking order"),
-                "used_as": (Bool() | NonExistent()) // Default("/usr/bin/as")
+                "used_as": (Str() | NonExistent()) // Default("/usr/bin/as")
                             // Description("Used gnu assembler, default is /usr/bin/as"),
-                "used_ld": (Bool() | NonExistent()) // Default("/usr/bin/ld")
+                "used_ld": (Str() | NonExistent()) // Default("/usr/bin/ld")
                             // Description("Used gnu linker, default is /usr/bin/ld")
             }) // Description("Assembly randomization"),
             "in": Str() // Default("build.yaml") // Description("Input file with the program blocks to build")

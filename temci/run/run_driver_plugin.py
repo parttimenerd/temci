@@ -17,10 +17,15 @@ class AbstractRunDriverPlugin:
     used for the whole benchmarking runs.
     """
 
-    needs_root_privileges = False
+    needs_root_privileges = False  # type: bool
     """ Does this plugin work only with root privileges? """
 
     def __init__(self, misc_settings):
+        """
+        Creates an instance.
+
+        :param misc_settings: configuration of this plugin
+        """
         self.misc_settings = misc_settings
 
     def setup(self):
@@ -33,14 +38,16 @@ class AbstractRunDriverPlugin:
     def setup_block(self, block: RunProgramBlock, runs: int = 1):
         """
         Called before each run program block is run "runs" time.
+
         :param block: run program block to modify
-        :param runs: number of times the program block is run at once.
+        :param runs: number of times the program block is run (and measured) at once.
         """
         pass
 
     def setup_block_run(self, block: RunProgramBlock):
         """
         Called before each run program block is run.
+
         :param block: run program block to modify
         """
         pass
@@ -48,6 +55,7 @@ class AbstractRunDriverPlugin:
     def teardown_block(self, block: RunProgramBlock):
         """
         Called after each run program block is run.
+
         :param block: run program block
         """
         pass
@@ -55,7 +63,6 @@ class AbstractRunDriverPlugin:
     def teardown(self):
         """
         Called after the whole benchmarking is finished.
-        :return:
         """
         pass
 
@@ -88,8 +95,8 @@ class NicePlugin(AbstractRunDriverPlugin):
 
     def __init__(self, misc_settings):
         super().__init__(misc_settings)
-        self.old_nice = int(self._exec_command("nice"))
-        self.old_io_nice = int(self._exec_command("ionice").split(" prio ")[1])
+        self._old_nice = int(self._exec_command("nice"))
+        self._old_io_nice = int(self._exec_command("ionice").split(" prio ")[1])
 
     def setup(self):
         self._set_nice(self.misc_settings["nice"])
@@ -102,8 +109,8 @@ class NicePlugin(AbstractRunDriverPlugin):
         self._exec_command("ionice -n {} -p {}".format(nice, os.getpid()))
 
     def teardown(self):
-        self._set_nice(self.old_nice)
-        self._set_io_nice(self.old_io_nice)
+        self._set_nice(self._old_nice)
+        self._set_io_nice(self._old_io_nice)
 
 
 @register(ExecRunDriver, "env_randomize", Dict({
@@ -169,7 +176,7 @@ class OtherNicePlugin(AbstractRunDriverPlugin):
 
     def __init__(self, misc_settings):
         super().__init__(misc_settings)
-        self.old_nices = {}
+        self._old_nices = {}
 
     def setup(self):
         for line in self._exec_command("/bin/ps --noheaders -e -o pid,nice").split("\n"):
@@ -180,7 +187,7 @@ class OtherNicePlugin(AbstractRunDriverPlugin):
             pid = int(arr[0].strip())
             nice = arr[1].strip()
             if nice != "-" and int(nice) > self.misc_settings["min_nice"] and pid != os.getpid():
-                self.old_nices[pid] = int(nice)
+                self._old_nices[pid] = int(nice)
                 try:
                     self._set_nice(pid, self.misc_settings["nice"])
                 except EnvironmentError as err:
@@ -191,9 +198,9 @@ class OtherNicePlugin(AbstractRunDriverPlugin):
         self._exec_command("renice -n {} -p {}".format(nice, pid))
 
     def teardown(self):
-        for pid in self.old_nices:
+        for pid in self._old_nices:
             try:
-                self._set_nice(pid, self.old_nices[pid])
+                self._set_nice(pid, self._old_nices[pid])
             except EnvironmentError as err:
                 #logging.info(err)
                 pass
@@ -222,17 +229,17 @@ class StopStartPlugin(AbstractRunDriverPlugin):
 
     def __init__(self, misc_settings):
         super().__init__(misc_settings)
-        self.processes = {}
-        self.pids = []
+        self._processes = {}  # type: t.Dict[str, t.Union[str, int]]
+        self._pids = []  # type: t.List[int]
 
     def parse_processes(self):
-        self.processes = {}
+        self._processes = {}
         for line in self._exec_command("/bin/ps --noheaders -e -o pid,nice,comm,cmd,ppid").split("\n"):
             line = line.strip()
             arr = list(map(lambda x: x.strip(), filter(lambda x: len(x) > 0, line.split(" "))))
             if len(arr) == 0:
                 continue
-            self.processes[int(arr[0])] = {
+            self._processes[int(arr[0])] = {
                 "pid": int(arr[0]) if arr[0] != "-" else -1,
                 "nice": int(arr[1]) if arr[1] != "-" else -20,
                 "comm": arr[2],
@@ -244,30 +251,30 @@ class StopStartPlugin(AbstractRunDriverPlugin):
         ppids = []
         cur_pid = pid
         while cur_pid >= 1:
-            cur_pid = self.processes[cur_pid]["ppid"]
+            cur_pid = self._processes[cur_pid]["ppid"]
             if cur_pid != 0:
                 ppids.append(cur_pid)
         return ppids
 
     def _get_pcomms(self, pid: int) -> t.List[str]:
-        return [self.processes[id]["comm"] for id in self._get_ppids(pid)]
+        return [self._processes[id]["comm"] for id in self._get_ppids(pid)]
 
     def _get_child_pids(self, pid: int) -> t.List[int]:
         ids = []
-        for proc in self.processes:
+        for proc in self._processes:
             if proc["ppid"] == pid:
                 ids.append(proc["ppid"])
         return ids
 
     def _get_child_comms(self, pid: int) -> t.List[str]:
-        return [self.processes[id] for id in self._get_child_pids(pid)]
+        return [self._processes[id] for id in self._get_child_pids(pid)]
 
     def _proc_dict_to_str(self, proc_dict: t.Dict) -> str:
         return "Process(id={pid:5d}, parent={ppid:5d}, nice={nice:2d}, name={comm})".format(**proc_dict)
 
     def setup(self):
         self.parse_processes()
-        for proc in self.processes.values():
+        for proc in self._processes.values():
             if proc["pid"] == os.getpid():
                 continue
             if any(proc["comm"].startswith(pref) for pref in self.misc_settings["comm_prefixes_ignored"]):
@@ -281,13 +288,13 @@ class StopStartPlugin(AbstractRunDriverPlugin):
                 if self.misc_settings["dry_run"]:
                     logging.info(self._proc_dict_to_str(proc))
                 else:
-                    self.pids.append(proc["pid"])
+                    self._pids.append(proc["pid"])
         if self.misc_settings["dry_run"]:
             raise KeyboardInterrupt()
         self._send_signal(signal.SIGSTOP)
 
     def _send_signal(self, signal: int):
-        for pid in self.pids:
+        for pid in self._pids:
             try:
                 os.kill(pid, signal)
             except BaseException as ex:
@@ -301,7 +308,7 @@ class StopStartPlugin(AbstractRunDriverPlugin):
 @register(ExecRunDriver, "sync", Dict({}))
 class SyncPlugin(AbstractRunDriverPlugin):
     """
-    Call sync before each program execution.
+    Calls ``sync`` before each program execution.
     """
 
     def setup_block_run(self, block: RunProgramBlock, runs: int = 1):
@@ -361,9 +368,9 @@ class DisableCPUCaches(AbstractRunDriverPlugin):
     Disable the L1 and L2 caches on x86 and x86-64 architectures.
     Uses a small custom kernel module (be sure to compile it via 'temci setup').
 
-    :warning slows program down significantly and has probably other weird consequences
-    :warning this is untested
-    :warning a linux-forum user declared: Disabling cpu caches gives you a pentium I like processor!!!
+    :warning: slows program down significantly and has probably other weird consequences
+    :warning: this is untested
+    :warning: a linux-forum user declared: Disabling cpu caches gives you a pentium I like processor!!!
     """
 
     needs_root_privileges = True
@@ -385,32 +392,35 @@ class CPUGovernor(AbstractRunDriverPlugin):
 
     needs_root_privileges = True
 
+    def __init__(self, misc_settings):
+        super().__init__(misc_settings)
+        self._cpu_paths = []  # type: t.List[str]
+        self._old_governors = []  # type: t.List[str]
+        self._av_governors = []  # type: t.List[str]
+
     def setup(self):
         cpu_dir_temp = "/sys/devices/system/cpu/cpu{}/cpufreq/"
-        self.cpu_paths = []
-        self.old_governors = []
-        self.av_governors = []
         num = 0
         while os.path.exists(cpu_dir_temp.format(num)) and os.path.isdir(cpu_dir_temp.format(num)):
             cpu_path = cpu_dir_temp.format(num)
-            self.cpu_paths.append(cpu_path)
+            self._cpu_paths.append(cpu_path)
             with open(cpu_path + "scaling_governor", "r") as f:
-                self.old_governors.append(f.readline().strip())
+                self._old_governors.append(f.readline().strip())
             with open(cpu_path + "scaling_available_governors") as f:
-                self.av_governors.append(f.readline().strip().split(" "))
+                self._av_governors.append(f.readline().strip().split(" "))
             num += 1
-        for cpu in range(len(self.cpu_paths)):
+        for cpu in range(len(self._cpu_paths)):
             self._set_scaling_governor(cpu, self.misc_settings["governor"])
 
     def teardown(self):
-        for cpu in range(len(self.cpu_paths)):
-            self._set_scaling_governor(cpu, self.old_governors[cpu])
+        for cpu in range(len(self._cpu_paths)):
+            self._set_scaling_governor(cpu, self._old_governors[cpu])
 
     def _set_scaling_governor(self, cpu: int, governor: str):
-        assert cpu <= len(self.cpu_paths)
-        if governor not in self.av_governors:
+        assert cpu <= len(self._cpu_paths)
+        if governor not in self._av_governors:
             raise ValueError("No such governor {} for cpu {}, expected one of these: ".
-                             format(cpu, governor, ", ".join(self.av_governors)))
+                             format(cpu, governor, ", ".join(self._av_governors)))
         with open(self.cpu_paths[cpu] + "scaling_governor", "w") as f:
             self._exec_command("echo {gov} >  {p}scaling_governor"
-                               .format(gov=governor, p=self.cpu_paths[cpu]))
+                               .format(gov=governor, p=self._cpu_paths[cpu]))

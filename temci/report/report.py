@@ -13,10 +13,10 @@ import sys
 
 import itertools
 
-from temci.tester.stats import TestedPairsAndSingles, BaseStatObject, TestedPair, TestedPairProperty, StatMessage, \
+from temci.report.stats import TestedPairsAndSingles, BaseStatObject, TestedPair, TestedPairProperty, StatMessage, \
     StatMessageType, Single, SingleProperty, SinglesProperty
-from temci.tester.testers import TesterRegistry, Tester
-from temci.tester.rundata import RunDataStatsHelper, RunData
+from temci.report.testers import TesterRegistry, Tester
+from temci.report.rundata import RunDataStatsHelper, RunData
 from temci.utils.typecheck import *
 from temci.utils.registry import AbstractRegistry, register
 import temci.utils.util as util
@@ -30,20 +30,37 @@ from temci.utils.util import join_strs
 import typing as t
 
 class ReporterRegistry(AbstractRegistry):
+    """
+    Registry for reporters.
+    """
 
     settings_key_path = "report"
     use_key = "reporter"
     use_list = False
     default = "html2"
     registry = {}
+    plugin_synonym = ("reporter", "reporter")
+
 
 class AbstractReporter:
+    """
+    Produces a meaningful report out of measured data.
+    """
 
-    def __init__(self, misc_settings: dict = None, stats_helper: RunDataStatsHelper = None,
+    def __init__(self, misc_settings = None, stats_helper: RunDataStatsHelper = None,
                  excluded_properties: t.List[str] = None):
+        """
+        Creates an instance.
+
+        :param misc_settings: configuration
+        :param stats_helper: used stats helper instance
+        :param excluded_properties: measured properties that are excluded from the reports
+        """
         excluded_properties = excluded_properties or Settings()["report/excluded_properties"]
         self.misc = misc_settings
+        """ Configuration """
         self.stats_helper = None  # type: RunDataStatsHelper
+        """ Used starts helper """
         if stats_helper is None:
             runs = []
             typecheck(Settings()["report/in"], ValidYamlFileName())
@@ -53,9 +70,14 @@ class AbstractReporter:
         else:
             self.stats_helper = stats_helper
         self.stats_helper = self.stats_helper.exclude_properties(excluded_properties)
-        self.stats = TestedPairsAndSingles(self.stats_helper.valid_runs(), distinct_descriptions=True)
+        self.stats = TestedPairsAndSingles(self.stats_helper.valid_runs(),  # type: TestedPairsAndSingles
+                                           distinct_descriptions=True)
+        """ This object is used to simplify the work with the data and the statistics """
 
     def report(self):
+        """
+        Create a report and output or store it as configured.
+        """
         raise NotImplementedError()
 
 @register(ReporterRegistry, "console", Dict({
@@ -67,9 +89,18 @@ class ConsoleReporter(AbstractReporter):
     """
 
     def report(self, with_tester_results: bool = True, to_string: bool = False) -> t.Optional[str]:
+        """
+        Create an report and output it as configured.
+
+        :param with_tester_results: include the hypothesis tester results
+        :param to_string: return the report as a string and don't output it?
+        :return: the report string if ``to_string == True``
+        """
         output = [""]
+
         def string_printer(line: str, **args):
             output[0] += str(line) + "\n"
+
         print_func = string_printer if to_string else print
         with click.open_file(self.misc["out"], mode='w') as f:
             for block in self.stats_helper.valid_runs():
@@ -136,10 +167,10 @@ class HTMLReporter(AbstractReporter):
     Reporter that produces a HTML bsaed report with lot's of graphics.
     """
 
-    counter = 0
+    _counter = 0
     """ Just a counter to allow collision free figure saving. """
 
-    PlotTuple = namedtuple("PlotTuple", ["func", "args", "kwargs", "filename"])
+    _PlotTuple = namedtuple("PlotTuple", ["func", "args", "kwargs", "filename"])
 
     def report(self):
         typecheck(self.misc["out"], DirName(), value_name="reporter option out")
@@ -190,8 +221,8 @@ class HTMLReporter(AbstractReporter):
         elif len(descriptions) > 1:
             comparing_str = " and ".join([", ".join(descriptions[0:-1]), descriptions[-1]])
         inner_html = ""
-        self.big_size = self.misc["plot_size"]
-        self.small_size = max(2, math.floor(self.big_size * 2 / len(runs[0].properties)))
+        self._big_size = self.misc["plot_size"]
+        self._small_size = max(2, math.floor(self._big_size * 2 / len(runs[0].properties)))
         if len(self.stats_helper.valid_runs()) > 1:
             logging.info("Generate comparison tables")
             inner_html += "<h2>Comparison tables</h2>" + self._comparison_tables()
@@ -222,7 +253,7 @@ class HTMLReporter(AbstractReporter):
     def _set_fig_size(self, size: int):
         import matplotlib.pyplot as plt
         plt.rcParams['figure.figsize'] = (size, size)
-        self.current_size = size
+        self._current_size = size
 
     def _report_single(self, data: RunData):
         import matplotlib.pyplot as plt
@@ -235,9 +266,9 @@ class HTMLReporter(AbstractReporter):
         """
         for prop in sorted(self.stats_helper.properties()):
             x = pd.Series(data[prop], name=prop)
-            self._set_fig_size(self.small_size)
+            self._set_fig_size(self._small_size)
             ax = sns.distplot(x)
-            if self.small_size == self.current_size:
+            if self._small_size == self._current_size:
                 plt.xticks([])
                 plt.yticks([])
             filename = self._get_new_figure_filename()
@@ -248,7 +279,7 @@ class HTMLReporter(AbstractReporter):
             plt.close()
             ret_str += """
                 <td><img src="file://{filename}" class="img-rounded"></td>
-            """.format(filename=filename, sm=self.small_size)
+            """.format(filename=filename, sm=self._small_size)
         ret_str += """
             </tr>
             </table>
@@ -258,7 +289,7 @@ class HTMLReporter(AbstractReporter):
             <h3>{prop}</h3><small>{benchs} benchmarks<br/></small>
             """.format(prop=prop, benchs=len(data[prop]))
             x = pd.Series(data[prop], name=prop)
-            self._set_fig_size(self.big_size)
+            self._set_fig_size(self._big_size)
             ax = sns.distplot(x, kde=False)
             filename = self._get_new_figure_filename()
             plt.xlim(min(data[prop]), max(data[prop]))
@@ -319,8 +350,8 @@ class HTMLReporter(AbstractReporter):
                 come from the same population.
                 <table class="table table-condensed">
                     <tr><th>Tester</th><th>probability</th><th>Tester description</th></tr>
-            """.format(filename=self._jointplot(first, second, prop, size=self.big_size), prop=prop,
-                       filename2=self._barplot(first, second, prop, size=self.big_size), benchs=length)
+            """.format(filename=self._jointplot(first, second, prop, size=self._big_size), prop=prop,
+                       filename2=self._barplot(first, second, prop, size=self._big_size), benchs=length)
             for tester_name in sorted(TesterRegistry.registry.keys()):
                 tester = TesterRegistry.get_for_name(tester_name, Settings()["stats/uncertainty_range"])
                 p_val = tester.test(first[prop], second[prop])
@@ -367,12 +398,12 @@ class HTMLReporter(AbstractReporter):
         for prop in sorted(self.stats_helper.properties()):
             inner_html += """
                     <td><img src="file://{filename}"/></td>
-            """.format(filename=self._jointplot(first, second, prop, size=self.small_size, show_ticks=False))
+            """.format(filename=self._jointplot(first, second, prop, size=self._small_size, show_ticks=False))
         inner_html += "</tr><tr>"
         for prop in sorted(self.stats_helper.properties()):
             inner_html += """
                     <td><img src="file://{filename}"/></td>
-            """.format(filename=self._barplot(first, second, prop, size=self.small_size, show_ticks=False))
+            """.format(filename=self._barplot(first, second, prop, size=self._small_size, show_ticks=False))
         inner_html += "</tr><tr>"
         for prop in sorted(self.stats_helper.properties()):
             length = min(len(first[prop]), len(second[prop]))
@@ -542,9 +573,9 @@ class HTMLReporter(AbstractReporter):
         return filename
 
     def _get_new_figure_filename(self) -> str:
-        self.counter += 1
+        self._counter += 1
         return os.path.join(os.path.abspath(self.misc["out"]), "figure.{}{}"
-                            .format(self.counter, BaseStatObject.img_filename_ending))
+                            .format(self._counter, BaseStatObject.img_filename_ending))
 
 
 @register(ReporterRegistry, "html2", Dict({
@@ -567,11 +598,11 @@ class HTMLReporter(AbstractReporter):
 }))
 class HTMLReporter2(AbstractReporter):
     """
-    Reporter that produces a HTML bsaed report with lot's of graphics.
-    A rewite of the original HTMLReporter
+    Reporter that produces a HTML based report with lot's of graphics.
+    A rewrite of the original HTMLReporter
     """
 
-    counter = 0
+    _counter = 0
     """ Just a counter to allow collision free figure saving. """
 
     def report(self):
@@ -583,8 +614,8 @@ class HTMLReporter2(AbstractReporter):
         resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
         shutil.copytree(resources_path, self.misc["out"])
         runs = self.stats_helper.valid_runs()
-        self.percent_format = self.misc["percent_format"]
-        self.app_html = ""
+        self._percent_format = self.misc["percent_format"]
+        self._app_html = ""
         html = """<html lang="en">
     <head>
         <title>Benchmarking report</title>
@@ -708,18 +739,18 @@ class HTMLReporter2(AbstractReporter):
             f.write(html_string)
             logging.info("Wrote report into " + report_filename)
 
-    def _full_single_property_comp_table(self, property: str = None) -> 'Table':
+    def _full_single_property_comp_table(self, property: str = None) -> '_Table':
         header_cells = []
         for single in self.stats.singles:
             _single = SingleProperty(single, single.rundata, property) if property is not None else single
             modal_id = self._short_summary_modal(_single)
-            header_cells.append(Cell(self, content=self._obj_description(single), color_class_obj=single,
-                                     modal_id=modal_id))
-        table = Table(self, header_cells, header_cells, Cell(self, "vs."))
+            header_cells.append(_Cell(self, content=self._obj_description(single), color_class_obj=single,
+                                      modal_id=modal_id))
+        table = _Table(self, header_cells, header_cells, _Cell(self, "vs."))
 
         for i in range(self.stats.number_of_singles()):
             for j in range(self.stats.number_of_singles()):
-                popover = Popover(self, "Explanation", content="")
+                popover = _Popover(self, "Explanation", content="")
                 cell = None
                 pair = self.stats.get_pair(i, j)
                 rel_diff = None
@@ -734,7 +765,7 @@ class HTMLReporter2(AbstractReporter):
                         <a href='http://ece.uprm.edu/~nayda/Courses/Icom6115F06/Papers/paper4.pdf?origin=publication_detail'>
                         lying</a>.</p>
                         <p>The geometric standard deviation is <b>%s</b></p>.
-                    """ % self.percent_format.format(pair.first_rel_to_second_std())
+                    """ % self._percent_format.format(pair.first_rel_to_second_std())
                     rel_diff = pair.first_rel_to_second()
                     popover.trigger = "hover click"
                 else:
@@ -746,9 +777,9 @@ class HTMLReporter2(AbstractReporter):
                     \\end{align}
                     <p>The maximum standard deviation of the left and the right relative to the mean of the right is <b>%s</b>.</p>
                     """ % (property, property, pair.first.mean(), pair.second.mean(),
-                           self.percent_format.format(pair.max_std_dev() / pair.second.mean()))
+                           self._percent_format.format(pair.max_std_dev() / pair.second.mean()))
                     rel_diff = pair.first_rel_to_second()
-                cell = Cell(self, content=self.percent_format.format(rel_diff), popover=popover, color_class_obj=pair, show_click_on_info=True)
+                cell = _Cell(self, content=self._percent_format.format(rel_diff), popover=popover, color_class_obj=pair, show_click_on_info=True)
                 cell.modal_id = self._short_summary_modal(pair)
                 table[i, j] = cell
         return table
@@ -850,7 +881,7 @@ class HTMLReporter2(AbstractReporter):
         if extended and self.misc["show_zoomed_out"]:
             filenames = self._histogram(obj, big=extended, zoom_in=False)
             html += self._filenames_to_img_html(filenames)
-        ci_popover = Popover(self, "Confidence interval", """
+        ci_popover = _Popover(self, "Confidence interval", """
                         The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
                         \\begin{{align}} &\\text{{{first}}} - \\text{{{second}}} \\\\ =& {diff} \\end{{align}}
                         lies in the interval $$({ci[0]:5.5f}, {ci[1]:5.5f})$$ (assuming the data is normal
@@ -861,7 +892,7 @@ class HTMLReporter2(AbstractReporter):
         tested_per_prop = [
             {
                 "title": "Mean difference",
-                "popover": Popover(self, "Explanation", """
+                "popover": _Popover(self, "Explanation", """
                     Difference between the mean of the first and the mean of the second.
                     It's the absolute difference and is often less important that the relative differences.
                 """),
@@ -870,8 +901,8 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "... per first mean",
                 "func": lambda x: x.mean_diff_per_mean(),
-                "format": self.percent_format,
-                "popover": Popover(self, "Explanation", """The mean difference relative to the first mean
+                "format": self._percent_format,
+                "popover": _Popover(self, "Explanation", """The mean difference relative to the first mean
                 \\begin{align}
                     & \\frac{ \\overline{\\text{%s}} - \\overline{\\text{%s}}}{ \\overline{\\text{%s}} } \\\\
                     &= \\frac{ %f }{ %f}
@@ -884,8 +915,8 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "... per max std dev",
                 "func": lambda x: x.mean_diff_per_dev(),
-                "format": self.percent_format,
-                "popover": Popover(self, "Explanation", """
+                "format": self._percent_format,
+                "popover": _Popover(self, "Explanation", """
                     The mean difference relative to the maximum standard deviation:
                     \\begin{{align}}
                         &\\frac{{
@@ -919,13 +950,13 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": obj.tester.name,
                 "func": lambda x: x.equal_prob(),
-                "format": self.percent_format,
+                "format": self._percent_format,
                 "popover": self._popover_for_tester(obj.tester)
             }, {
                 "title": "min n",
                 "func": lambda x: x.min_observations(),
                 "format": "{}",
-                "popover": Popover(self, "Explanation", """
+                "popover": _Popover(self, "Explanation", """
                     The minimum of the number of valid runs of both.
                 or statistically spoken: the minimum sample size.""")
             }
@@ -944,10 +975,10 @@ class HTMLReporter2(AbstractReporter):
             if not is_header_row and "popover" in tested_per_prop[index]:
                 return tested_per_prop[index]["popover"]
 
-        table = Table.from_content_func(self, cols=[obj],
-                                        rows=list(map(lambda d: d["title"], tested_per_prop)),
-                                        content_func=content_func, anchor_cell=Cell(self),
-                                        header_popover_func=header_popover_func)
+        table = _Table.from_content_func(self, cols=[obj],
+                                         rows=list(map(lambda d: d["title"], tested_per_prop)),
+                                         content_func=content_func, anchor_cell=_Cell(self),
+                                         header_popover_func=header_popover_func)
         html += str(table)
         html += self._short_summary_table_for_single_property(objs=[obj.first, obj.second],
                                                               obj_descrs=[obj.first.description(),
@@ -963,7 +994,7 @@ class HTMLReporter2(AbstractReporter):
             tested_per_prop.extend([
             {
                 "title": "Mean difference",
-                "popover": Popover(self, "Explanation", """
+                "popover": _Popover(self, "Explanation", """
                     Difference between the mean of the first and the mean of the second.
                     It's the absolute difference and is often less important that the relative differences.
                 """),
@@ -972,8 +1003,8 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "... per first mean",
                 "func": lambda x: x.mean_diff_per_mean(),
-                "format": self.percent_format,
-                "popover": Popover(self, "Explanation", """The mean difference relative to the first mean
+                "format": self._percent_format,
+                "popover": _Popover(self, "Explanation", """The mean difference relative to the first mean
                 gives a number that helps to talk about the practical significance of the mean difference.
                 A tiny difference might be cool, but irrelevant (as caching effects are probably higher, use the
                 \\verb|temci build| if you're curious about this).
@@ -981,8 +1012,8 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "... per max std dev",
                 "func": lambda x: x.mean_diff_per_dev(),
-                "format": self.percent_format,
-                "popover": Popover(self, "Explanation", """
+                "format": self._percent_format,
+                "popover": _Popover(self, "Explanation", """
                 The mean difference relative to the maximum standard deviation is important,
                 because as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
                     Gernot Heiser</a> points out:
@@ -1001,13 +1032,13 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "... per first min",
                 "func": lambda x: (x.first.min() - x.second.min()) / x.first.min(),
-                "format": self.percent_format,
+                "format": self._percent_format,
                 "popover": None,#Popover(self, "Explanation", """            """)
             }, {
                 "title": "... per max std dev",
                 "func": lambda x: (x.first.min() - x.second.min()) / x.max_std_dev(),
-                "format": self.percent_format,
-                "popover": Popover(self, "Explanation", """
+                "format": self._percent_format,
+                "popover": _Popover(self, "Explanation", """
                 The mean difference relative to the maximum standard deviation is important,
                 because as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
                     Gernot Heiser</a> points out:
@@ -1041,7 +1072,7 @@ class HTMLReporter2(AbstractReporter):
         tested_per_prop.extend([{
                 "title": obj.tester.name + " test",
                 "func": lambda x: x.equal_prob(),
-                "format": self.percent_format,
+                "format": self._percent_format,
                 "popover": self._popover_for_tester(obj.tester)
             }])
 
@@ -1073,18 +1104,18 @@ class HTMLReporter2(AbstractReporter):
             if is_header_row and "popover" in tested_per_prop[index]:
                 return tested_per_prop[index]["popover"]
 
-        table = Table.from_content_func(self, rows=sorted(list(obj.properties.keys())),
-                                        cols=list(map(lambda d: d["title"], tested_per_prop)),
-                                        header_link_func=header_link_func,
-                                        content_func=content_func, anchor_cell=Cell(self),
-                                        header_color_obj_func=header_color_obj,
-                                        header_modal_func=header_modal_func,
-                                        header_popover_func=header_popover_func)
+        table = _Table.from_content_func(self, rows=sorted(list(obj.properties.keys())),
+                                         cols=list(map(lambda d: d["title"], tested_per_prop)),
+                                         header_link_func=header_link_func,
+                                         content_func=content_func, anchor_cell=_Cell(self),
+                                         header_color_obj_func=header_color_obj,
+                                         header_modal_func=header_modal_func,
+                                         header_popover_func=header_popover_func)
         html = str(table)
         html += """
             <p {po}>The {first} relative to the {second} is <b>{rel_diff}</b>
             (geometric standard deviation is {std})</p>
-        """.format(po=Popover(self, "Explanation", """
+        """.format(po=_Popover(self, "Explanation", """
                         Geometric mean of the means of the first relative to the means of the second:
                         \\[\\sqrt[\|properties\|]{
                         \\prod_{p \in \\text{properties}}
@@ -1110,11 +1141,11 @@ class HTMLReporter2(AbstractReporter):
         obj_descrs = obj_descrs or [self._obj_description(obj) for obj in objs]
 
         #objs[0]..std_dev_per_mean()
-        mean_ci_popover = Popover(self, "Mean confidence interval", """
+        mean_ci_popover = _Popover(self, "Mean confidence interval", """
                 The chance is \\[ 1 - \\alpha = {p} \\] that the mean lies in the given interval
                 (assuming the data is normal distributed to a certain degree).
                 """.format(p=1-self.misc["alpha"]))
-        std_dev_ci_popover = Popover(self, "Standard deviation confidence interval", """
+        std_dev_ci_popover = _Popover(self, "Standard deviation confidence interval", """
                 The chance is \\[ 1 - \\alpha = {p} \\] that the standard deviation lies in the given interval
                 (assuming the data is normal distributed to a certain degree).
                 """.format(p=1-self.misc["alpha"]))
@@ -1123,13 +1154,13 @@ class HTMLReporter2(AbstractReporter):
                 "title": "mean",
                 "func": lambda x: x.mean(),
                 "format": "{:5.5f}",
-                "popover": Popover(self, "Explanation", """
+                "popover": _Popover(self, "Explanation", """
                     The simple arithmetical mean
                     \\[ \\frac{1}{n}\\sum_{i=1}^{n} a_i. \\]
                 """)
             }, {
                 "title": "std dev",
-                "popover": Popover(self, "Explanation", """
+                "popover": _Popover(self, "Explanation", """
                     The sample standard deviation
                     \\[ \\sigma_N = \\sqrt{\\frac{1}{N} \\sum_{i=1}^N (x_i - \\overline{x})^2} \\]
                     In statistics, the standard deviation is a measure that is used to quantify the amount of
@@ -1145,8 +1176,8 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "$$\sigma$$ per mean",
                 "func": lambda x: x.std_dev_per_mean(),
-                "format": self.percent_format,
-                "popover": Popover(self, "Explanation", """
+                "format": self._percent_format,
+                "popover": _Popover(self, "Explanation", """
                     The standard deviation relative to the mean is a measure of how big the relative variation
                     of data is. A small value is considered neccessary for a benchmark to be useful.
                     Or to quote <a href='https://www.cse.unsw.edu.au/~gernot/benchmarking-crimes.html'>
@@ -1157,13 +1188,13 @@ class HTMLReporter2(AbstractReporter):
                 """, trigger="hover click")
             }, {
                 "title": "sem",
-                "popover": Popover(self, "Explanation", """Standard error mean:
+                "popover": _Popover(self, "Explanation", """Standard error mean:
                     \\[ \\sigma(\\overline{X}) = \\frac{\\sigma}{\\sqrt{n}} \\]
                     <p>Put simply, the standard error of the sample is an estimate of how far the sample mean is
                     likely to be from the population mean, whereas the standard deviation of the sample is the
                     degree to which individuals within the sample differ from the sample mean.
                     (<a href='https://en.wikipedia.org/wiki/Standard_error'>wikipedia</a>)</p>""",
-                                   trigger="hover focus"),
+                                    trigger="hover focus"),
                 "func": lambda x: x.sem(),
                 "format": "{:5.5f}",
                 "extended": False
@@ -1171,7 +1202,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "median",
                 "func": lambda x: x.median(),
                 "format": "{:5.5f}",
-                "popover": Popover(self, "Explanation", """
+                "popover": _Popover(self, "Explanation", """
                     The median is the value that seperates that data into two equal sizes subsets
                     (with the &lt; and the &gt; relation respectively).
                     As the mean and the standard deviation are already given here, the median isn't important.
@@ -1181,7 +1212,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "min",
                 "func": lambda x: x.min(),
                 "format": "{:5.5f}",
-                "popover": Popover(self, "Explanation", """The minimum value. It's a bad sign if the maximum
+                "popover": _Popover(self, "Explanation", """The minimum value. It's a bad sign if the maximum
                                                   is far lower than the mean and you can't explain it.
                                                   """),
                 "extended": False
@@ -1189,13 +1220,13 @@ class HTMLReporter2(AbstractReporter):
                 "title": "$$\sigma$$ per min",
                 "func": lambda x: x.std_dev() / x.min(),
                 "format": "{:5.5f}",
-                "popover": Popover(self, "sdf", "sdf"),
+                "popover": _Popover(self, "sdf", "sdf"),
                 "extended": False
             }, {
                 "title": "max",
                 "func": lambda x: x.max(),
                 "format": "{:5.5f}",
-                "popover": Popover(self, "Explanation", """The maximum value. It's a bad sign if the maximum
+                "popover": _Popover(self, "Explanation", """The maximum value. It's a bad sign if the maximum
                                                   is far higher than the mean and you can't explain it.
                                                   """),
                 "extended": True
@@ -1203,7 +1234,7 @@ class HTMLReporter2(AbstractReporter):
                 "title": "n",
                 "func": lambda x: x.observations(),
                 "format": "{}",
-                "popover": Popover(self, "Explanation", """The number of valid runs
+                "popover": _Popover(self, "Explanation", """The number of valid runs
                 or statistically spoken: the sample size."""),
                 "extended": False
             }, {
@@ -1233,8 +1264,8 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "normality probability",
                 "func": lambda x: x.normality(),
-                "format": self.percent_format,
-                "popover": Popover(self, "Explanation", """
+                "format": self._percent_format,
+                "popover": _Popover(self, "Explanation", """
                     Quoting the
                     <a href='http://blog.minitab.com/blog/michelle-paret/using-the-mean-its-not-always-a-slam-dunk'>
                     minitab blog</a>:
@@ -1299,14 +1330,14 @@ class HTMLReporter2(AbstractReporter):
         else:
             cols = func_titles
             rows = objs
-        table = Table.from_content_func(self, rows=rows,
-                                        cols=cols,
-                                        header_link_func=header_link_func,
-                                        content_func=content_func, anchor_cell=Cell(self),
-                                        header_color_obj_func=header_color_obj,
-                                        header_content_func=header_content_func,
-                                        header_modal_func=header_modal_func,
-                                        header_popover_func=header_popover_func)
+        table = _Table.from_content_func(self, rows=rows,
+                                         cols=cols,
+                                         header_link_func=header_link_func,
+                                         content_func=content_func, anchor_cell=_Cell(self),
+                                         header_color_obj_func=header_color_obj,
+                                         header_content_func=header_content_func,
+                                         header_modal_func=header_modal_func,
+                                         header_popover_func=header_popover_func)
         return str(table)
 
     def _comparison_for_prop(self, property) -> str:
@@ -1331,7 +1362,7 @@ class HTMLReporter2(AbstractReporter):
         """.format(popover=self._img_filenames_popover(filenames, kind),
                    img=self._filename_relative_to_out_dir(filenames["img"]))
 
-    def _img_filenames_popover(self, filenames: t.Dict[str, str], kind: str = "hist") -> 'Popover':
+    def _img_filenames_popover(self, filenames: t.Dict[str, str], kind: str = "hist") -> '_Popover':
         _filenames = {}
         for key in filenames:
             _filenames[key] = self._filename_relative_to_out_dir(filenames[key])
@@ -1373,8 +1404,8 @@ class HTMLReporter2(AbstractReporter):
         html += """
             </div>
         """.format(**filenames)
-        return Popover(self, "Get this image in your favorite format", content=html,
-                       trigger="hover click")
+        return _Popover(self, "Get this image in your favorite format", content=html,
+                        trigger="hover click")
 
     def _filename_relative_to_out_dir(self, abs_filename: str) -> str:
         ret = os.path.realpath(abs_filename)[len(os.path.realpath(self.misc["out"])) + 1: ]
@@ -1473,7 +1504,7 @@ class HTMLReporter2(AbstractReporter):
                      entry["img"], entry["tex"], entry["pdf"]))
 
     def _popover_for_tester(self, tester: Tester):
-        return Popover(self, tester.name.capitalize(), """
+        return _Popover(self, tester.name.capitalize(), """
                     Probability that the null hypothesis is not incorrect. It's the probability that the measured
                     values (for a given property) come out of the same population for both benchmarked programs.
                     Or short: That the programs have the same characteristics for a given property. <br/>
@@ -1516,7 +1547,7 @@ class HTMLReporter2(AbstractReporter):
               </div>
             </div>
         """.format(**locals())
-        self.app_html += html
+        self._app_html += html
         return modal_id
 
     def _obj_description(self, obj: BaseStatObject) -> str:
@@ -1612,7 +1643,7 @@ class HTMLReporter2(AbstractReporter):
     def get_random_filename(self) -> str:
         return os.path.realpath(os.path.join(os.path.abspath(self.misc["out"]), self._random_html_id()))
 
-class Popover:
+class _Popover:
 
     divs = {} # t.Dict[str, str]
     """ Maps the contents of the created divs to their ids """
@@ -1627,7 +1658,7 @@ class Popover:
         content = """<div class='hyphenate'>""" + self.content + """</div>"""
         if content not in self.divs:
             id = self.parent._random_html_id()
-            self.parent.app_html += """
+            self.parent._app_html += """
             <div style="display: none" id="{id}">
             {content}
             </div>
@@ -1641,7 +1672,7 @@ class Popover:
                 .format(content=content, trigger=self.trigger, title=self.title, focus=focus, id=id)
 
 
-def color_class(obj: BaseStatObject) -> str:
+def _color_class(obj: BaseStatObject) -> str:
     if obj.has_errors():
         return "danger"
     if obj.has_warnings():
@@ -1652,8 +1683,8 @@ def color_class(obj: BaseStatObject) -> str:
     return ""
 
 
-def color_explanation(obj: BaseStatObject) -> str:
-    _color_class = "div_" + color_class(obj)
+def _color_explanation(obj: BaseStatObject) -> str:
+    _color_class = "div_" + _color_class(obj)
     msg = ""
     if obj.has_errors():
         msg = "This color means that the corresponding data set is erroneous " \
@@ -1674,12 +1705,12 @@ def color_explanation(obj: BaseStatObject) -> str:
         """.format(**locals())
 
 
-class Cell:
+class _Cell:
     """
     Cell of a html table
     """
 
-    def __init__(self, parent: HTMLReporter2, content: str = "", cell_class: str = "", popover: Popover = None,
+    def __init__(self, parent: HTMLReporter2, content: str = "", cell_class: str = "", popover: _Popover = None,
                  modal_id: str = None, color_class_obj: BaseStatObject = None,
                  is_header_cell: bool = False, cell_scope: str = None,
                  show_click_on_info: bool = None, link: str = None):
@@ -1699,14 +1730,14 @@ class Cell:
         assert link is None or modal_id is None
         if color_class_obj is not None:
             if self.popover is None:
-                self.popover = Popover(parent, "Explanation", color_explanation(color_class_obj))
+                self.popover = _Popover(parent, "Explanation", _color_explanation(color_class_obj))
             else:
-                self.popover.content += color_explanation(color_class_obj)
-            self.cell_class += " " + color_class(color_class_obj)
+                self.popover.content += _color_explanation(color_class_obj)
+            self.cell_class += " " + _color_class(color_class_obj)
         if (modal_id is not None and show_click_on_info != False) or (show_click_on_info is True and not link):
             msg = "<p>Click on the cell to get more information.</p>"
             if self.popover is None:
-                self.popover = Popover(parent, "Explanation", msg)
+                self.popover = _Popover(parent, "Explanation", msg)
             else:
                 self.popover.content += msg
         self.is_header_cell = is_header_cell
@@ -1735,21 +1766,22 @@ T1 = t.TypeVar('T1', BaseStatObject, str, int, float, bool)
 T2 = t.TypeVar('T2', BaseStatObject, str, int, float, bool)
 
 
-class Table:
+class _Table:
     """
     A html table consisting of Cell objects.
     Idea: Abstract the creation of html tables to a degree that allows automatic generation of latex and csv.
     """
 
-    def __init__(self, parent: HTMLReporter2, header_row: t.List['Cell'], header_col: t.List['Cell'],
-                 anchor_cell: 'Cell' = None, content_cells: t.List[t.List['Cell']] = None):
+    def __init__(self, parent: HTMLReporter2, header_row: t.List['_Cell'], header_col: t.List['_Cell'],
+                 anchor_cell: '_Cell' = None, content_cells: t.List[t.List['_Cell']] = None):
         """
         The resulting table has len(header_row) + rows and len(header_col) + 1 columns.
+
         :param header_row: list of cells of the bold top header row
         :param header_col: list of cells of the bold left header collumn
         :param anchor_cell: the cell in the top left corner of the table
         :param content_cells: a list of content rows
-        :return resulting html
+        :return: resulting html
         """
         self.parent = parent
         self.header_row = header_row
@@ -1759,8 +1791,8 @@ class Table:
         for cell in self.header_col:
             cell.cell_scope = "row"
         assert len(header_row) > 0
-        self.orig_anchor_cell = Cell(self.parent, "") if anchor_cell is None else Cell(self.parent, anchor_cell.content)
-        self.anchor_cell = anchor_cell or Cell(self.parent, "&#9047; ")
+        self.orig_anchor_cell = _Cell(self.parent, "") if anchor_cell is None else _Cell(self.parent, anchor_cell.content)
+        self.anchor_cell = anchor_cell or _Cell(self.parent, "&#9047; ")
         self.anchor_cell.content += "  	&#9047;"
         self.anchor_cell.cell_class += " anchor_cell "
         self.height = len(header_col)
@@ -1772,7 +1804,7 @@ class Table:
                                         and all(len(content_cells[0]) == len(row) for row in content_cells)
             self.content_cells = content_cells
         else:
-            self.content_cells = [[Cell(self.parent) for i in range(self.width)] for j in range(self.height)]
+            self.content_cells = [[_Cell(self.parent) for i in range(self.width)] for j in range(self.height)]
 
     def __str__(self) -> str:
         html = """
@@ -1795,7 +1827,7 @@ class Table:
     def html(self):
         return str(self)
 
-    def format_anchor_cell(self) -> 'Cell':
+    def format_anchor_cell(self) -> '_Cell':
         formats = [{
             "ending": ".tex",
             "mime": "application/x-latex",
@@ -1818,7 +1850,7 @@ class Table:
         for d in formats:
             id = self.parent._random_html_id()
 
-            self.parent.app_html += """
+            self.parent._app_html += """
                 <pre id="{}" style="display: none;">
                     {}
                 </pre>
@@ -1839,8 +1871,8 @@ class Table:
         html += """
             </div>
         """
-        self.anchor_cell.popover = Popover(self.parent, "Get this table in your favorite format", content=html,
-                                           trigger="hover click")
+        self.anchor_cell.popover = _Popover(self.parent, "Get this table in your favorite format", content=html,
+                                            trigger="hover click")
         return self.anchor_cell
 
     def latex(self, with_env: bool = False) -> str:
@@ -1896,24 +1928,24 @@ class Table:
         return filename
 
 
-    def __getitem__(self, cell_pos: t.Tuple[int, int]) -> 'Cell':
+    def __getitem__(self, cell_pos: t.Tuple[int, int]) -> '_Cell':
         return self.content_cells[cell_pos[0]][cell_pos[1]]
 
-    def __setitem__(self, cell_pos: t.Tuple[int, int], new_val: 'Cell'):
+    def __setitem__(self, cell_pos: t.Tuple[int, int], new_val: '_Cell'):
         self.content_cells[cell_pos[0]][cell_pos[1]] = new_val
 
-    def append(self, header: 'Cell', content_row: t.List['Cell']):
+    def append(self, header: '_Cell', content_row: t.List['_Cell']):
         assert len(content_row) == self.width
         self.content_cells.append(content_row)
         self.header_col.append(header)
 
     @classmethod
-    def from_content_func(cls, parent: HTMLReporter2, rows: t.List[T1], cols: t.List[T2], anchor_cell: 'Cell',
+    def from_content_func(cls, parent: HTMLReporter2, rows: t.List[T1], cols: t.List[T2], anchor_cell: '_Cell',
                           content_func: t.Callable[[T1, T2], Any],
                           content_modal_func: t.Callable[[T1, T2, int, int], str] = None,
                           header_modal_func: t.Callable[[t.Union[T1, T2], int, bool], str] = None,
-                          content_popover_func: t.Callable[[T1, T2, int, int], t.Optional[Popover]] = None,
-                          header_popover_func: t.Callable[[t.Union[T1, T2], int, bool], t.Optional[Popover]] = None,
+                          content_popover_func: t.Callable[[T1, T2, int, int], t.Optional[_Popover]] = None,
+                          header_popover_func: t.Callable[[t.Union[T1, T2], int, bool], t.Optional[_Popover]] = None,
                           content_link_func: t.Callable[[T1, T2, int, int], t.Optional[str]] = None,
                           header_link_func: t.Callable[[t.Union[T1, T2], int, bool], t.Optional[str]] = None,
                           content_color_obj_func: t.Callable[[T1, T2, int, int], t.Optional[BaseStatObject]] = None,
@@ -1923,7 +1955,7 @@ class Table:
         """
         Idea: Table that populates itself with a passed content function.
         """
-        def convert_hc(elem: t.Union[T1, T2], index: int, header_row: bool) -> Cell:
+        def convert_hc(elem: t.Union[T1, T2], index: int, header_row: bool) -> _Cell:
             def call(func: t.Optional[t.Callable[[t.Union[T1, T2], int, bool], t.T]]) -> t.T:
                 if func:
                     return func(elem, index, header_row)
@@ -1948,8 +1980,8 @@ class Table:
             if header_link_func and header_link_func(elem, index, header_row):
                 assert not modal_id # modal and link can't be used together in the same cell
                 link = header_link_func(elem, index, header_row)
-            return Cell(parent, content, popover=popover, modal_id=modal_id, color_class_obj=color_obj, is_header_cell=True,
-                        cell_scope="row" if header_row else None, link=link)
+            return _Cell(parent, content, popover=popover, modal_id=modal_id, color_class_obj=color_obj, is_header_cell=True,
+                         cell_scope="row" if header_row else None, link=link)
         header_row = []
         for (i, elem) in enumerate(cols):
             header_row.append(convert_hc(elem, i, header_row=True))
@@ -1957,7 +1989,7 @@ class Table:
         for (i, elem) in enumerate(rows):
             header_col.append(convert_hc(elem, i, header_row=False))
 
-        def convert_cc(row_header: T1, col_header: T2, row: int, col: int) -> Cell:
+        def convert_cc(row_header: T1, col_header: T2, row: int, col: int) -> _Cell:
             def call(func: t.Optional[t.Callable[[T1, T2, int, int], t.T]]) -> t.T:
                 if func:
                     return func(row_header, col_header, row, col)
@@ -1969,15 +2001,21 @@ class Table:
             popover = call(content_popover_func)
             link = call(content_link_func)
             assert None in [link, modal_id]
-            return Cell(parent, content, popover=popover, modal_id=modal_id, color_class_obj=color_obj, link=link)
+            return _Cell(parent, content, popover=popover, modal_id=modal_id, color_class_obj=color_obj, link=link)
         content_cells = []
         for (row, row_header) in enumerate(rows):
             a = []
             for (col, col_header) in enumerate(cols):
                 a.append(convert_cc(row_header, col_header, row, col))
             content_cells.append(a)
-        return Table(parent, header_row, header_col, anchor_cell, content_cells)
+        return _Table(parent, header_row, header_col, anchor_cell, content_cells)
 
 
 def html_escape_property(property: str) -> str:
+    """
+    Escape the name of a measured property.
+
+    :param property: name of a measured property
+    :return: escaped property name
+    """
     return re.sub(r"([^a-zA-Z0-9]+)", "000000", property)

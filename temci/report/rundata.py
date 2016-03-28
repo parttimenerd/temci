@@ -4,7 +4,7 @@ and the RunDataStatsHelper that provides helper methods for working with
 these objects.
 """
 
-from temci.tester.testers import Tester, TesterRegistry
+from temci.report.testers import Tester, TesterRegistry
 from temci.utils.typecheck import *
 from temci.utils.settings import Settings
 import temci.utils.util as util
@@ -13,33 +13,42 @@ if util.can_import("scipy"):
 import typing as t
 
 
+Number = t.Union[int, float]
+""" Numeric value """
+
+
 class RunData(object):
     """
     A set of benchmarking data for a specific program block.
     """
 
-    def __init__(self, data: t.Dict[str, t.List[t.Union[int, float]]] = None, attributes: t.Dict[str, str] = None,
+    def __init__(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
                  external: bool = False):
         """
-        Initializes a new run data object with a list of measured properties,
-        an optional dictionary mapping each property to a list of actual values and
-        a dictionary of optional attributes that describe its program block.
+        Initializes a new run data object.
+        
+        :param data: optional dictionary mapping each property to a list of actual values
+        :param attributes: dictionary of optional attributes that describe its program block
+        :param external: does the data come from a prior benchmarking?
         """
         typecheck(data, E(None) | Dict(all_keys=False))
         typecheck(attributes, Exact(None) | Dict(key_type=Str(), all_keys=False))
-        self.external = external
+        self.external = external  # type: bool
+        """ Does the data come from a prior benchmarking? """
         self.properties = [] # type: t.List[str]
         """ List of measured properties. They might not all be measured the same number of times. """
-        self.data = {} # type: t.Dict[str, t.List[t.Union[int, float]]]
+        self.data = {} # type: t.Dict[str, t.List[Number]]
         """ Raw benchmarking data, mapping properties to their corresponding values """
         if data is not None and len(data) > 0:
             self.add_data_block(data)
-        self.attributes = attributes or {} # type: t.Dict[str, str]
+        self.attributes = attributes or {}  # type: t.Dict[str, str]
+        """ dictionary of optional attributes that describe its program block """
 
-    def add_data_block(self, data_block: t.Dict[str, t.List[t.Union[int, float]]]):
+    def add_data_block(self, data_block: t.Dict[str, t.List[Number]]):
         """
-        Adds a block of data. The passed dictionary maps each of the run datas properties to list of
-        actual values (from each benchmarking run).
+        Adds a block of data. 
+        
+        :param data_block: maps each of the run datas properties to list of actual values (from each benchmarking run).
         """
         typecheck(data_block, Dict(key_type=Str(), value_type= List(Int() | Float()), all_keys=False))
         self.properties = set(self.properties).union(set(data_block.keys()))
@@ -66,8 +75,7 @@ class RunData(object):
     def benchmarks(self) -> int:
         """
         Returns the maximum number of measured values for the associated program block
-        over all properties. This number should be equivalent to the number of measured
-        benchmarking runs.
+        over all properties.
         """
         return max(map(len, self.data.values())) if len(self) > 0 else 0
 
@@ -78,7 +86,7 @@ class RunData(object):
         """
         return self.data[property]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> t.Union[t.Dict[str, str], t.Dict[str, t.List[Number]]]:
         """
         Returns a dictionary that represents this run data object.
         """
@@ -87,15 +95,22 @@ class RunData(object):
             "data": self.data
         }
 
-    def __str__(self):
+    def __str__(self) -> str:
         return repr(self.attributes)
 
-    def description(self):
+    def description(self) -> str:
+        """ Description of this instance based on the attributes """
         if "description" in self.attributes:
             return self.attributes["description"]
         return ", ".join("{}={}".format(key, self.attributes[key]) for key in self.attributes)
 
     def exclude_properties(self, properties: t.List[str]) -> 'RunData':
+        """
+        Creates a new run data instance without the passed properties.
+
+        :param properties: excluded properties
+        :return: new run data instance
+        """
         data = {}
         for prop in self.data:
             if prop not in properties:
@@ -111,18 +126,26 @@ class RunDataStatsHelper(object):
     def __init__(self, runs: t.List[RunData], tester: Tester = None, external_count: int = 0):
         """
         Don't use the constructor use init_from_dicts if possible.
+
         :param runs: list of run data objects
         :param tester: used tester or tester that is set in the settings
+
         """
-        self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),
+        self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),  # type: Tester
                                                             Settings()["stats/uncertainty_range"])
+        """ Used statistical tester """
         typecheck(runs, List(T(RunData)))
-        self.runs = runs # type: t.List[RunData]
-        self.external_count = external_count
+        self.runs = runs  # type: t.List[RunData]
+        """ Data of serveral runs from several measured program blocks """
+        self.external_count = external_count  # type: int
+        """
+        Number of external program blocks (blocks for which the data was obtained in a different benchmarking session)
+        """
+
 
     def properties(self) -> t.List[str]:
         """
-        Returns a sorted list of all properties that exist in all (!) run data blocks.
+        Returns a sorted list of all properties that exist in all run data blocks.
         """
         if not self.runs:
             return []
@@ -133,7 +156,8 @@ class RunDataStatsHelper(object):
         return list(sorted(props))
 
     @classmethod
-    def init_from_dicts(cls, runs: t.List[Dict] = None, external: bool = False) -> 'RunDataStatsHelper':
+    def init_from_dicts(cls, runs: t.List[t.Union[t.Dict[str, str], t.Dict[str, t.List[Number]]]] = None,
+                        external: bool = False) -> 'RunDataStatsHelper':
         """
         Expected structure of the stats settings and the runs parameter::
 
@@ -153,9 +177,8 @@ class RunDataStatsHelper(object):
 
 
         :param runs: list of dictionaries representing the benchmarking runs for each program block
-        :param external: are the passed runs not from this benchmarking run but from another?
-        :rtype RunDataStatsHelper
-        :raises ValueError if the stats of the runs parameter have not the correct structure
+        :param external: are the passed runs not from this benchmarking session but from another?
+        :raises ValueError: if the stats of the runs parameter have not the correct structure
         """
         typecheck(runs, List(Dict({
                     "data": Dict(key_type=Str(), value_type=List(Int()|Float()), all_keys=False) | NonExistent(),
@@ -180,12 +203,18 @@ class RunDataStatsHelper(object):
         return self.tester.is_unequal(data1[property], data2[property])
 
     def is_uncertain(self, p_val: float) -> bool:
+        """
+        Does the passed probability of the null hypothesis for two samples lie in the uncertainty range?
+        :param p_val: passed probability of the null hypothesis
+        """
         return min(*Settings()["stats/uncertainty_range"]) <= p_val <= max(*Settings()["stats/uncertainty_range"])
 
     def is_equal(self, p_val: float) -> bool:
+        """ Is the passed value above the uncertainty range for null hypothesis probabilities? """
         return p_val > max(*Settings()["stats/uncertainty_range"])
 
     def is_unequal(self, p_val: float) -> bool:
+        """ Is the passed value above the uncertainty range for null hypothesis probabilities? """
         return p_val < min(*Settings()["stats/uncertainty_range"])
 
     def _speed_up(self, property: str, data1: RunData, data2: RunData):
@@ -232,10 +261,13 @@ class RunDataStatsHelper(object):
         """
         Roughly erstimates the time needed to finish benchmarking all program blocks.
         It doesn't take any parallelism into account. Therefore divide the number by the used parallel processes.
+
+        :warning: Doesn't work well.
+
         :param run_bin_size: times a program block is benchmarked in a single block of time
         :param min_runs: minimum number of allowed runs
         :param max_runs: maximum number of allowed runs
-        :return estimated time in seconds or float("inf") if no proper estimation could be made
+        :return: estimated time in seconds or float("inf") if no proper estimation could be made
         """
         to_bench = self.get_program_ids_to_bench()
         max_times = [0 for i in self.runs]
@@ -253,9 +285,10 @@ class RunDataStatsHelper(object):
     def estimate_time_for_next_round(self, run_bin_size: int, all: bool) -> float:
         """
         Roughly estimates the time needed for the next benchmarking round.
+
         :param run_bin_size: times a program block is benchmarked in a single block of time and the size of a round
         :param all: expect all program block to be benchmarked
-        :return estimated time in seconds
+        :return: estimated time in seconds
         """
         if "__ov-time" not in self.properties():
             return -1
@@ -268,6 +301,7 @@ class RunDataStatsHelper(object):
     def add_run_data(self, data: list = None, attributes: dict = None) -> int:
         """
         Adds a new run data (corresponding to a program block) and returns its id.
+
         :param data: benchmarking data of the new run data object
         :param attributes: attributes of the new run data object
         :return: id of the run data object (and its corresponding program block)
@@ -281,12 +315,13 @@ class RunDataStatsHelper(object):
         """
         self.runs[id] = None
 
-    def add_data_block(self, program_id: int, data_block: t.Dict[str, t.List[t.Union[int, float]]]):
+    def add_data_block(self, program_id: int, data_block: t.Dict[str, t.List[Number]]):
         """
         Add block of data for the program block with the given id.
+
         :param program_id: id of the program.
         :param data_block: list of data from several benchmarking runs of the program block
-        :raises ValueError if the program block with the given id doesn't exist
+        :raises ValueError: if the program block with the given id doesn't exist
         """
         program_id += self.external_count
         assert program_id >= self.external_count
@@ -337,15 +372,24 @@ class RunDataStatsHelper(object):
                     })
         return arr
 
-    def serialize(self) -> t.List:
-        return list(x.to_dict() for x in self.runs if x)
+    def serialize(self) -> t.List[t.Union[t.Dict[str, str], t.Dict[str, t.List[Number]]]]:
+        """
+        Serialize this instance into a data structure that is accepted by the ``init_from_dicts`` method.
+        """
+        return [x.to_dict() for x in self.runs if x]
 
     def valid_runs(self) -> t.List[RunData]:
+        """ Number of valid (with measured data) runs """
         res = [x for x in self.runs if x is not None]
-        #print(res)
         return res
 
     def exclude_properties(self, properties: t.List[str]) -> 'RunDataStatsHelper':
+        """
+        Create a new instance without the passed properties.
+
+        :param properties: excluded properties
+        :return: new instance
+        """
         runs = []
         for run in self.runs:
             if run is not None:

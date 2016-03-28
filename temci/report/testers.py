@@ -1,17 +1,17 @@
 """
-Contains the tester base class and several simple implementations.
+Contains the tester base class and several simple implementations
+that simplify the work with statistical hypothesis tests.
 """
 
+import warnings
 import temci.utils.util as util
-import temci.utils.util as util
+import typing as t
 if util.can_import("scipy"):
-    import scipy as np
     import scipy.stats as st
-    import scipy.optimize as opti
 from temci.utils.typecheck import *
 from temci.utils.registry import AbstractRegistry, register
-import logging, warnings
 
+Number = t.Union[int, float]
 
 class TesterRegistry(AbstractRegistry):
 
@@ -20,32 +20,40 @@ class TesterRegistry(AbstractRegistry):
     use_list = False
     default = "t"
     registry = {}
+    plugin_synonym = ("tester", "testers")
 
 
 class Tester(object, metaclass=util.Singleton):
     """
-    A tester tests the probability of the nullhypothesis of two same length list of observations.
+    A tester tests the probability of the nullh ypothesis of two same length list of observations.
 
     This is a base class that shouldn't be instantiated.
     """
 
-    scipy_stat_method = ""
+    scipy_stat_method = None  # type: t.Optional[str]
+    """ Used method of the scipy.stats module if the _test_impl isn't reimplemented """
     name = ""
+    """ Name of the implemented statistical test """
 
-    def __init__(self, misc_settings: dict, uncertainty_range: tuple):
+    def __init__(self, misc_settings: dict, uncertainty_range: t.Tuple[float, float]):
         """
-        :param data1: first list of of data points
-        :param data2: second list of data points
+        Creates a new instance.
+        :param misc_settings: Additional settings
         :param uncertainty_range: (start, end) probability tuple that gives range in which the tester doesn't give
-         a definitive result on the nullhypothesis check
+             a definitive result on the nullhypothesis check
         """
         self.uncertainty_range = uncertainty_range
+        """
+        (start, end) probability tuple that gives range in which the tester doesn't give
+             a definitive result on the nullhypothesis check
+        """
         assert isinstance(uncertainty_range, Tuple(Float(), Float()))
         self.misc_settings = misc_settings
+        """ Additional settings """
 
-    def test(self, data1: list, data2: list) -> float:
+    def test(self, data1: t.List[Number], data2: t.List[Number]) -> float:
         """
-        Calculates the probability of the null hypotheses.
+        Calculates the probability of the null hypotheses for two samples.
         """
         res = 0
         min_len = min(len(data1), len(data2))
@@ -53,19 +61,26 @@ class Tester(object, metaclass=util.Singleton):
             res = self._test_impl(data1[0:min_len], data2[0: min_len])
         return res
 
-    def _test_impl(self, data1: list, data2: list) -> float:
+    def _test_impl(self, data1: t.List[Number], data2: t.List[Number]) -> float:
+        """
+        Calculates the probability of the null hypotheses for two equal sized samples.
+        """
+        assert self.scipy_stat_method
         return getattr(st, self.scipy_stat_method)(data1, data2)[-1]
 
-    def is_uncertain(self, data1: list, data2: list) -> bool:
+    def is_uncertain(self, data1: t.List[Number], data2: t.List[Number]) -> bool:
+        """ Does the probability of the null hypothesis for two samples lie in the uncertainty range? """
         val = self.test(data1, data2)
         return min(len(data1), len(data2)) == 0 or \
                self.uncertainty_range[0] <= val <= self.uncertainty_range[1] or \
                val != val
 
-    def is_equal(self, data1: list, data2: list):
+    def is_equal(self, data1: t.List[Number], data2: t.List[Number]) -> bool:
+        """ Are the two samples not significantly unequal regarding the probability of the null hypothesis? """
         return self.test(data1, data2) > max(*self.uncertainty_range)
 
-    def is_unequal(self, data1: list, data2: list):
+    def is_unequal(self, data1: t.List[Number], data2: t.List[Number]) -> bool:
+        """ Are the two samples significantly unequal regarding the probability of the null hypothesis? """
         return self.test(data1, data2) < min(*self.uncertainty_range)
 
     def estimate_needed_runs(self, data1: list, data2: list,
@@ -77,6 +92,8 @@ class Tester(object, metaclass=util.Singleton):
 
         It uses the simple observation that the graph of the p value plotted against
         the size of the sets has a exponential, logarithmic or root shape.
+
+        :warning: Doesn't work well.
 
         :param data1: list of observations
         :param data2: list of observations
@@ -118,14 +135,14 @@ class Tester(object, metaclass=util.Singleton):
             res = min(interpolate(*f) for f in funcs)
         return res
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return isinstance(other, type(self))
 
 
 @register(TesterRegistry, name="t", misc_type=Dict())
 class TTester(Tester):
     """
-    Implementation of the Tester base class for the student's t test.
+    Tester that uses the student's t test.
     """
 
     scipy_stat_method = "ttest_ind"
@@ -135,7 +152,7 @@ class TTester(Tester):
 @register(TesterRegistry, name="ks", misc_type=Dict())
 class KSTester(Tester):
     """
-    Uses the Kolmogorov-Smirnov statistic on 2 samples.
+    Tester that uses the Kolmogorov-Smirnov statistic on 2 samples.
     """
 
     scipy_stat_method = "ks_2samp"
@@ -145,12 +162,11 @@ class KSTester(Tester):
 @register(TesterRegistry, name="anderson", misc_type=Dict())
 class AndersonTester(Tester):
     """
-    Uses the Anderson statistic on 2 samples.
+    Tester that uses the Anderson statistic on 2 samples.
     """
 
     scipy_stat_method = "anderson_ksamp"
-
-    def _test_impl(self, data1: list, data2: list) -> float:
-        return max(st.anderson_ksamp([data1, data2])[-1], 1)
-
     name = "anderson"
+
+    def _test_impl(self, data1: t.List[Number], data2: t.List[Number]) -> float:
+        return max(st.anderson_ksamp([data1, data2])[-1], 1)

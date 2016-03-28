@@ -8,30 +8,34 @@ from temci.utils.util import join_strs
 
 from temci.utils.mail import send_mail
 from temci.utils.typecheck import *
-from temci.run.run_worker_pool import RunWorkerPool, ParallelRunWorkerPool
+from temci.run.run_worker_pool import RunWorkerPool, ParallelRunWorkerPool, AbstractRunWorkerPool
 from temci.run.run_driver import RunProgramBlock, BenchmarkingResultBlock, RunDriverRegistry, ExecRunDriver, \
     is_perf_available
 import temci.run.run_driver_plugin
-from temci.tester.rundata import RunDataStatsHelper, RunData
+from temci.report.rundata import RunDataStatsHelper, RunData
 from temci.utils.settings import Settings
-from temci.tester.report_processor import ReporterRegistry
+from temci.report.report_processor import ReporterRegistry
 import time, logging, humanfriendly, yaml, sys, math, pytimeparse, os
 import typing as t
-from temci.run.remote import RemoteRunWorkerPool
+#from temci.run.remote import RemoteRunWorkerPool
 
 class RunProcessor:
     """
     This class handles the coordination of the whole benchmarking process.
     It is configured by setting the settings of the stats and run domain.
+
+    Important note: the constructor also setups the cpu sets and plugins that can alter the system,
+    e.g. confine most processes on only one core. Be sure to call the ``teardown()`` or the
+    ``benchmark()`` method to make the system usable again.
     """
 
-    def __init__(self, runs: list = None, append: bool = None, show_report: bool = None):
+    def __init__(self, runs: t.List[dict] = None, append: bool = None, show_report: bool = None):
         """
-        Important note: this constructor also setups the cpusets and plugins that can alter the system,
-        e.g. confine most processes on only one core. Be sure to call the teardown() or the
-        benchmark() method to make the system usable again.
+        Creates an instance and setup everything.
 
         :param runs: list of dictionaries that represent run program blocks if None Settings()["run/in"] is used
+        :param append: append to the old benchmarks if there are any in the result file?
+        :param show_report: show a short report after finishing the benchmarking?
         """
         if runs is None:
             typecheck(Settings()["run/in"], ValidYamlFileName())
@@ -41,13 +45,18 @@ class RunProcessor:
             "attributes": Dict(all_keys=False, key_type=Str()),
             "run_config": Dict(all_keys=False)
         })))
-        self.runs = runs
-        self.run_blocks = []
+        self.runs = runs  # type: t.List[dict]
+        """ List of dictionaries that represent run program blocks """
+        self.run_blocks = []  # type: t.List[RunProgramBlock]
+        """ Run program blocks for each dictionary in ``runs```"""
         for (id, run) in enumerate(runs):
             self.run_blocks.append(RunProgramBlock.from_dict(id, copy.deepcopy(run)))
-        self.append = Settings().default(append, "run/append")
-        self.show_report = Settings().default(show_report, "run/show_report")
-        self.stats_helper = None # type: RunDataStatsHelper
+        self.append = Settings().default(append, "run/append")  # type: bool
+        """ Append to the old benchmarks if there are any in the result file? """
+        self.show_report = Settings().default(show_report, "run/show_report")  # type: bool
+        """  Show a short report after finishing the benchmarking? """
+        self.stats_helper = None  # type: RunDataStatsHelper
+        """ Used stats helper to help with measurements """
         typecheck(Settings()["run/out"], FileName())
         if self.append:
             run_data = []
@@ -65,15 +74,20 @@ class RunProcessor:
             self.stats_helper = RunDataStatsHelper.init_from_dicts(copy.deepcopy(runs))
         #if Settings()["run/remote"]:
         #    self.pool = RemoteRunWorkerPool(Settings()["run/remote"], Settings()["run/remote_port"])
+        self.pool = None  # type: AbstractRunWorkerPool
+        """ Used run worker pool that abstracts the benchmarking """
         if Settings()["run/cpuset/parallel"] == 0:
             self.pool = RunWorkerPool()
         else:
             self.pool = ParallelRunWorkerPool()
-        self.run_block_size = Settings()["run/run_block_size"]
-        self.discarded_runs = Settings()["run/discarded_runs"]
-
-        self.max_runs = Settings()["run/max_runs"]
-        self.min_runs = Settings()["run/min_runs"]
+        self.run_block_size = Settings()["run/run_block_size"]  # type: int
+        """ Number of benchmarking runs that are done together """
+        self.discarded_runs = Settings()["run/discarded_runs"]  # type: int
+        """ First n runs that are discarded """
+        self.max_runs = Settings()["run/max_runs"]  # type: int
+        """ Maximum number of benchmarking runs """
+        self.min_runs = Settings()["run/min_runs"]  # type: int
+        """ Minimum number of benchmarking runs """
         if self.min_runs > self.max_runs:
             logging.warning("min_runs ({}) is bigger than max_runs ({}), therefore they are swapped."
                             .format(self.min_runs, self.max_runs))
@@ -81,27 +95,35 @@ class RunProcessor:
             self.min_runs = self.max_runs
             self.max_runs = tmp
 
-        self.shuffle = Settings()["run/shuffle"]
-        self.fixed_runs = Settings()["run/runs"] != -1
+        self.shuffle = Settings()["run/shuffle"]  # type: bool
+        """ Randomize the order in which the program blocks are benchmarked. """
+        self.fixed_runs = Settings()["run/runs"] != -1  # type: bool
+        """ Do a fixed number of benchmarking runs? """
         if self.fixed_runs:
             self.min_runs = self.max_runs = self.min_runs = Settings()["run/runs"]
-        self.start_time = round(time.time())
+        self.start_time = round(time.time())  # type: float
+        """ Unix time stamp of the start of the benchmarking """
+        self.end_time = None  # type: float
+        """ Unix time stamp of the point in time that the benchmarking can at most reach """
         try:
             self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"])
         except:
             self.teardown()
             raise
-        self.store_often = Settings()["run/store_often"]
-        self.block_run_count = 0
-        self.erroneous_run_blocks = [] # type: t.List[t.Tuple[int, BenchmarkingResultBlock]]
+        self.store_often = Settings()["run/store_often"]  # type: bool
+        """ Store the result file after each set of blocks is benchmarked """
+        self.block_run_count = 0  # type: int
+        """ Number of benchmarked blocks """
+        self.erroneous_run_blocks = []  # type: t.List[t.Tuple[int, BenchmarkingResultBlock]]
+        """ List of all failing run blocks (id and results till failing) """
 
-    def _finished(self):
+    def _finished(self) -> bool:
         if self.fixed_runs:
             return self.block_run_count >= self.max_runs
         return (len(self.stats_helper.get_program_ids_to_bench()) == 0 \
                or not self._can_run_next_block()) and self.min_runs <= self.block_run_count
 
-    def _can_run_next_block(self):
+    def _can_run_next_block(self) -> bool:
         estimated_time = self.stats_helper.estimate_time_for_next_round(self.run_block_size,
                                                                         all=self.block_run_count < self.min_runs)
         to_bench_count = len(self.stats_helper.get_program_ids_to_bench())
@@ -118,6 +140,9 @@ class RunProcessor:
         return True
 
     def benchmark(self):
+        """
+        Benchmark and teardown.
+        """
         try:
             time_per_run = self._make_discarded_runs()
             last_round_time = time.time()
@@ -188,9 +213,14 @@ class RunProcessor:
         return (time.time() - start_time) / self.discarded_runs
 
     def teardown(self):
+        """ Teardown everything (make the system useable again) """
         self.pool.teardown()
 
     def store_and_teardown(self):
+        """
+        Teardown everything, store the result file, print a short report and send an email
+        if configured to do so.
+        """
         if Settings().has_log_level("info") and self.show_report:
             self.print_report()
         self.teardown()
@@ -214,10 +244,12 @@ class RunProcessor:
             send_mail(Settings()["run/send_mail"], subject, "\n\n".join(msgs), [Settings()["run/in"]  + ".erroneous.yaml"])
 
     def store(self):
+        """ Store the result file """
         with open(Settings()["run/out"], "w") as f:
             f.write(yaml.dump(self.stats_helper.serialize()))
 
     def store_erroneous(self):
+        """ Store the failing program blocks in a file ending with ``.erroneous.yaml``. """
         if len(self.erroneous_run_blocks) == 0:
             return
         file_name = Settings()["run/in"] + ".erroneous.yaml"
@@ -229,6 +261,7 @@ class RunProcessor:
             logging.error("Can't write erroneous program blocks to " + file_name)
 
     def print_report(self) -> str:
+        """ Print a short report if possible. """
         try:
             if len(self.stats_helper.valid_runs()) > 0 and \
                     all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
