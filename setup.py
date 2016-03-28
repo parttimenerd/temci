@@ -22,7 +22,7 @@ setup(
         'humanfriendly',
         'fn',
         'pyaml',
-        'typing', 'seaborn', 'pytimeparse',
+        'seaborn', 'pytimeparse',
         'cairocffi',
         'matplotlib',
         'prompt_toolkit', 'ptpython',
@@ -32,8 +32,7 @@ setup(
         'Pygments',
         'wcwidth',
         'rainbow_logging_handler',
-        'tablib', 'glob2', 'globster',
-        'colorlog', 'jsonrpc', 'bsonrpc'
+        'tablib', 'glob2', 'globster'
     ],
     license='GPLv3',
     platforms='linux',

@@ -7,8 +7,8 @@ import shutil
 import subprocess
 
 import time
-import yaml, copy
-from colorlog import logging
+import yaml
+import logging
 
 from temci.package.util import abspath, normalize_path, hashed_name_of_file
 from temci.utils.mail import send_mail

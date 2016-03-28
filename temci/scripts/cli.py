@@ -2,8 +2,6 @@ import locale
 
 from temci.utils.util import sphinx_doc, get_doc_for_type_scheme
 
-locale.setlocale(locale.LC_ALL, "en_US.utf8")
-
 import warnings
 
 from temci.scripts.temci_completion import completion_file_name, create_completion_dir
@@ -879,6 +877,7 @@ def cli_with_error_catching():
     """
     Process the command line arguments and catch (some) errors.
     """
+    locale.setlocale(locale.LC_ALL, "en_US.utf8")
     try:
         cli()
     except EnvironmentError as err:

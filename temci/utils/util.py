@@ -129,8 +129,11 @@ def can_import(module: str) -> bool:
     """
     Can a module (like scipy or numpy) be imported without a severe and avoidable performance penalty?
     The rational behind this is that some parts of temci don't need scipy or numpy.
+
     :param module: name of the module
     """
+    if sphinx_doc():
+        return False
     if allow_all_imports:
         return True
     if module not in ["scipy", "numpy"]:
@@ -139,7 +142,7 @@ def can_import(module: str) -> bool:
         return False
     return True
 
-_sphinx_doc = os.environ.get("SPHINXDOC", None) == 'True'
+_sphinx_doc = os.environ.get("SPHINXDOC", os.environ.get('READTHEDOCS', None)) == 'True'
 
 def sphinx_doc() -> bool:
     """ Is the code only loaded to document it with sphinx? """
