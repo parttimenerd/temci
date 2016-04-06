@@ -877,7 +877,7 @@ def cli_with_error_catching():
     """
     Process the command line arguments and catch (some) errors.
     """
-    locale.setlocale(locale.LC_ALL, "en_US.utf8")
+    locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
     try:
         cli()
     except EnvironmentError as err:

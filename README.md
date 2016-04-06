@@ -31,6 +31,12 @@ Requirements
     - tested with Fedora 23 and Ubuntu 15.10
     - most distros with a kernel version >= 3.0 should work
 
+
+There's rudimentary support for Apples OS X (the dependencies should be almost the same).
+`gnu-time` has to be installed with Homebrew. The problem with OS X is that I don't have
+an Apple computer to test temci on it.
+
+
 Optional Requirements
 ---------------------
 Requirements not needed to run simple benchmarks.

@@ -9,6 +9,7 @@ import typing as t
 import sys
 import logging
 
+import shutil
 from rainbow_logging_handler import RainbowLoggingHandler
 
 from temci.utils.typecheck import Type
@@ -105,8 +106,13 @@ def get_distribution_release() -> str:
 
 
 def does_program_exist(program: str) -> bool:
-    """ Does the passed proram exist? """
-    return does_command_succeed("which {!r}".format(program))
+    """ Does the passed program exist? """
+    return shutil.which(program) is not None
+
+
+def on_apple_os() -> bool:
+    """ Is the current operating system an apple OS X? """
+    return sys.platform == 'darwin'
 
 
 def join_strs(strs: t.List[str], last_word: str = "and") -> str:

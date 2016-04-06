@@ -10,7 +10,8 @@ from temci.build.builder import Builder, env_variables_for_rand_conf
 from temci.setup import setup
 from temci.utils.settings import Settings
 from temci.utils.typecheck import NoInfo
-from temci.utils.util import has_root_privileges, join_strs, does_command_succeed, sphinx_doc
+from temci.utils.util import has_root_privileges, join_strs, does_command_succeed, sphinx_doc, on_apple_os, \
+    does_program_exist
 from temci.utils.vcs import VCSDriver
 from ..utils.typecheck import *
 from ..utils.registry import AbstractRegistry, register
@@ -483,7 +484,7 @@ class ExecRunDriver(AbstractRunDriver):
                                 .format(cpuset.get_sub_set(set_id)))
         env = os.environ.copy()
         env.update(block["env"])
-        env.update({'LC_NUMERIC': 'en_US.ASCII'})
+        env.update({'LC_NUMERIC': 'en_US.UTF-8'})
         # print(env["PATH"])
         t = time.time()
         executed_cmd = "; ".join(executed_cmd)
@@ -1018,10 +1019,16 @@ class CPUSpecExecRunner(ExecRunner):
 def time_file(_tmp=[]) -> str:
     """ Returns the command used to execute the (GNU) ``time`` tool (not the built in shell tool). """
     if len(_tmp) == 0:
-        try:
-            _tmp.append(subprocess.check_output(["/bin/which", "time"]).decode().strip())
-        except subprocess.CalledProcessError:
-            return "false && "
+        if on_apple_os():
+            if does_program_exist("gtime"):
+                _tmp.append(shutil.which("gtime"))
+            else:
+                return "false && "
+        else:
+            try:
+                _tmp.append(subprocess.check_output(["/bin/which", "time"]).decode().strip())
+            except subprocess.CalledProcessError:
+                return "false && "
     return _tmp[0]
 
 
