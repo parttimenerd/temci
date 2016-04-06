@@ -891,7 +891,7 @@ class HTMLReporter2(AbstractReporter):
                                    diff=obj.mean_diff(), ci=obj.mean_diff_ci(self.misc["alpha"])))
         tested_per_prop = [
             {
-                "title": "Mean difference",
+                "title": "Difference of means",
                 "popover": _Popover(self, "Explanation", """
                     Difference between the mean of the first and the mean of the second.
                     It's the absolute difference and is often less important that the relative differences.
@@ -993,7 +993,7 @@ class HTMLReporter2(AbstractReporter):
         if self.misc["mean_in_comparison_tables"]:
             tested_per_prop.extend([
             {
-                "title": "Mean difference",
+                "title": "Difference of means",
                 "popover": _Popover(self, "Explanation", """
                     Difference between the mean of the first and the mean of the second.
                     It's the absolute difference and is often less important that the relative differences.
@@ -1025,7 +1025,7 @@ class HTMLReporter2(AbstractReporter):
             }])
         if self.misc["min_in_comparison_tables"]:
             tested_per_prop.extend([{
-                "title": "Min difference",
+                "title": "Difference of mins",
                 "popover": None,#Popover(self, "", """  """),
                 "func": lambda x: x.first.min() - x.second.min(),
                 "format": "{:5.5f}"

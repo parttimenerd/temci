@@ -132,7 +132,7 @@ class StatMessage:
 
     @classmethod
     def check_value(cls, value: Number) -> bool:
-        """ Is this type of message appropriate for the passed value of the related statistical property? """
+        """ Is this type of message inappropriate for the passed value of the related statistical property? """
         raise NotImplementedError()
 
     @classmethod
@@ -1079,7 +1079,7 @@ class EffectToSmallWarning(StatWarning):
 
     @classmethod
     def check_value(cls, value) -> bool:
-        return value >= cls.border_value
+        return abs(value) >= cls.border_value
 
 
 class EffectToSmallError(EffectToSmallWarning):
