@@ -24,6 +24,8 @@ import click, yaml, os
 if util.can_import("numpy"):
     import numpy as np
     import pandas as pd
+    import matplotlib as mpl
+    mpl.use("agg")
 from temci.utils.settings import Settings
 from multiprocessing import Pool
 from temci.utils.util import join_strs

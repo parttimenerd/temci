@@ -20,6 +20,8 @@ if util.can_import("scipy"):
     import scipy as sp
     import scipy.stats as st
     import pandas as pd
+    import matplotlib as mpl
+    mpl.use("agg")
 from temci.utils.typecheck import *
 
 
@@ -633,6 +635,7 @@ class BaseStatObject:
         sns.reset_defaults()
         sns.set_style("darkgrid")
         sns.set_palette(sns.color_palette("muted"))
+        mpl.use("agg")
 
 
 class Single(BaseStatObject):
