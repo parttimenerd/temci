@@ -1,7 +1,6 @@
 temci
 =====
-An advanced benchmarking tool. Currently developed as my bachelor thesis.
-Therefore expect some rough parts, but most of the features should (hopefully) work well.
+An advanced benchmarking tool. Developing started as part of my bachelor thesis.
 
 Why should you use temci?
 -------------------------
@@ -261,8 +260,4 @@ temci is such a name. It's lojban for time (i.e. the time duration between to mo
 
 Contributing
 ------------
-Bug reports are highly appreciated.
-
-As this is the code for my bachelor thesis, actual code contributions are problematic. Whole classes or modules (like
-plugins, reporters are runners can be contributed, as they pose no attribution problem (I can clearly state that
-a class is written by XYZ). Other kinds of code contribution could pose problems for me.
+Bug reports and code contributions are highly appreciated.
