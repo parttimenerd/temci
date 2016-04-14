@@ -1886,120 +1886,119 @@ def produce_ttest_comparison_table(datas: t.List[t.List[DataBlock]],
     with open(filename + ".tex", "w") as f:
         f.write(tuples_to_tex(tuples))
 
-if __name__ != "__main__":
-    exit(0)
+if __name__ == "__main__":
 
-#MODE = "haskell_full"
-MODE = "rustc" # requires multirust
-#MODE = "haskell_c_compilers"
+    #MODE = "haskell_full"
+    MODE = "rustc" # requires multirust
+    #MODE = "haskell_c_compilers"
 
-if MODE == "rustc":
-    optis = [0, 1, 2, 3]
-    for opti in reversed(optis):
-        try:
-            config = replace_run_with_build_cmd(rust_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
-            process(config, "compile_time_rust_" + str(opti), temci_runs=30, build=False, benchmark=False,
-                    temci_options="--nice --other_nice --send_mail me@mostlynerdless.de", temci_stop_start=True)
-            #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
-        except BaseException as ex:
-            logging.error(ex)
-            pass
-        os.sync()
-        #time.sleep(60)
+    if MODE == "rustc":
+        optis = [0, 1, 2, 3]
+        for opti in reversed(optis):
+            try:
+                config = replace_run_with_build_cmd(rust_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
+                process(config, "compile_time_rust_" + str(opti), temci_runs=30, build=False, benchmark=False,
+                        temci_options="--nice --other_nice --send_mail me@mostlynerdless.de", temci_stop_start=True)
+                #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
+            except BaseException as ex:
+                logging.error(ex)
+                pass
+            os.sync()
+            #time.sleep(60)
 
-    for opti in reversed(optis[-1:]):
-        try:
-            config = rust_config(INPUTS_PER_CATEGORY, opti)
-            process(config, "rust_" + str(opti),
+        for opti in reversed(optis[-1:]):
+            try:
+                config = rust_config(INPUTS_PER_CATEGORY, opti)
+                process(config, "rust_" + str(opti),
+                        temci_options="--discarded_blocks 1 --nice --other_nice --send_mail me@mostlynerdless.de ",
+                        build=False, benchmark=False, property="task-clock",
+                        temci_stop_start=False)
+                #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
+            except BaseException as ex:
+
+                logging.error(ex)
+                pass
+            os.sync()
+            #time.sleep(60)
+        """
+        for prop in ["task-clock"]:#["task-clock", "branch-misses", "cache-references", "cache-misses"]:
+            config = rust_config(INPUTS_PER_CATEGORY, 3)
+            process(config, "rust_3", report_dir="rust_c_" + prop,
                     temci_options="--discarded_blocks 1 --nice --other_nice --send_mail me@mostlynerdless.de ",
                     build=False, benchmark=False, property="task-clock",
                     temci_stop_start=False)
-            #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
-        except BaseException as ex:
+        """
 
-            logging.error(ex)
-            pass
-        os.sync()
-        #time.sleep(60)
-    """
-    for prop in ["task-clock"]:#["task-clock", "branch-misses", "cache-references", "cache-misses"]:
-        config = rust_config(INPUTS_PER_CATEGORY, 3)
-        process(config, "rust_3", report_dir="rust_c_" + prop,
-                temci_options="--discarded_blocks 1 --nice --other_nice --send_mail me@mostlynerdless.de ",
-                build=False, benchmark=False, property="task-clock",
-                temci_stop_start=False)
-    """
+    if MODE == "haskell_full":
+        optis = ["", "-O", "-O2", "-Odph"]
 
-if MODE == "haskell_full":
-    optis = ["", "-O", "-O2", "-Odph"]
+        for opti in optis:
+            try:
+                config = replace_run_with_build_cmd(haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
+                process(config, "compile_time_haskell_" + opti, temci_runs=30, build=False, benchmark=False)
+                #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
+            except OSError as ex:
+                logging.error(ex)
+                pass
+            os.sync()
+            #time.sleep(60)
+        optis = ["-O", "-O2", "-Odph"]
+        for opti in reversed(optis):
+            try:
+                config = haskel_config(INPUTS_PER_CATEGORY, opti)
+                process(config, "haskell" + opti, temci_options=" --discarded_blocks 1 --nice --other_nice", build=False, benchmark=False, property="task-clock")
+                logging.info("processed")
+                #shutil.rmtree("/tmp/haskell" + opti)
+            except BaseException as ex:
+                logging.exception(ex)
+                pass
+        configs = [haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti) for opti in optis]
+        data = [yaml.load(open("compile_time_haskell_" + opti + ".yaml", "r")) for opti in optis]
+        for (by_opti, app) in [(True, "_grouped_by_opti"), (False, "_grouped_by_version")]:
+            lang = Language.merge_different_versions_of_the_same(configs, optis, by_opti)
+            lang.set_merged_run_data_from_result_dict(data, optis)
+            for mode in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_first]:
+                CALC_MODE = mode
+                _report_dir = "compile_time_haskell_merged_report" + "_" + str(mode) + app
+                os.system("mkdir -p " + _report_dir)
+                lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
 
-    for opti in optis:
-        try:
-            config = replace_run_with_build_cmd(haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti))
-            process(config, "compile_time_haskell_" + opti, temci_runs=30, build=False, benchmark=False)
-            #shutil.rmtree("/tmp/compile_time_haskell_" + opti)
-        except OSError as ex:
-            logging.error(ex)
-            pass
-        os.sync()
-        #time.sleep(60)
-    optis = ["-O", "-O2", "-Odph"]
-    for opti in reversed(optis):
-        try:
-            config = haskel_config(INPUTS_PER_CATEGORY, opti)
-            process(config, "haskell" + opti, temci_options=" --discarded_blocks 1 --nice --other_nice", build=False, benchmark=False, property="task-clock")
-            logging.info("processed")
-            #shutil.rmtree("/tmp/haskell" + opti)
-        except BaseException as ex:
-            logging.exception(ex)
-            pass
-    configs = [haskel_config(empty_inputs(INPUTS_PER_CATEGORY), opti) for opti in optis]
-    data = [yaml.load(open("compile_time_haskell_" + opti + ".yaml", "r")) for opti in optis]
-    for (by_opti, app) in [(True, "_grouped_by_opti"), (False, "_grouped_by_version")]:
-        lang = Language.merge_different_versions_of_the_same(configs, optis, by_opti)
-        lang.set_merged_run_data_from_result_dict(data, optis)
-        for mode in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_first]:
-            CALC_MODE = mode
-            _report_dir = "compile_time_haskell_merged_report" + "_" + str(mode) + app
-            os.system("mkdir -p " + _report_dir)
-            lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
+        optis = ["-O", "-O2", "-Odph"]
+        configs = [haskel_config(INPUTS_PER_CATEGORY, opti) for opti in optis]
+        data = [yaml.load(open("haskell" + opti + ".yaml", "r")) for opti in optis]
 
-    optis = ["-O", "-O2", "-Odph"]
-    configs = [haskel_config(INPUTS_PER_CATEGORY, opti) for opti in optis]
-    data = [yaml.load(open("haskell" + opti + ".yaml", "r")) for opti in optis]
+        """
+        for (by_opti, app) in [(True, "_grouped_by_opti"), (False, "_grouped_by_version")]:
+            lang = Language.merge_different_versions_of_the_same(configs, optis, by_opti)
+            lang.set_merged_run_data_from_result_dict(data, optis)
+            for mode in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_first]:
+                CALC_MODE = mode
+                _report_dir = "haskell_merged_report" + "_" + str(mode) + app
+                os.system("mkdir -p " + _report_dir)
+                lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
 
-    """
-    for (by_opti, app) in [(True, "_grouped_by_opti"), (False, "_grouped_by_version")]:
-        lang = Language.merge_different_versions_of_the_same(configs, optis, by_opti)
-        lang.set_merged_run_data_from_result_dict(data, optis)
-        for mode in [Mode.geom_mean_rel_to_best, Mode.mean_rel_to_first]:
-            CALC_MODE = mode
-            _report_dir = "haskell_merged_report" + "_" + str(mode) + app
-            os.system("mkdir -p " + _report_dir)
-            lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
+        for (first_opti, second_opti, app) in [(0, 1, "O-O2"), (1, 2, "O2-Odph")]:
+            lang = Language.from_config_dict(configs[first_opti])
+            lang.set_difference_from_two_result_dicts((data[first_opti], data[second_opti]), app)
+            for mode in [Mode.mean_rel_to_one]:
+                CALC_MODE = mode
+                _report_dir = "haskell_" + app + "_report" + "_" + str(mode)
+                os.system("mkdir -p " + _report_dir)
+                lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
+        """
 
-    for (first_opti, second_opti, app) in [(0, 1, "O-O2"), (1, 2, "O2-Odph")]:
-        lang = Language.from_config_dict(configs[first_opti])
-        lang.set_difference_from_two_result_dicts((data[first_opti], data[second_opti]), app)
-        for mode in [Mode.mean_rel_to_one]:
-            CALC_MODE = mode
-            _report_dir = "haskell_" + app + "_report" + "_" + str(mode)
-            os.system("mkdir -p " + _report_dir)
-            lang.store_html(_report_dir, clear_dir=True, html_func=lang.get_html2)
-    """
-
-    produce_ttest_comparison_table(data, ["ghc-" + x for x in AV_GHC_VERSIONS], optis, "haskell_comp")
+        produce_ttest_comparison_table(data, ["ghc-" + x for x in AV_GHC_VERSIONS], optis, "haskell_comp")
 
 
 
-if MODE == "haskell_c_compilers":
-    for opti in ["-Odph"]:
-        try:
-            config = haskel_config(INPUTS_PER_CATEGORY, opti, ghc_versions=AV_GHC_VERSIONS[-1:], used_c_compilers=[None, "clang", "gcc"])
-            process(config, "haskell_c_compilers_" + opti, temci_options=" --discarded_blocks 0 --nice --other_nice", build=True,
-                    benchmark=True, property="task-clock", )
-            logging.info("processed")
-            #shutil.rmtree("/tmp/haskell" + opti)
-        except BaseException as ex:
-            logging.exception(ex)
-            pass
+    if MODE == "haskell_c_compilers":
+        for opti in ["-Odph"]:
+            try:
+                config = haskel_config(INPUTS_PER_CATEGORY, opti, ghc_versions=AV_GHC_VERSIONS[-1:], used_c_compilers=[None, "clang", "gcc"])
+                process(config, "haskell_c_compilers_" + opti, temci_options=" --discarded_blocks 0 --nice --other_nice", build=True,
+                        benchmark=True, property="task-clock", )
+                logging.info("processed")
+                #shutil.rmtree("/tmp/haskell" + opti)
+            except BaseException as ex:
+                logging.exception(ex)
+                pass

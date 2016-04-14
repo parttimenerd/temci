@@ -144,24 +144,34 @@ class RunProcessor:
         Benchmark and teardown.
         """
         try:
-            time_per_run = self._make_discarded_runs()
-            last_round_time = time.time()
-            if time_per_run != None:
-                last_round_time -= time_per_run * self.run_block_size
+
             show_progress = Settings().has_log_level("info") and \
                             ("exec" != RunDriverRegistry.get_used() or "start_stop" not in ExecRunDriver.get_used())
             showed_progress_before = False
-            if show_progress:
-                if self.fixed_runs:
-                    label = "Benchmark {} times".format(self.max_runs)
-                else:
-                    label = "Benchmark between {} and {} times".format(self.min_runs, self.max_runs)
-                with click.progressbar(range(0, self.max_runs), label=label) as runs:
-                    for run in runs:
-                        if self._finished():
-                            break
-                        self._benchmarking_block_run()
+            discard_label = "Make the {} discarded benchmarks".format(self.discarded_runs)
+            if self.fixed_runs:
+                label = "Benchmark {} times".format(self.max_runs)
             else:
+                label = "Benchmark {} to {} times".format(self.min_runs, self.max_runs)
+            start_label = discard_label if self.discarded_runs > 0 else label
+            label_format = "{:32s}"
+            if show_progress:
+                with click.progressbar(range(0, self.max_runs + self.discarded_runs),
+                                       label=label_format.format(start_label)) as runs:
+                    for run in runs:
+                        if run < self.discarded_runs:
+                            self._benchmarking_block_run(block_size=1, discard=True)
+                        else:
+                            if self._finished():
+                                break
+                            self._benchmarking_block_run()
+                        if run == self.discarded_runs - 1:
+                            runs.label = label_format.format(label)
+            else:
+                time_per_run = self._make_discarded_runs()
+                last_round_time = time.time()
+                if time_per_run != None:
+                    last_round_time -= time_per_run * self.run_block_size
                 while not self._finished():
                     self._benchmarking_block_run()
         except BaseException as ex:

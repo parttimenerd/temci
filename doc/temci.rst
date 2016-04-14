@@ -1,5 +1,5 @@
-temci package
-=============
+Code documentation
+==================
 
 Subpackages
 -----------

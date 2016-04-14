@@ -89,6 +89,8 @@ language = 'en'
 # directories to ignore when looking for source files.
 exclude_patterns = ['_build']
 
+todo_include_todos = True
+
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
 #default_role = None
@@ -121,10 +123,23 @@ todo_include_todos = True
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-if on_rtd:
-    html_theme = 'default'
+#if on_rtd:
+
+if not on_rtd:  # only import and set the theme if we're building docs locally
+    import sphinx_rtd_theme
+    html_theme = 'sphinx_rtd_theme'
+    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+    #html_style = 'css/borg.css'
 else:
-    html_theme = 'alabaster'
+    html_context = {
+        'css_files': [
+            'https://media.readthedocs.org/css/sphinx_rtd_theme.css',
+            'https://media.readthedocs.org/css/readthedocs-doc-embed.css',
+     #       '_static/css/borg.css',
+        ],
+    }
+#else:
+#    html_theme = 'alabaster'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -143,7 +158,7 @@ else:
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-#html_logo = None
+html_logo = "_static/logo_white.png"
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -168,9 +183,6 @@ html_static_path = ['_static']
 # typographically correct entities.
 #html_use_smartypants = True
 
-# Custom sidebar templates, maps document names to template names.
-#html_sidebars = {}
-
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
 #html_additional_pages = {}
@@ -179,7 +191,7 @@ html_static_path = ['_static']
 #html_domain_indices = True
 
 # If false, no index is generated.
-#html_use_index = True
+html_use_index = False
 
 # If true, the index is split into individual pages for each letter.
 #html_split_index = False
@@ -197,6 +209,11 @@ html_static_path = ['_static']
 # contain a <link> tag referring to it.  The value of this option must be the
 # base URL from which the finished HTML is served.
 #html_use_opensearch = ''
+
+html_sidebars = {
+    'index': ['sidebarlogo.html', 'sidebarusefullinks.html', 'searchbox.html'],
+    '**': ['sidebarlogo.html', 'relations.html', 'searchbox.html', 'localtoc.html', 'sidebarusefullinks.html']
+}
 
 # This is the file name suffix for HTML files (e.g. ".xhtml").
 #html_file_suffix = None

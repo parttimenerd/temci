@@ -3,21 +3,24 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to temci's documentation!
-=================================
+.. include:: ../README.rst
 
-Contents:
+Contents of this documentation
+==============================
 
 .. toctree::
-   :maxdepth: 100
+   :maxdepth: 2
 
+   installation
+   temci_build
+   temci_run
+   temci_report
+   resources
+   changelog
+   development
+   license
    temci
 
-
-Indices and tables
-==================
-
-* :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
 
