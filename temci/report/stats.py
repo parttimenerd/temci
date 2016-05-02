@@ -982,34 +982,18 @@ class TestedPairsAndSingles(BaseStatObject):
     A wrapper around a list of tested pairs and singles.
     """
 
-    def __init__(self, singles: t.List[t.Union[RunData, Single]], pairs: t.List[TestedPair] = None,
-                 distinct_descriptions: bool = False):
+    def __init__(self, singles: t.List[t.Union[RunData, Single]], pairs: t.List[TestedPair] = None):
         """
         Creates an instance.
 
         :param singles: compared single objects or run data objects that are turned into single object
         :param pairs: compared pairs of single objects, if None they created out of the passed single objects
-        :param distinct_descriptions: append numbers to descriptions if needed to make them unique
         """
         super().__init__()
         self.singles = list(map(Single, singles))  # type: t.List[Single]
         """ Compared single objects """
         self.pairs = pairs or []  # type: t.List[TestedPair]
         """ Compared tested pair objects """
-        if distinct_descriptions:
-            descr_attrs = defaultdict(lambda: 0) # type: t.Dict[str, int]
-            descr_nr_zero = {} # type: t.Dict[str, Single]
-            for single in self.singles:
-                if "description" in single.attributes:
-                    descr = single.attributes["description"]
-                    num = descr_attrs[descr]
-                    descr_attrs[descr] += 1
-                    if num != 0:
-                        single.attributes["description"] += " [{}]".format(num)
-                        if num == 1:
-                            descr_nr_zero[descr].attributes["description"] += " [0]"
-                    else:
-                        descr_nr_zero[descr] = single
         if pairs is None and len(self.singles) > 1:
             for i in range(0, len(self.singles) - 1):
                 for j in range(i + 1, len(self.singles)):

@@ -129,13 +129,13 @@ if not on_rtd:  # only import and set the theme if we're building docs locally
     import sphinx_rtd_theme
     html_theme = 'sphinx_rtd_theme'
     html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-    #html_style = 'css/borg.css'
+    html_style = 'css/temci.css'
 else:
     html_context = {
         'css_files': [
             'https://media.readthedocs.org/css/sphinx_rtd_theme.css',
             'https://media.readthedocs.org/css/readthedocs-doc-embed.css',
-     #       '_static/css/borg.css',
+            '_static/css/temci.css',
         ],
     }
 #else:

@@ -16,7 +16,7 @@ import itertools
 from temci.report.stats import TestedPairsAndSingles, BaseStatObject, TestedPair, TestedPairProperty, StatMessage, \
     StatMessageType, Single, SingleProperty, SinglesProperty
 from temci.report.testers import TesterRegistry, Tester
-from temci.report.rundata import RunDataStatsHelper, RunData
+from temci.report.rundata import RunDataStatsHelper, RunData, ExcludedInvalidData
 from temci.utils.typecheck import *
 from temci.utils.registry import AbstractRegistry, register
 import temci.utils.util as util
@@ -71,9 +71,12 @@ class AbstractReporter:
             self.stats_helper = RunDataStatsHelper.init_from_dicts(runs)
         else:
             self.stats_helper = stats_helper
-        self.stats_helper = self.stats_helper.exclude_properties(excluded_properties)
-        self.stats = TestedPairsAndSingles(self.stats_helper.valid_runs(),  # type: TestedPairsAndSingles
-                                           distinct_descriptions=True)
+        self.stats_helper = self.stats_helper.exclude_properties(excluded_properties)  # type: RunDataStatsHelper
+        self.stats_helper.make_descriptions_distinct()
+        self.excluded_data_info = ExcludedInvalidData()  # type: ExcludedInvalidData
+        if Settings()["report/exclude_invalid"]:
+            self.stats_helper, self.excluded_data_info = self.stats_helper.exclude_invalid()
+        self.stats = TestedPairsAndSingles(self.stats_helper.valid_runs())  # type: TestedPairsAndSingles
         """ This object is used to simplify the work with the data and the statistics """
 
     def report(self):
@@ -592,8 +595,9 @@ class HTMLReporter(AbstractReporter):
     "gen_xls": Bool() // Default(False) // Description("Generate excel files for all tables"),
     "show_zoomed_out": Bool() // Default(False)
                        // Description("Show zoomed out (x min = 0) figures in the extended summaries?"),
-    "percent_format": Str() // Default("{:5.5%}") // Description("Format string used to format floats as percentages"),
-    "min_in_comparison_tables": Bool() // Default(True)
+    "percent_format": Str() // Default("{:5.2%}") // Description("Format string used to format floats as percentages"),
+    "float_format": Str() // Default("{:5.2e}") // Description("Format string used to format floats"),
+    "min_in_comparison_tables": Bool() // Default(False)
                                 // Description("Show the mininmum related values in the big comparison table"),
     "mean_in_comparison_tables": Bool() // Default(True)
                                 // Description("Show the mean related values in the big comparison table")
@@ -617,6 +621,7 @@ class HTMLReporter2(AbstractReporter):
         shutil.copytree(resources_path, self.misc["out"])
         runs = self.stats_helper.valid_runs()
         self._percent_format = self.misc["percent_format"]
+        self._float_format = self.misc["float_format"]
         self._app_html = ""
         html = """<html lang="en">
     <head>
@@ -675,7 +680,8 @@ class HTMLReporter2(AbstractReporter):
             util.warn_for_pdflatex_non_existence_once()
             self.misc["gen_pdf"] = False
         comparing_str = join_strs([single.description() for single in self.stats.singles])
-        inner_html = """
+        inner_html = self._format_excluded_data_warnings()
+        inner_html += """
             <h2>Summary</h2>
         """
         inner_html += self._format_errors_and_warnings(self.stats)
@@ -740,6 +746,23 @@ class HTMLReporter2(AbstractReporter):
         with open(report_filename, "w") as f:
             f.write(html_string)
             logging.info("Wrote report into " + report_filename)
+
+    def _format_excluded_data_warnings(self):
+        html = ""
+        if self.excluded_data_info.excluded_run_datas:
+            html += """
+                <div class="alert alert-danger">
+                     Excluded invalid {} (the data consists only of zeros or NaNs).
+                </div>
+            """.format(join_strs(map(repr, self.excluded_data_info.excluded_run_datas)))
+        for descr in self.excluded_data_info.excluded_properties_per_run_data.keys():
+            html += """
+                <div class="alert alert-warning">
+                  Excluded {} from {!r} (the data consists only of zeros or NaNs).
+                </div>
+            """.format(join_strs(map(repr, self.excluded_data_info.excluded_properties_per_run_data[descr])),
+                       descr)
+        return html
 
     def _full_single_property_comp_table(self, property: str = None) -> '_Table':
         header_cells = []
@@ -886,7 +909,7 @@ class HTMLReporter2(AbstractReporter):
         ci_popover = _Popover(self, "Confidence interval", """
                         The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
                         \\begin{{align}} &\\text{{{first}}} - \\text{{{second}}} \\\\ =& {diff} \\end{{align}}
-                        lies in the interval $$({ci[0]:5.5f}, {ci[1]:5.5f})$$ (assuming the data is normal
+                        lies in the interval \\(({ci[0]:5.5f}, {ci[1]:5.5f})\\) (assuming the data is normal
                         distributed to a certain degree).
                         """.format(p=1-self.misc["alpha"], first=str(obj.first.parent),
                                    second=str(obj.second.parent), prop=obj.property,
@@ -899,7 +922,7 @@ class HTMLReporter2(AbstractReporter):
                     It's the absolute difference and is often less important that the relative differences.
                 """),
                 "func": lambda x: x.mean_diff(),
-                "format": "{:5.5f}"
+                "format": self._float_format
             }, {
                 "title": "... per first mean",
                 "func": lambda x: x.mean_diff_per_mean(),
@@ -940,13 +963,13 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "... ci (lower bound)",
                 "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[0],
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "extended": True,
                 "popover": ci_popover
             } ,{
                 "title": "... ci (upper bound)",
                 "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[1],
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "extended": True,
                 "popover": ci_popover
             }, {
@@ -1001,7 +1024,7 @@ class HTMLReporter2(AbstractReporter):
                     It's the absolute difference and is often less important that the relative differences.
                 """),
                 "func": lambda x: x.mean_diff(),
-                "format": "{:5.5f}"
+                "format": self._float_format
             }, {
                 "title": "... per first mean",
                 "func": lambda x: x.mean_diff_per_mean(),
@@ -1025,12 +1048,13 @@ class HTMLReporter2(AbstractReporter):
                     </ul>
                 """, trigger="hover click")
             }])
+
         if self.misc["min_in_comparison_tables"]:
             tested_per_prop.extend([{
                 "title": "Difference of mins",
                 "popover": None,#Popover(self, "", """  """),
                 "func": lambda x: x.first.min() - x.second.min(),
-                "format": "{:5.5f}"
+                "format": self._float_format
             }, {
                 "title": "... per first min",
                 "func": lambda x: (x.first.min() - x.second.min()) / x.first.min(),
@@ -1054,7 +1078,7 @@ class HTMLReporter2(AbstractReporter):
 #            tested_per_prop.extend([{
 #               "title": "... ci",
 #               "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[0],
-#               "format": "{:5.5f}",
+#               "format": self._float_format,
 #               "extended": True,
 #               "popover": Popover(self, "Confidence interval", """
 #                       The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
@@ -1064,7 +1088,7 @@ class HTMLReporter2(AbstractReporter):
 #           } ,{
 #               "title": "",
 #               "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[1],
-#               "format": "{:5.5f}",
+#               "format": self._float_format,
 #               "extended": True,
 #               "popover": Popover(self, "Confidence interval", """
 #                       The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
@@ -1155,7 +1179,7 @@ class HTMLReporter2(AbstractReporter):
             {
                 "title": "mean",
                 "func": lambda x: x.mean(),
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "popover": _Popover(self, "Explanation", """
                     The simple arithmetical mean
                     \\[ \\frac{1}{n}\\sum_{i=1}^{n} a_i. \\]
@@ -1173,10 +1197,10 @@ class HTMLReporter2(AbstractReporter):
                     (<a href='https://en.wikipedia.org/wiki/Standard_deviation'>wikipedia</a>)
                 """, trigger="hover click"),
                 "func": lambda x: x.std_dev(),
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "extended": True
             }, {
-                "title": "$$\sigma$$ per mean",
+                "title": "\(\sigma\) per mean",
                 "func": lambda x: x.std_dev_per_mean(),
                 "format": self._percent_format,
                 "popover": _Popover(self, "Explanation", """
@@ -1198,12 +1222,12 @@ class HTMLReporter2(AbstractReporter):
                     (<a href='https://en.wikipedia.org/wiki/Standard_error'>wikipedia</a>)</p>""",
                                     trigger="hover focus"),
                 "func": lambda x: x.sem(),
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "extended": False
             }, {
                 "title": "median",
                 "func": lambda x: x.median(),
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "popover": _Popover(self, "Explanation", """
                     The median is the value that seperates that data into two equal sizes subsets
                     (with the &lt; and the &gt; relation respectively).
@@ -1213,21 +1237,24 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "min",
                 "func": lambda x: x.min(),
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "popover": _Popover(self, "Explanation", """The minimum value. It's a bad sign if the maximum
                                                   is far lower than the mean and you can't explain it.
                                                   """),
                 "extended": False
-            }, {
-                "title": "$$\sigma$$ per min",
-                "func": lambda x: x.std_dev() / x.min(),
-                "format": "{:5.5f}",
-                "popover": _Popover(self, "sdf", "sdf"),
-                "extended": False
-            }, {
+            }]
+        if self.misc["min_in_comparison_tables"]:
+            tested_per_prop.extend([{
+                    "title": "\(\sigma\) per min",
+                    "func": lambda x: x.std_dev() / x.min(),
+                    "format": self._float_format,
+                    "popover": _Popover(self, "sdf", "sdf"),
+                    "extended": False
+                }])
+        tested_per_prop.extend([{
                 "title": "max",
                 "func": lambda x: x.max(),
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "popover": _Popover(self, "Explanation", """The maximum value. It's a bad sign if the maximum
                                                   is far higher than the mean and you can't explain it.
                                                   """),
@@ -1242,25 +1269,25 @@ class HTMLReporter2(AbstractReporter):
             }, {
                 "title": "mean ci (lower bound)",
                 "func": lambda x: x.mean_ci(self.misc["alpha"])[0],
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "extended": True,
                 "popover": mean_ci_popover
             } ,{
                 "title": "mean ci (upper bound)",
                 "func": lambda x: x.mean_ci(self.misc["alpha"])[1],
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "extended": True,
                 "popover": mean_ci_popover
             }, {
                 "title": "std dev ci (lower bound)",
                 "func": lambda x: x.std_dev_ci(self.misc["alpha"])[0],
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "extended": True,
                 "popover": mean_ci_popover
             } ,{
                 "title": "std dev ci (upper bound)",
                 "func": lambda x: x.std_dev_ci(self.misc["alpha"])[1],
-                "format": "{:5.5f}",
+                "format": self._float_format,
                 "extended": True,
                 "popover": mean_ci_popover
             }, {
@@ -1281,7 +1308,7 @@ class HTMLReporter2(AbstractReporter):
                 """.format(alpha=self.misc["alpha"])),
                 "extended": True
             }
-        ]
+        ])
 
         if not extended:
             l = []

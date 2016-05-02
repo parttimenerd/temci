@@ -186,7 +186,8 @@ class BuilderThread(threading.Thread):
             if os.path.exists(tmp_build_dir):
                 shutil.rmtree(tmp_build_dir)
             shutil.copytree(item.tmp_dir, tmp_build_dir)
-            env = env_variables_for_rand_conf(item.rand_conf)
+            env = os.environ.copy()
+            env.update(env_variables_for_rand_conf(item.rand_conf))
             logging.info("Thread {}: Building number {}".format(self.id, item.id))
             proc = subprocess.Popen(["/bin/sh", "-c", "export PATH={}; sync;".format(env["PATH"])
                                      + item.build_cmd],

@@ -418,7 +418,7 @@ class AssemblyProcessor:
         :param file: name of the passed file
         :param small_changes: don't randomize the file structure fully
         """
-        if not any(self.config[x] for x in ["file_structure", "heap", "stack", "bss", "data", "rodata"]):
+        if not any(self.config[x] for x in ["file_structure", "heap", "bss", "data", "rodata"]):
             return
         assm = AssemblyFile.from_file(file)
         if self.config["file_structure"]:
@@ -510,10 +510,8 @@ if __name__ == "__main__":
     #assm.randomize_malloc_calls(padding=range(1, 1000))
     #test(assm)
     #assm.randomize_file_structure()
-    assm.randomize_stack(range(0, 10))
     test(assm)
     #print("till randomize")
-    #assm.randomize_stack(padding=range(1, 100))
     #test(assm)
     #for x in  ["bss", "data", "rodata"]:
     #    assm.randomize_sub_segments(x)

@@ -122,6 +122,8 @@ def join_strs(strs: t.List[str], last_word: str = "and") -> str:
     :param strs: strings to join
     :param last_word: passed word that is used between the two last strings
     """
+    if not isinstance(strs, list):
+        strs = list(strs)
     if len(strs) == 1:
         return strs[0]
     elif len(strs) > 1:

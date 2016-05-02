@@ -1,5 +1,5 @@
-Code documentation
-==================
+Documentation of the temci module
+=================================
 
 Subpackages
 -----------

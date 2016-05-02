@@ -306,12 +306,12 @@ def temci__init__run_config(**kwargs):
 
 @cli.command(short_help=command_docs["build"])
 @click.argument('build_file', type=click.Path(exists=True))
-@cmd_option(common_options)
+@cmd_option(CmdOptionList(common_options, build_options))
 def build(build_file: str, **kwargs):
     temci__build(build_file, **kwargs)
 
 
-@document_func(command_docs["build"], common_options, argument="build configuration YAML file")
+@document_func(command_docs["build"], common_options, build_options, argument="build configuration YAML file")
 def temci__build(build_file: str, **kwargs):
     try:
         Settings()["build/in"] = build_file

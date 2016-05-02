@@ -46,7 +46,9 @@ class Settings(metaclass=Singleton):
             "in": Str() // Default("run_output.yaml") // Description("File that contains the benchmarking results")
                     // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
             "excluded_properties": ListOrTuple(Str()) // Default(["__ov-time"])
-                    // Description("Properties that aren't shown in the report.")
+                    // Description("Properties that aren't shown in the report."),
+            "exclude_invalid": BoolOrNone() // Default(True)
+                    // Description("Exclude all data sets that contain only zeros or NaNs.")
         }, all_keys=False),
         "run": Dict({
             "discarded_runs": NaturalNumber() // Description("First n runs that are discarded") // Default(1),

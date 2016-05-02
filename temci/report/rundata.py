@@ -8,6 +8,7 @@ from temci.report.testers import Tester, TesterRegistry
 from temci.utils.typecheck import *
 from temci.utils.settings import Settings
 import temci.utils.util as util
+from collections import defaultdict
 if util.can_import("scipy"):
     import scipy
 import typing as t
@@ -117,6 +118,24 @@ class RunData(object):
                 data[prop] = self.data[prop]
         return RunData(data, self.attributes, self.external)
 
+    def exclude_invalid(self) -> t.Tuple[t.Optional['RunData'], t.List[str]]:
+        """
+        Exclude properties that only have zeros or NaNs as measurements.
+
+        :return: (new run data instance or None if all properties are excluded, excluded properties)
+        """
+        data = {}
+        excluded = []
+        nan = float("nan")
+        for prop in self.data:
+            if not all(x == 0 or x == nan for x in self.data[prop]):
+                data[prop] = self.data[prop]
+            else:
+                excluded.append(prop)
+        excluded = sorted(excluded)
+        if len(data) > 0:
+            return (RunData(data, self.attributes, self.external), excluded)
+        return (None, excluded)
 
 class RunDataStatsHelper(object):
     """
@@ -129,7 +148,6 @@ class RunDataStatsHelper(object):
 
         :param runs: list of run data objects
         :param tester: used tester or tester that is set in the settings
-
         """
         self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),  # type: Tester
                                                             Settings()["stats/uncertainty_range"])
@@ -142,6 +160,23 @@ class RunDataStatsHelper(object):
         Number of external program blocks (blocks for which the data was obtained in a different benchmarking session)
         """
 
+    def make_descriptions_distinct(self):
+        """
+        Append numbers to descriptions if needed to make them unique
+        """
+        descr_attrs = defaultdict(lambda: 0)  # type: t.Dict[str, int]
+        descr_nr_zero = {}  # type: t.Dict[str, RunData]
+        for single in self.runs:
+            if "description" in single.attributes:
+                descr = single.attributes["description"]
+                num = descr_attrs[descr]
+                descr_attrs[descr] += 1
+                if num != 0:
+                    single.attributes["description"] += " [{}]".format(num)
+                    if num == 1:
+                        descr_nr_zero[descr].attributes["description"] += " [0]"
+                else:
+                    descr_nr_zero[descr] = single
 
     def properties(self) -> t.List[str]:
         """
@@ -395,3 +430,39 @@ class RunDataStatsHelper(object):
             if run is not None:
                 runs.append(run.exclude_properties(properties))
         return RunDataStatsHelper(runs, self.tester, self.external_count)
+
+    def exclude_invalid(self) -> t.Tuple['RunDataStatsHelper', 'ExcludedInvalidData']:
+        """
+        Exclude all properties of run datas that only have zeros or NaNs as measurements.
+
+        :return: (new instance, info about the excluded data)
+        """
+        excl = ExcludedInvalidData()
+        runs = []
+        external_count = self.external_count
+        for run in self.runs:
+            run_data, excl_props = run.exclude_invalid()
+            if run_data:
+                if excl_props:
+                    excl.excluded_properties_per_run_data[run.description()] = excl_props
+                runs.append(run_data)
+            else:
+                excl.excluded_run_datas.append(run.description())
+                if run.external:
+                    external_count -= 1
+        return RunDataStatsHelper(runs, self.tester, external_count), excl
+
+
+class ExcludedInvalidData:
+    """
+    Info object that contains informations about the excluded invalid data.
+    """
+
+    def __init__(self):
+        self.excluded_run_datas = []  # type: t.List[str]
+        """ Descriptions of the fully excluded run datas """
+        self.excluded_properties_per_run_data = util.InsertionTimeOrderedDict()  # type: t.Dict[str, t.List[str]]
+        """
+        Run data descriptions mapped to the excluded properties per run data.
+        Only includes not fully excluded run datas.
+        """

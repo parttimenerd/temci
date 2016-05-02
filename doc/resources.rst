@@ -8,4 +8,4 @@ This a collection of additional resources that are related to temci.
     Institute of Technology. It's written in german.
 
 
-Talks at conferences like the `GPN <https://entropia.de/GPN16>`_ in Karlsruhe all planned.
+Talks at conferences like the `GPN <https://entropia.de/GPN16>`_ in Karlsruhe are planned.
