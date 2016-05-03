@@ -1025,7 +1025,7 @@ class TestedPairsAndSingles(BaseStatObject):
         Returns the properties that are shared among all single run data objects.
         """
         if not self.singles:
-            return
+            return []
         props = set(self.singles[0].properties.keys())
         for single in self.singles[1:]:
             props.intersection_update(single.properties.keys())

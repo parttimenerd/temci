@@ -30,6 +30,7 @@ from temci.utils.settings import Settings
 from multiprocessing import Pool
 from temci.utils.util import join_strs
 import typing as t
+from temci.utils.number import format_number
 
 class ReporterRegistry(AbstractRegistry):
     """
@@ -114,10 +115,13 @@ class ConsoleReporter(AbstractReporter):
                       .format(descr=block.description(), num=len(block.data[block.properties[0]])), file=f)
                 for prop in sorted(block.properties):
                     mean = np.mean(block[prop])
-                    stdev = np.std(block[prop])
-                    print_func("\t {prop:<18} mean = {mean:>15.5f}, "
-                          "deviation = {dev_perc:>10.5%} ({dev:>15.5f})".format(
-                        prop=prop, mean=mean,
+                    stdev = np.std(block[prop]) / mean
+                    mean_str = format_number(mean, deviation=stdev,
+                                             scientic_notation=True,
+                                             omit_insignificant_decimal_places=False,
+                                             force_min_decimal_places=True)
+                    print_func("\t {prop:<18} mean = {mean:>15s}, deviation = {dev:>5.2%}".format(
+                        prop=prop, mean=mean_str,
                         dev=stdev, dev_perc=stdev/mean
                     ), file=f)
             if with_tester_results:
@@ -151,7 +155,7 @@ class ConsoleReporter(AbstractReporter):
                 perc = prop_data["p_val"]
                 if prop_data["unequal"]:
                     perc = 1 - perc
-                print_func("\t\t {descr:<18} probability = {perc:>10.5%}, speed up = {speed_up:>10.5%}"
+                print_func("\t\t {descr:<18} probability = {perc:>10.0%}, speed up = {speed_up:>10.2%}"
                       .format(descr=prop_data["description"], perc=perc,
                               speed_up=prop_data["speed_up"]), file=file)
 
