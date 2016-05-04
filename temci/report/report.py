@@ -77,14 +77,20 @@ class AbstractReporter:
         self.excluded_data_info = ExcludedInvalidData()  # type: ExcludedInvalidData
         if Settings()["report/exclude_invalid"]:
             self.stats_helper, self.excluded_data_info = self.stats_helper.exclude_invalid()
+        if Settings()["report/long_properties"]:
+            self.stats_helper = self.stats_helper.long_properties()
         self.stats = TestedPairsAndSingles(self.stats_helper.valid_runs())  # type: TestedPairsAndSingles
         """ This object is used to simplify the work with the data and the statistics """
+        if not self.stats_helper.properties():
+            logging.error("There are no valid properties in your'e data set or you excluded all of them.")
+            raise KeyboardInterrupt()
 
     def report(self):
         """
         Create a report and output or store it as configured.
         """
         raise NotImplementedError()
+
 
 @register(ReporterRegistry, "console", Dict({
     "out": FileNameOrStdOut() // Default("-") // Description("Output file name or stdard out (-)")

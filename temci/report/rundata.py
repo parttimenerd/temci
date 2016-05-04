@@ -3,6 +3,7 @@ Contains the RunData object for benchmarking data of specific program block
 and the RunDataStatsHelper that provides helper methods for working with
 these objects.
 """
+from pprint import pprint
 
 from temci.report.testers import Tester, TesterRegistry
 from temci.utils.typecheck import *
@@ -31,6 +32,7 @@ class RunData(object):
         :param data: optional dictionary mapping each property to a list of actual values
         :param attributes: dictionary of optional attributes that describe its program block
         :param external: does the data come from a prior benchmarking?
+        :param property_descriptions: dictionary containing short descriptions for some properties
         """
         typecheck(data, E(None) | Dict(all_keys=False))
         typecheck(attributes, Exact(None) | Dict(key_type=Str(), all_keys=False))
@@ -43,7 +45,22 @@ class RunData(object):
         if data is not None and len(data) > 0:
             self.add_data_block(data)
         self.attributes = attributes or {}  # type: t.Dict[str, str]
-        """ dictionary of optional attributes that describe its program block """
+        """ Dictionary of optional attributes that describe its program block """
+
+    def clone(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
+                 external: bool = None) -> 'RunData':
+        """
+        Clone this instance and replaces thereby some instance properties.
+
+        :param data: optional dictionary mapping each property to a list of actual values
+        :param attributes: dictionary of optional attributes that describe its program block
+        :param external: does the data come from a prior benchmarking?
+        :return: new instance
+        """
+        def alt(new, old):
+            return new if new is not None else old
+        return RunData(data=alt(data,self.data), attributes=alt(attributes, self.attributes),
+                       external=alt(external, self.external))
 
     def add_data_block(self, data_block: t.Dict[str, t.List[Number]]):
         """
@@ -87,14 +104,15 @@ class RunData(object):
         """
         return self.data[property]
 
-    def to_dict(self) -> t.Union[t.Dict[str, str], t.Dict[str, t.List[Number]]]:
+    def to_dict(self) -> t.Dict[str, t.Union[t.Dict[str, str], t.Dict[str, t.List[Number]]]]:
         """
         Returns a dictionary that represents this run data object.
         """
-        return {
+        d = {
             "attributes": self.attributes,
             "data": self.data
         }
+        return d
 
     def __str__(self) -> str:
         return repr(self.attributes)
@@ -116,13 +134,14 @@ class RunData(object):
         for prop in self.data:
             if prop not in properties:
                 data[prop] = self.data[prop]
-        return RunData(data, self.attributes, self.external)
+        return self.clone(data=data)
 
     def exclude_invalid(self) -> t.Tuple[t.Optional['RunData'], t.List[str]]:
         """
         Exclude properties that only have zeros or NaNs as measurements.
 
-        :return: (new run data instance or None if all properties are excluded, excluded properties)
+        :return: (new run data instance or None if all properties are excluded or the current if nothing changed,
+                  excluded properties)
         """
         data = {}
         excluded = []
@@ -133,21 +152,45 @@ class RunData(object):
             else:
                 excluded.append(prop)
         excluded = sorted(excluded)
+        if not excluded:
+            return self, []
         if len(data) > 0:
-            return (RunData(data, self.attributes, self.external), excluded)
-        return (None, excluded)
+            return self.clone(data=data), excluded
+        return None, excluded
+
+    def long_properties(self, long_versions: t.Dict[str, str]) -> 'RunData':
+        """
+        Replace the short properties names with their long version from the passed dictionary.
+
+        :param long_versions: long versions of some properties
+        :return: new run data instance (or current instance if nothing changed)
+        """
+        if not long_versions:
+            return self
+        data = {}
+        for prop in self.data:
+            longer_prop = prop
+            if prop in long_versions:
+                longer_prop = long_versions[prop]
+            data[longer_prop] = self.data[prop]
+        return self.clone(data=data)
+
 
 class RunDataStatsHelper(object):
     """
     This class helps to simplify the work with a set of run data observations.
     """
 
-    def __init__(self, runs: t.List[RunData], tester: Tester = None, external_count: int = 0):
+    def __init__(self, runs: t.List[RunData], tester: Tester = None, external_count: int = 0,
+                 property_descriptions: t.Dict[str, str] = None):
         """
         Don't use the constructor use init_from_dicts if possible.
 
         :param runs: list of run data objects
         :param tester: used tester or tester that is set in the settings
+        :param external_count: Number of external program blocks (blocks for which the data was obtained in a
+        different benchmarking session)
+        :param property_descriptions: mapping of some properties to their descriptions or longer versions
         """
         self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),  # type: Tester
                                                             Settings()["stats/uncertainty_range"])
@@ -159,6 +202,25 @@ class RunDataStatsHelper(object):
         """
         Number of external program blocks (blocks for which the data was obtained in a different benchmarking session)
         """
+        self.property_descriptions = property_descriptions or {}  # type: t.Dict[str, str]
+
+    def clone(self, runs: t.List[RunData] = None, tester: Tester = None, external_count: int = None,
+              property_descriptions: t.Dict[str, str] = None) -> 'RunDataStatsHelper':
+        """
+        Clones this instance and replaces the given instance properties.
+
+        :param runs: list of run data objects
+        :param tester: used tester or tester that is set in the settings
+        :param external_count: Number of external program blocks (blocks for which the data was obtained in a
+        different benchmarking session)
+        :param property_descriptions: mapping of some properties to their descriptions or longer versions
+        :return: cloned instance
+        """
+        def alt(new, old):
+            return new if new is not None else old
+        return RunDataStatsHelper(runs=alt(runs, self.runs), tester=alt(tester, self.tester),
+                                  external_count=alt(external_count, self.external_count),
+                                  property_descriptions=alt(property_descriptions, self.property_descriptions))
 
     def make_descriptions_distinct(self):
         """
@@ -200,13 +262,14 @@ class RunDataStatsHelper(object):
                 "tester": ...,
                 "properties": ["prop1", ...],
                 # or
-                "properties": [("prop1", "description of prop1"), ...],
+                "properties": ["prop1", ...],
                 "uncertainty_range": (0.1, 0.3)
             }
 
             "runs": [
                 {"attributes": {"attr1": ..., ...},
-                 "data": {"__ov-time": [...], ...}},
+                 "data": {"__ov-time": [...], ...}
+                 ["property_descriptions": {"__ov-time": "Overall time"}]},
                  ...
             ]
 
@@ -218,15 +281,24 @@ class RunDataStatsHelper(object):
         typecheck(runs, List(Dict({
                     "data": Dict(key_type=Str(), value_type=List(Int()|Float()), all_keys=False) | NonExistent(),
                     "attributes": Dict(key_type=Str(), all_keys=False)
-                }, all_keys=False)),
+                }, all_keys=False)|
+                             Dict({
+                                 "property_descriptions": NonExistent() |
+                                                          Dict(key_type=Str(), value_type=Str(), all_keys=False)})),
                 value_name="runs parameter")
         run_datas = []
         runs = runs or [] # type: t.List[dict]
+        prop_descrs = {}  # type: t.Dict[str, str]
         for run in runs:
-            if "data" not in run:
-                run["data"] = {}
-            run_datas.append(RunData(run["data"], run["attributes"], external=external))
-        return RunDataStatsHelper(run_datas, external_count=len(runs) if external else 0)
+            props = {}
+            if "property_descriptions" in run:
+                prop_descrs.update(run["property_descriptions"])
+            else:
+                if "data" not in run:
+                    run["data"] = {}
+                run_datas.append(RunData(run["data"], run["attributes"], external=external))
+        return RunDataStatsHelper(run_datas, external_count=len(runs) if external else 0,
+                                  property_descriptions=prop_descrs)
 
     def _is_uncertain(self, property: str, data1: RunData, data2: RunData) -> bool:
         return self.tester.is_uncertain(data1[property], data2[property])
@@ -262,7 +334,9 @@ class RunDataStatsHelper(object):
 
     def _estimate_time_for_run_datas(self, run_bin_size: int, data1: RunData, data2: RunData,
                                      min_runs: int, max_runs: int) -> float:
-        if min(len(data1), len(data2)) == 0 or "__ov-time" not in data1.properties or "__ov-time" not in data2.properties:
+        if min(len(data1), len(data2)) == 0 \
+                or "__ov-time" not in data1.properties \
+                or "__ov-time" not in data2.properties:
             return max_runs
         needed_runs = []
         for prop in set(data1.properties).intersection(data2.properties):
@@ -333,16 +407,18 @@ class RunDataStatsHelper(object):
             summed += scipy.mean(self.runs[i]["__ov-time"]) * run_bin_size
         return summed
 
-    def add_run_data(self, data: list = None, attributes: dict = None) -> int:
-        """
-        Adds a new run data (corresponding to a program block) and returns its id.
-
-        :param data: benchmarking data of the new run data object
-        :param attributes: attributes of the new run data object
-        :return: id of the run data object (and its corresponding program block)
-        """
-        self.runs.append(RunData(self.properties, data, attributes))
-        return len(self.runs) - 1
+    #ef add_run_data(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
+    #                property_descriptions: t.Dict[str, str] = None) -> int:
+    #   """
+    #   Adds a new run data (corresponding to a program block) and returns its id.
+    #
+    #   :param data: benchmarking data of the new run data object
+    #   :param attributes: attributes of the new run data object
+    #   :param property_descriptions: mapping of property to a description
+    #   :return: id of the run data object (and its corresponding program block)
+    #   """
+    #   self.runs.append(RunData(data, attributes=attributes, property_descriptions))
+    #   return len(self.runs) - 1
 
     def disable_run_data(self, id: int):
         """
@@ -411,7 +487,15 @@ class RunDataStatsHelper(object):
         """
         Serialize this instance into a data structure that is accepted by the ``init_from_dicts`` method.
         """
-        return [x.to_dict() for x in self.runs if x]
+        ret = [x.to_dict() for x in self.runs if x]
+        if self.property_descriptions:
+            ps = {}  # type: t.Dict[str, str]
+            props = self.properties()
+            for prop in props:
+                if prop in self.property_descriptions:
+                    ps[prop] = self.property_descriptions[prop]
+            ret.append({"property_descriptions": ps})
+        return ret
 
     def valid_runs(self) -> t.List[RunData]:
         """ Number of valid (with measured data) runs """
@@ -429,7 +513,7 @@ class RunDataStatsHelper(object):
         for run in self.runs:
             if run is not None:
                 runs.append(run.exclude_properties(properties))
-        return RunDataStatsHelper(runs, self.tester, self.external_count)
+        return self.clone(runs=runs)
 
     def exclude_invalid(self) -> t.Tuple['RunDataStatsHelper', 'ExcludedInvalidData']:
         """
@@ -450,7 +534,33 @@ class RunDataStatsHelper(object):
                 excl.excluded_run_datas.append(run.description())
                 if run.external:
                     external_count -= 1
-        return RunDataStatsHelper(runs, self.tester, external_count), excl
+        return self.clone(runs=runs, external_count=external_count), excl
+
+    def add_property_descriptions(self, property_descriptions: t.Dict[str, str]):
+        """
+        Adds the given property descriptions.
+
+        :param property_descriptions: mapping of some properties to their descriptions or longer versions
+        """
+        if not property_descriptions:
+            return
+        self.property_descriptions.update(property_descriptions)
+
+    def long_properties(self, property_format: str = "[{}]") -> 'RunDataStatsHelper':
+        """
+        Replace the short properties names with their descriptions if possible.
+
+        :param property_format: format string that gets a property description and produces a longer property name
+        :return: new instance
+        """
+        runs = []
+        formatted_properties = {}  # type: t.Dict[str, str]
+        for p in self.property_descriptions:
+            formatted_properties[p] = property_format.format(self.property_descriptions[p])
+        for run in self.runs:
+            if run is not None:
+                runs.append(run.long_properties(formatted_properties))
+        return self.clone(runs=runs)
 
 
 class ExcludedInvalidData:

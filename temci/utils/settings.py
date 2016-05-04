@@ -48,7 +48,9 @@ class Settings(metaclass=Singleton):
             "excluded_properties": ListOrTuple(Str()) // Default(["__ov-time"])
                     // Description("Properties that aren't shown in the report."),
             "exclude_invalid": BoolOrNone() // Default(True)
-                    // Description("Exclude all data sets that contain only zeros or NaNs.")
+                    // Description("Exclude all data sets that contain only zeros or NaNs."),
+            "long_properties": BoolOrNone() // Default(True)
+                    // Description("Replace the property names in reports with longer more descriptive versions?")
         }, all_keys=False),
         "run": Dict({
             "discarded_runs": NaturalNumber() // Description("First n runs that are discarded") // Default(1),

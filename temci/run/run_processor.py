@@ -255,6 +255,10 @@ class RunProcessor:
 
     def store(self):
         """ Store the result file """
+        try:
+            self.stats_helper.add_property_descriptions(self.pool.run_driver.get_property_descriptions())
+        except (IOError, OSError) as ex:
+            logging.error(ex)
         with open(Settings()["run/out"], "w") as f:
             f.write(yaml.dump(self.stats_helper.serialize()))
 

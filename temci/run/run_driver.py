@@ -292,6 +292,12 @@ class AbstractRunDriver(AbstractRegistry):
         """
         raise NotImplementedError()
 
+    def get_property_descriptions(self) -> t.Dict[str, str]:
+        """
+        Returns a dictionary that maps some properties to their short descriptions.
+        """
+        return {}
+
 
 class ExecValidator:
     """
@@ -393,6 +399,7 @@ class ExecRunDriver(AbstractRunDriver):
     def __init__(self, misc_settings: dict = None):
         super().__init__(misc_settings)
         self._dirs = {}
+        self.runner = None  # type: t.Optional[ExecRunner]
 
     def _setup_block(self, block: RunProgramBlock):
         if isinstance(block["run_cmd"], List(Str())):
@@ -453,15 +460,15 @@ class ExecRunDriver(AbstractRunDriver):
 
     def _benchmark(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
         block = block.copy()
-        runner = self.get_runner(block)
-        runner.setup_block(block, cpuset, set_id)
+        self.runner = self.get_runner(block)
+        self.runner.setup_block(block, cpuset, set_id)
         results = []
         for i in range(runs):
             self._setup_block_run(block)
             results.append(self._exec_command(block["run_cmds"], block, cpuset, set_id))
         res = None  # type: BenchmarkingResultBlock
         for exec_res in results:
-            res = runner.parse_result(exec_res, res)
+            res = self.runner.parse_result(exec_res, res)
         return res
 
     def _exec_command(self, cmds: list, block: RunProgramBlock,
@@ -571,6 +578,9 @@ class ExecRunDriver(AbstractRunDriver):
         """
         return cls.runners[block["runner"]](block)
 
+    def get_property_descriptions(self) -> t.Dict[str, str]:
+        return self.runner.get_property_descriptions() if self.runner else {}
+
 
 class ExecRunner:
     """
@@ -617,6 +627,12 @@ class ExecRunner:
         :return: the modfiied benchmarking result block
         """
         raise NotImplementedError()
+
+    def get_property_descriptions(self) -> t.Dict[str, str]:
+        """
+        Returns a dictionary that maps some properties to their short descriptions.
+        """
+        return {}
 
 
 def is_perf_available() -> bool:
@@ -861,6 +877,9 @@ class RusageExecRunner(ExecRunner):
                         pass
         res.add_run_data(m)
         return res
+
+    def get_property_descriptions(self) -> t.Dict[str, str]:
+        return get_av_rusage_properties()
 
 
 @ExecRunDriver.register_runner()
@@ -1129,6 +1148,9 @@ class TimeExecRunner(ExecRunner):
                             pass
         res.add_run_data(m)
         return res
+
+    def get_property_descriptions(self) -> t.Dict[str, str]:
+        return get_av_time_properties()
 
 
 class BenchmarkingError(RuntimeError):
