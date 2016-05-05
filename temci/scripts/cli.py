@@ -17,7 +17,8 @@ import time
 
 import humanfriendly
 
-from temci.scripts.init import prompt_run_config, prompt_build_config
+if util.can_import("init"):
+    from temci.scripts.init import prompt_run_config, prompt_build_config
 from temci.utils.typecheck import *
 
 from temci.run.run_processor import RunProcessor

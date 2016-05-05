@@ -3,7 +3,6 @@ Contains the RunData object for benchmarking data of specific program block
 and the RunDataStatsHelper that provides helper methods for working with
 these objects.
 """
-from pprint import pprint
 
 from temci.report.testers import Tester, TesterRegistry
 from temci.utils.typecheck import *

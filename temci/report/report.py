@@ -610,7 +610,9 @@ class HTMLReporter(AbstractReporter):
     "min_in_comparison_tables": Bool() // Default(False)
                                 // Description("Show the mininmum related values in the big comparison table"),
     "mean_in_comparison_tables": Bool() // Default(True)
-                                // Description("Show the mean related values in the big comparison table")
+                                // Description("Show the mean related values in the big comparison table"),
+    "force_override": Bool() // Default(False)
+                                // Description("Override the contents of the output directory if it already exists?")
 }))
 class HTMLReporter2(AbstractReporter):
     """
@@ -626,7 +628,15 @@ class HTMLReporter2(AbstractReporter):
         typecheck(self.misc["out"], DirName(), value_name="reporter option out")
         start_time = time.time()
         if os.path.exists(self.misc["out"]):
-            shutil.rmtree(self.misc["out"])
+            force = self.misc["force_override"]
+            if not force:
+                from temci.scripts.init import prompt_yesno
+                force = prompt_yesno("The output folder already exists should its contents be overridden?",
+                                     default=False)
+            if force:
+                shutil.rmtree(self.misc["out"])
+            else:
+                return
         resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
         shutil.copytree(resources_path, self.misc["out"])
         runs = self.stats_helper.valid_runs()

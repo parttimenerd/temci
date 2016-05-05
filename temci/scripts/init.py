@@ -14,8 +14,6 @@ from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit import prompt
 from prompt_toolkit.layout.lexers import PygmentsLexer
 from prompt_toolkit.contrib.completers import WordCompleter, SystemCompleter, PathCompleter
-import prompt_toolkit as pt
-
 from temci.run.run_driver import ExecRunDriver, PerfStatExecRunner, SpecExecRunner, get_av_perf_stat_properties, \
     ValidPerfStatPropertyList, RusageExecRunner, ValidRusagePropertyList, get_av_rusage_properties, TimeExecRunner, \
     ValidTimePropertyList, get_av_time_properties
