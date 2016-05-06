@@ -11,7 +11,7 @@ from ..utils.settings import Settings
 from .run_driver import RunProgramBlock, BenchmarkingResultBlock, AbstractRunDriver, RunDriverRegistry
 from queue import Queue, Empty
 from .cpuset import CPUSet
-import logging, threading, subprocess, shlex, os, tempfile, yaml
+import logging, threading, subprocess, shlex, os, tempfile
 import typing as t
 
 

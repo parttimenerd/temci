@@ -20,7 +20,11 @@ from temci.report.rundata import RunDataStatsHelper, RunData, ExcludedInvalidDat
 from temci.utils.typecheck import *
 from temci.utils.registry import AbstractRegistry, register
 import temci.utils.util as util
-import click, yaml, os
+import click, os
+try:
+    import yaml
+except ImportError:
+    import pureyaml as yaml
 if util.can_import("numpy"):
     import numpy as np
     import pandas as pd

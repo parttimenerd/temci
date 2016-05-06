@@ -8,7 +8,10 @@ import subprocess
 
 import io
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    import pureyaml as yaml
 from prompt_toolkit.document import Document
 from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit import prompt

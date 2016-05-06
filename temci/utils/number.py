@@ -13,6 +13,7 @@ def format_number(number: Number, deviation: float,
                   scientic_notation: bool = False,
                   scientic_notation_steps: int = 3,
                   scientific_notation_decimal_places: int = None,
+                  scientific_notation_si_prefixes: bool = True,
                   force_min_decimal_places: bool = False,
                   relative_to_deviation: bool = False) -> str:
     """
@@ -28,6 +29,7 @@ def format_number(number: Number, deviation: float,
     :param scientic_notation: use the exponential notation, i.e. "10e3" for 1000
     :param scientic_notation_steps: steps in which the exponential part is incremented
     :param scientific_notation_decimal_places: number of decimal places that are shown in the scientic notation
+    :param scientific_notation_si_prefixes: use si prefixes instead of "e…"
     :param force_min_decimal_places: don't omit the minimum number of decimal places if insignificant?
     :param relative_to_deviation: format the number relative to its deviation, i.e. "10𝜎"
     :return: the number formatted as a string
@@ -54,7 +56,7 @@ def format_number(number: Number, deviation: float,
         "omit_insignificant_decimal_places": omit_insignificant_decimal_places,
         "force_min_decimal_places": force_min_decimal_places,
         "relative_to_deviation": relative_to_deviation,
-        "scientific_notation": scientic_notation
+        "scientific_notation": scientic_notation,
     }
     if explicit_deviation:
         return prefix + _format_number(**kwargs)
@@ -63,6 +65,7 @@ def format_number(number: Number, deviation: float,
         #kwargs["scientific_notation_decimal_places"] = scientific_notation_decimal_places
         return prefix + format_number_sn(scientic_notation_steps=scientic_notation_steps,
                                          decimal_places=scientific_notation_decimal_places,
+                                         si_prefixes=scientific_notation_si_prefixes,
                                          **kwargs)
     else:
         return prefix + _format_number(**kwargs)
@@ -77,7 +80,8 @@ def _format_number(number: Number, deviation: float,
                    omit_insignificant_decimal_places: bool = True,
                    force_min_decimal_places: bool = False,
                    relative_to_deviation: bool = False,
-                   scientific_notation: bool = False) -> str:
+                   scientific_notation: bool = False,
+                   scientific_notation_si_prefixes: bool = True) -> str:
     app = ""
     if relative_to_deviation:
         app = "𝜎"
@@ -90,19 +94,21 @@ def _format_number(number: Number, deviation: float,
         deviation = number * deviation
     if explicit_deviation:
         num = format_number(number, deviation, parentheses, explicit_deviation=False,
-                             is_deviation_absolute=True, min_decimal_places=min_decimal_places,
-                             max_decimal_places=max_decimal_places,
-                             omit_insignificant_decimal_places=omit_insignificant_decimal_places,
-                             force_min_decimal_places=force_min_decimal_places,
-                             relative_to_deviation=relative_to_deviation,
-                            scientic_notation=scientific_notation)
+                            is_deviation_absolute=True, min_decimal_places=min_decimal_places,
+                            max_decimal_places=max_decimal_places,
+                            omit_insignificant_decimal_places=omit_insignificant_decimal_places,
+                            force_min_decimal_places=force_min_decimal_places,
+                            relative_to_deviation=relative_to_deviation,
+                            scientic_notation=scientific_notation,
+                            scientific_notation_si_prefixes=scientific_notation_si_prefixes)
         dev = format_number(deviation, deviation, parentheses=False, explicit_deviation=False,
-                             is_deviation_absolute=True, min_decimal_places=min_decimal_places,
-                             max_decimal_places=max_decimal_places,
-                             omit_insignificant_decimal_places=omit_insignificant_decimal_places,
-                             force_min_decimal_places=force_min_decimal_places,
-                             relative_to_deviation=relative_to_deviation,
-                            scientic_notation=scientific_notation)
+                            is_deviation_absolute=True, min_decimal_places=min_decimal_places,
+                            max_decimal_places=max_decimal_places,
+                            omit_insignificant_decimal_places=omit_insignificant_decimal_places,
+                            force_min_decimal_places=force_min_decimal_places,
+                            relative_to_deviation=relative_to_deviation,
+                            scientic_notation=scientific_notation,
+                            scientific_notation_si_prefixes=scientific_notation_si_prefixes)
         return num + "±" + dev
     last_sig = _last_significant_digit(number, deviation)
 
@@ -146,7 +152,9 @@ def _format_number(number: Number, deviation: float,
 
 def format_number_sn(number: Number, scientic_notation_steps: int = 3,
                      deviation: Optional[float] = None, decimal_places: int = None,
-                     **kwargs):
+                     si_prefixes: bool = True, **kwargs):
+    if si_prefixes:
+        decimal_places = 3
     sig = _first_digit(number) // scientic_notation_steps
     p = math.pow(10, sig * scientic_notation_steps)
     decimal_places = decimal_places or (3 if isinstance(number, float) or p >= 1000 else 0)
@@ -156,13 +164,20 @@ def format_number_sn(number: Number, scientic_notation_steps: int = 3,
         deviation /= p
     fmt = "%.{}f".format(decimal_places) % number
     e = "e" + str(sig * scientic_notation_steps)
+    if si_prefixes:
+        e = _number_to_si_prefix(sig * 3)
     kwargs["scientific_notation"] = False
     if deviation:
         fmt = _format_number(number, deviation=deviation, **kwargs)
-        e = "" + e
     if sig != 0:
         fmt += e
     return fmt
+
+
+def _number_to_si_prefix(exponent: int) -> str:
+    assert exponent % 3 == 0 and exponent <= 24 and exponent >= -24
+    return ["Y", "Z", "E", "P", "T", "G", "M", "k",
+            "", "m", "µ", "n", "f", "a", "z", "y"][int((24 - exponent) / 3)]
 
 
 def _last_significant_digit(number: Number, abs_deviation: float) -> int:

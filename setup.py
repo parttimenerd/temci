@@ -36,7 +36,6 @@ setup(
         'click',
         'humanfriendly',
         'fn',
-        'pyaml',
         'seaborn', 'pytimeparse',
         'cairocffi',
         'matplotlib',
@@ -45,9 +44,10 @@ setup(
         'docopt',
         'jedi',
         'Pygments',
-        'wcwidth',
+        'wcwidth', 'typing',
         'rainbow_logging_handler',
-        'tablib', 'glob2', 'globster'
+        'tablib', 'glob2', 'globster',
+        'pyyaml'
     ],
     license='GPLv3',
     platforms='linux',

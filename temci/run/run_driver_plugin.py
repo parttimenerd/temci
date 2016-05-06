@@ -1,7 +1,7 @@
 """
 This module consists of run driver plugin implementations.
 """
-from temci.utils.util import get_memory_page_size
+from temci.utils.util import get_memory_page_size, does_program_exist
 from .run_driver import RunProgramBlock
 from .run_driver import ExecRunDriver
 from ..utils.registry import register
@@ -149,6 +149,19 @@ class PreheatPlugin(AbstractRunDriverPlugin):
         cmd = "timeout {} python3 -c 'import numpy as np; " \
               "m = np.random.randint(0, 100, (500, 500)); " \
               "print(list(map(lambda x: len(np.linalg.eig(m)), range(10000))))' > /dev/null".format(heat_time)
+        if does_program_exist("bash"):
+            # source: http://bruxy.regnet.cz/web/linux/EN/mandelbrot-set-in-bash/
+            cmd = """bash -c "
+            #!/bin/bash
+            S0=S;S1=H;S2=E;S3=L;S4=L;e=echo;b=bc;I=-1;for x in {1..24};
+            do R=-2;for y in {1..80};do B=0;r=0;i=0;while [ $B -le 32 ];do
+            r2=`$e "$r*$r"|$b`;i2=`$e "$i*$i"|$b`;i=`$e "2*$i*$r+$I"|$b`;
+            r=`$e "$r2-$i2+$R"|$b`;: $((B+=1));V=`$e "($r2 +$i2)>4"|$b`;
+            if [ "$V" -eq 1 ];then break;fi;done; if [ $B -ge 32 ];then
+            $e -n " ";else U=$(((B*4)/15+30));$e -en "\E[01;$U""m";C=$((C%5));
+            eval "$e -ne \$E\$S$C";: $((C+=1));fi;R=`$e "$R+0.03125"|$b`
+            done;$e -e "\E[m\E(\r";I=`$e "$I+0.08333"|$b`;done      #(c)BruXy "
+            """
         procs = []
         for i in range(0, multiprocessing.cpu_count()):
             proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE,

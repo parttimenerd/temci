@@ -68,8 +68,11 @@ __all__ = [
 ]
 
 import pytimeparse
-import itertools, os, yaml, click, inspect
-
+import itertools, os, click, inspect
+try:
+    import yaml
+except ImportError:
+    import pureyaml as yaml
 
 class ConstraintError(ValueError):
     """

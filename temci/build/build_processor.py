@@ -1,4 +1,7 @@
-import yaml
+try:
+    import yaml
+except ImportError:
+    import pureyaml as yaml
 from ..utils.typecheck import *
 from ..utils.settings import Settings
 from .builder import Builder, BuilderKeyboardInterrupt

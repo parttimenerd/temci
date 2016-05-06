@@ -31,7 +31,11 @@ from temci.utils.settings import Settings
 from temci.report.report_processor import ReportProcessor
 import temci.report.report
 import temci.report.testers
-import click, sys, yaml, logging, json, os
+import click, sys, logging, json, os
+try:
+    import yaml
+except ImportError:
+    import pureyaml as yaml
 from temci.utils.click_helper import type_scheme_option, cmd_option, CmdOption, CmdOptionList, document_func
 import temci.scripts.version
 
@@ -878,7 +882,10 @@ def cli_with_error_catching():
     """
     Process the command line arguments and catch (some) errors.
     """
-    locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
+    try:
+        locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
+    except:
+        pass
     try:
         cli()
     except EnvironmentError as err:

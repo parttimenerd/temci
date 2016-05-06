@@ -2,9 +2,8 @@ import copy
 import random
 
 import click
-from pyaml import pprint
 
-from temci.utils.util import join_strs
+from temci.utils.util import join_strs, in_standalone_mode
 
 from temci.utils.mail import send_mail
 from temci.utils.typecheck import *
@@ -15,8 +14,12 @@ import temci.run.run_driver_plugin
 from temci.report.rundata import RunDataStatsHelper, RunData
 from temci.utils.settings import Settings
 from temci.report.report_processor import ReporterRegistry
-import time, logging, humanfriendly, yaml, sys, math, pytimeparse, os
+import time, logging, humanfriendly, sys, math, pytimeparse, os
 import typing as t
+try:
+    import yaml
+except ImportError:
+    import pureyaml as yaml
 #from temci.run.remote import RemoteRunWorkerPool
 
 class RunProcessor:
@@ -124,15 +127,16 @@ class RunProcessor:
                or not self._can_run_next_block()) and self.min_runs <= self.block_run_count
 
     def _can_run_next_block(self) -> bool:
-        estimated_time = self.stats_helper.estimate_time_for_next_round(self.run_block_size,
-                                                                        all=self.block_run_count < self.min_runs)
-        to_bench_count = len(self.stats_helper.get_program_ids_to_bench())
-        if round(time.time() + estimated_time) > self.end_time:
-            logging.warning("Ran to long ({}) and is therefore now aborted. "
-                            "{} program blocks should've been benchmarked again."
-                            .format(humanfriendly.format_timespan(time.time() + estimated_time - self.start_time),
-                                    to_bench_count))
-            return False
+        if not in_standalone_mode:
+            estimated_time = self.stats_helper.estimate_time_for_next_round(self.run_block_size,
+                                                                            all=self.block_run_count < self.min_runs)
+            to_bench_count = len(self.stats_helper.get_program_ids_to_bench())
+            if round(time.time() + estimated_time) > self.end_time:
+                logging.warning("Ran to long ({}) and is therefore now aborted. "
+                                "{} program blocks should've been benchmarked again."
+                                .format(humanfriendly.format_timespan(time.time() + estimated_time - self.start_time),
+                                        to_bench_count))
+                return False
         if self.block_run_count >= self.max_runs and self.block_run_count >= self.min_runs:
             #print("benchmarked too often, block run count ", self.block_run_count, self.block_run_count + self.run_block_size > self.min_runs)
             logging.warning("Benchmarked program blocks to often and aborted therefore now.")
@@ -189,7 +193,7 @@ class RunProcessor:
             bench_all = self.block_run_count < self.min_runs
         try:
             to_bench = list(enumerate(self.run_blocks))
-            if not bench_all and self.block_run_count < self.max_runs:
+            if not bench_all and self.block_run_count < self.max_runs and not in_standalone_mode:
                 to_bench = [(i, self.run_blocks[i]) for i in self.stats_helper.get_program_ids_to_bench()]
             to_bench = [(i, b) for (i, b) in to_bench if self.stats_helper.runs[i] is not None]
             if self.shuffle:
@@ -237,8 +241,10 @@ class RunProcessor:
         self.store()
         if len(self.stats_helper.valid_runs()) > 0 \
                 and all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
-            report = ReporterRegistry.get_for_name("console", self.stats_helper)\
-                .report(with_tester_results=False, to_string = True)
+            report = ""
+            if not in_standalone_mode:
+                report = ReporterRegistry.get_for_name("console", self.stats_helper)\
+                         .report(with_tester_results=False, to_string = True)
             self.stats_helper.valid_runs()[0].description()
             subject = "Finished " + join_strs([repr(run.description()) for run in self.stats_helper.valid_runs()])
             send_mail(Settings()["run/send_mail"], subject, report, [Settings()["run/out"]])
@@ -275,6 +281,8 @@ class RunProcessor:
             logging.error("Can't write erroneous program blocks to " + file_name)
 
     def print_report(self) -> str:
+        if in_standalone_mode:
+            return
         """ Print a short report if possible. """
         try:
             if len(self.stats_helper.valid_runs()) > 0 and \

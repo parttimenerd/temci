@@ -1,4 +1,7 @@
-import yaml
+try:
+    import yaml
+except ImportError:
+    import pureyaml as yaml
 import copy
 import os, logging
 import click

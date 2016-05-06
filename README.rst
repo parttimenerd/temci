@@ -38,6 +38,10 @@ To simplify using temci, enable tab completion for your favorite shell
         source `temci_completion [bash|zsh]`
 
 
+If you can't install temci via `pip3`, using it to benchmark programs is possible
+by using `temci/scripts/run` instead of temci (execute this file with your favorite python3 interpreter directly if this interpreter isn't located at `/usr/bin/python3`).
+
+
 Usage
 -----
 

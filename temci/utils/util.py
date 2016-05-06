@@ -133,6 +133,7 @@ def join_strs(strs: t.List[str], last_word: str = "and") -> str:
 allow_all_imports = False  # type: bool
 """ Allow all imports (should the can_import method return true for every module)? """
 
+
 def can_import(module: str) -> bool:
     """
     Can a module (like scipy, numpy or init/prompt_toolkit) be imported without a severe and avoidable
@@ -147,11 +148,17 @@ def can_import(module: str) -> bool:
         return True
     if module not in ["scipy", "numpy", "init", "prompt_toolkit"]:
         return True
+    if in_standalone_mode:
+        return False
     if module in ["init", "prompt_toolkit"]:
-        return sys.argv[1] == "init"
+        return len(sys.argv) >= 2 and sys.argv[1] == "init"
     if len(sys.argv) == 1 or sys.argv[1] in ["completion", "version", "assembler"]:
         return False
     return True
+
+
+in_standalone_mode = False  # type: bool
+""" In rudimentary standalone mode (executed via run.py) """
 
 _sphinx_doc = os.environ.get("SPHINXDOC", os.environ.get('READTHEDOCS', None)) == 'True'
 

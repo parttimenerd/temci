@@ -1044,10 +1044,7 @@ def time_file(_tmp=[]) -> str:
             else:
                 return "false && "
         else:
-            try:
-                _tmp.append(subprocess.check_output(["/bin/which", "time"]).decode().strip())
-            except subprocess.CalledProcessError:
-                return "false && "
+            _tmp.append(shutil.which("time"))
     return _tmp[0]
 
 
