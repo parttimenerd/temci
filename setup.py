@@ -1,3 +1,4 @@
+import os
 import sys
 from setuptools import setup, find_packages
 import temci.scripts.version as version
@@ -19,8 +20,9 @@ class install(_install):
 
     def run(self):
         _install.run(self)
-        self.execute(_post_install, (self.install_lib,),
-                     msg="Running post install task")
+        if os.environ.get('READTHEDOCS', None) != 'True':
+            self.execute(_post_install, (self.install_lib,),
+                         msg="Running post install task")
 
 setup(
     name='temci',
@@ -58,7 +60,7 @@ setup(
         "Operating System :: POSIX :: Linux",
         "Topic :: System :: Benchmark",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-        "Development Status :: 2 - Beta",
+        "Development Status :: 4 - Beta",
         "Environment :: Console",
         'Intended Audience :: Developers',
 

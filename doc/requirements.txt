@@ -1,2 +1,6 @@
 sphinx-autodoc-typehints
 cpuset-py3
+rainbow_logging_handler
+pytimeparse
+prompt_toolkit
+humanfriendly

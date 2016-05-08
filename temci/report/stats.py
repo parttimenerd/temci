@@ -550,6 +550,7 @@ class BaseStatObject:
         :param other_obj_names: names of the additional objects
         :param own_name: used with other_objs option
         """
+        self.reset_plt()
         self._hist_data = {}
         import matplotlib.pyplot as plt
         import seaborn as sns
@@ -631,11 +632,19 @@ class BaseStatObject:
 
     def reset_plt(self):
         """ Reset the current matplotlib plot style. """
-        import seaborn as sns
-        sns.reset_defaults()
-        sns.set_style("darkgrid")
-        sns.set_palette(sns.color_palette("muted"))
-        mpl.use("agg")
+        import matplotlib.pyplot as plt
+        plt.gcf().subplots_adjust(bottom=0.15)
+        if Settings()["report/xkcd_like_plots"]:
+            import seaborn as sns
+            sns.reset_defaults()
+            mpl.use("agg")
+            plt.xkcd()
+        else:
+            import seaborn as sns
+            sns.reset_defaults()
+            sns.set_style("darkgrid")
+            sns.set_palette(sns.color_palette("muted"))
+            mpl.use("agg")
 
 
 class Single(BaseStatObject):
@@ -1302,6 +1311,7 @@ class SinglesProperty(BaseStatObject):
         """
         import seaborn as sns
         import matplotlib.pyplot as plt
+        self.reset_plt()
         if fig_height is None:
             fig_height = self._height_for_width(fig_width)
         self._fig = plt.figure(figsize=self._fig_size_cm_to_inch(fig_width, fig_height))
