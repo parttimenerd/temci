@@ -58,7 +58,7 @@ setup(
         "Operating System :: POSIX :: Linux",
         "Topic :: System :: Benchmark",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-        "Development Status :: 2 - Beta",
+        "Development Status :: 4 - Beta",
         "Environment :: Console",
         'Intended Audience :: Developers',
 

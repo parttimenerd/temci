@@ -53,7 +53,9 @@ class Settings(metaclass=Singleton):
             "exclude_invalid": BoolOrNone() // Default(True)
                     // Description("Exclude all data sets that contain only zeros or NaNs."),
             "long_properties": BoolOrNone() // Default(True)
-                    // Description("Replace the property names in reports with longer more descriptive versions?")
+                    // Description("Replace the property names in reports with longer more descriptive versions?"),
+            "xkcd_like_plots": BoolOrNone() // Default(False)
+                    // Description("Produce xkcd like plots (requires the humor sans font to be installed)")
         }, all_keys=False),
         "run": Dict({
             "discarded_runs": NaturalNumber() // Description("First n runs that are discarded") // Default(1),

@@ -328,7 +328,7 @@ class RunDataStatsHelper(object):
         Calculates the speed up from the second to the first
         (e.g. the first is RESULT * 100 % faster than the second).
         """
-        return (scipy.mean(data2[property]) - scipy.mean(data1[property])) \
+        return (scipy.mean(data1[property]) - scipy.mean(data2[property])) \
                / scipy.mean(data1[property])
 
     def _estimate_time_for_run_datas(self, run_bin_size: int, data1: RunData, data2: RunData,
