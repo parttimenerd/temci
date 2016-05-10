@@ -77,6 +77,8 @@ class RunProcessor:
             self.stats_helper = RunDataStatsHelper.init_from_dicts(copy.deepcopy(runs))
         #if Settings()["run/remote"]:
         #    self.pool = RemoteRunWorkerPool(Settings()["run/remote"], Settings()["run/remote_port"])
+            if os.path.exists(Settings()["run/out"]):
+                os.remove(Settings()["run/out"])
         self.pool = None  # type: AbstractRunWorkerPool
         """ Used run worker pool that abstracts the benchmarking """
         if Settings()["run/cpuset/parallel"] == 0:
@@ -265,8 +267,10 @@ class RunProcessor:
             self.stats_helper.add_property_descriptions(self.pool.run_driver.get_property_descriptions())
         except (IOError, OSError) as ex:
             logging.error(ex)
-        with open(Settings()["run/out"], "w") as f:
-            f.write(yaml.dump(self.stats_helper.serialize()))
+        if len(self.stats_helper.valid_runs()) > 0 \
+            and all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
+            with open(Settings()["run/out"], "w") as f:
+                f.write(yaml.dump(self.stats_helper.serialize()))
 
     def store_erroneous(self):
         """ Store the failing program blocks in a file ending with ``.erroneous.yaml``. """
