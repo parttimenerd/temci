@@ -4,6 +4,7 @@ import math
 Number = Union[int, float]
 """ Numeric type """
 
+
 def format_number(number: Number, deviation: float,
                   parentheses: bool = True, explicit_deviation: bool = False,
                   is_deviation_absolute: bool = False,
@@ -17,6 +18,7 @@ def format_number(number: Number, deviation: float,
                   force_min_decimal_places: bool = False,
                   relative_to_deviation: bool = False) -> str:
     """
+    Format the passed number
 
     :param number: formatted number
     :param deviation: standard deviation associated with the number
@@ -31,7 +33,7 @@ def format_number(number: Number, deviation: float,
     :param scientific_notation_decimal_places: number of decimal places that are shown in the scientic notation
     :param scientific_notation_si_prefixes: use si prefixes instead of "e…"
     :param force_min_decimal_places: don't omit the minimum number of decimal places if insignificant?
-    :param relative_to_deviation: format the number relative to its deviation, i.e. "10𝜎"
+    :param relative_to_deviation: format the number relative to its deviation, i.e. "10\sigma"
     :return: the number formatted as a string
     """
     """
@@ -88,7 +90,7 @@ def _format_number(number: Number, deviation: float,
         if is_deviation_absolute:
             number /= deviation
         else:
-            number = 1/ deviation
+            number = 1 / deviation
         deviation = 1
     if not is_deviation_absolute:
         deviation = number * deviation

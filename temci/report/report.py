@@ -2072,3 +2072,85 @@ def html_escape_property(property: str) -> str:
     :return: escaped property name
     """
     return re.sub(r"([^a-zA-Z0-9]+)", "000000", property)
+
+
+valid_csv_reporter_modifiers = ["mean", "stddev", "property", "min", "max", "stddev per mean"]  # type: t.List[str]
+
+
+def _parse_csv_reporter_specs(specs: t.List[str]) -> t.List[t.Tuple[str, str]]:
+    return [_parse_csv_reporter_spec(spec) for spec in specs]
+
+
+def _parse_csv_reporter_spec(spec: str) -> t.Tuple[str, str]:
+    def error():
+        raise SyntaxError("Column spec {!r} isn't valid".format(spec))
+
+    parts = spec.split("[")
+    if parts[0] != "description" and (len(parts[1]) < 2 or "]" not in parts[1]
+                                      or parts[1][:-1] not in valid_csv_reporter_modifiers or len(parts[0]) < 1):
+        error()
+    if parts[0] == "description":
+        return parts[0], ""
+    return parts[0], parts[1][:-1]
+
+
+def _is_valid_csv_reporter_spec_list(specs: t.List[str]) -> bool:
+    try:
+        _parse_csv_reporter_specs(specs)
+    except SyntaxError as err:
+        return False
+    return True
+
+@register(ReporterRegistry, "csv", Dict({
+    "out": FileNameOrStdOut() // Default("-") // Description("Output file name or standard out (-)"),
+    "columns": ListOrTuple(Str()) // (lambda x: _is_valid_csv_reporter_spec_list(x))
+               // Description("List of valid column specs, format is 'PROP\\[mod\\]' or 'description', "
+                                              "mod is one of: {}".format(join_strs(valid_csv_reporter_modifiers)))
+    // Default(["description"])
+}))
+class CSVReporter(AbstractReporter):
+    """
+    Simple reporter that outputs just a configurable csv table with rows for each run block
+    """
+
+    def report(self) -> t.Optional[str]:
+        """
+        Create an report and output it as configured.
+
+        :param with_tester_results: include the hypothesis tester results
+        :param to_string: return the report as a string and don't output it?
+        :return: the report string if ``to_string == True``
+        """
+        with click.open_file(self.misc["out"], mode='w') as f:
+            import tablib
+            data = tablib.Dataset(self.misc["columns"])
+            for row in self._table():
+                data.append(row)
+            f.write(data.csv)
+
+    def _table(self) -> t.List[t.List[t.Union[str, int, float]]]:
+        table = []
+        specs = _parse_csv_reporter_specs(self.misc["columns"])
+        for single in self.stats.singles:
+            table.append(self._row(single, specs))
+        return table
+
+    def _row(self, single: Single, specs: t.List[t.Tuple[str, str]]) -> t.List[t.Union[str, int, float]]:
+        return [self._column(single, spec) for spec in specs]
+
+    def _column(self, single: Single, spec: t.Tuple[str, str]) -> t.Union[str, int, float]:
+        if spec[0] == "description":
+            return single.description()
+        return self._column_property(single.properties[spec[0]], spec[1])
+
+    def _column_property(self, single: SingleProperty, modifier: str) -> t.Union[str, int, float]:
+        mod = {
+            "mean": lambda: single.mean(),
+            "stddev": lambda: single.std_dev(),
+            "property": lambda: single.property,
+            "description": lambda: single.description(),
+            "min": lambda: single.min(),
+            "max": lambda: single.max(),
+            "stddev per mean": lambda: single.std_dev_per_mean()
+        }
+        return mod[modifier]()
