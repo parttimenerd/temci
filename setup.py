@@ -11,9 +11,10 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
 def _post_install(dir):
-    from subprocess import call
-    call(['/bin/sh', 'install_packages.sh'],
-         cwd=path.join(dir, 'temci'))
+    pass
+    #from subprocess import call
+    #call(['/bin/sh', 'install_packages.sh'],
+    #     cwd=path.join(dir, 'temci'))
 
 
 class install(_install):

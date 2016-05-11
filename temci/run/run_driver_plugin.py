@@ -1,7 +1,7 @@
 """
 This module consists of run driver plugin implementations.
 """
-from temci.utils.util import get_memory_page_size, does_program_exist
+from temci.utils.util import get_memory_page_size, does_program_exist, does_command_succeed
 from .run_driver import RunProgramBlock
 from .run_driver import ExecRunDriver
 from ..utils.registry import register
@@ -149,7 +149,7 @@ class PreheatPlugin(AbstractRunDriverPlugin):
         cmd = "timeout {} python3 -c 'import numpy as np; " \
               "m = np.random.randint(0, 100, (500, 500)); " \
               "print(list(map(lambda x: len(np.linalg.eig(m)), range(10000))))' > /dev/null".format(heat_time)
-        if does_program_exist("bash"):
+        if does_command_succeed("python3 -c 'import numpy as np; '") and does_program_exist("bash"):
             # source: http://bruxy.regnet.cz/web/linux/EN/mandelbrot-set-in-bash/
             cmd = """bash -c "
             #!/bin/bash

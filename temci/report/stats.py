@@ -1001,16 +1001,22 @@ class TestedPairsAndSingles(BaseStatObject):
         super().__init__()
         self.singles = list(map(Single, singles))  # type: t.List[Single]
         """ Compared single objects """
-        self.pairs = pairs or []  # type: t.List[TestedPair]
+        self._pairs = pairs or []  # type: t.List[TestedPair]
         """ Compared tested pair objects """
-        if pairs is None and len(self.singles) > 1:
-            for i in range(0, len(self.singles) - 1):
-                for j in range(i + 1, len(self.singles)):
-                    self.pairs.append(self.get_pair(i, j))
         self.singles_properties = {}  # type: t.Dict[str, SinglesProperty]
         """ Singles property object for every measured property """
         for prop in self.properties():
             self.singles_properties[prop] = SinglesProperty(self.singles, prop)
+
+    @property
+    def pairs(self) -> t.List[TestedPair]:
+        if not hasattr(self, "_pairs"):
+            self._pairs = []
+            if len(self.singles) > 1:
+                for i in range(0, len(self.singles) - 1):
+                    for j in range(i + 1, len(self.singles)):
+                        self._pairs.append(self.get_pair(i, j))
+        return self._pairs
 
     def number_of_singles(self) -> int:
         """ Number of compared single objects """
