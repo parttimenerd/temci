@@ -666,6 +666,7 @@ def get_av_perf_stat_properties() -> t.List[str]:
         prop = line.split(" ", 1)[0].strip()
         if prop != "":
             props.append(prop)
+    props.append("wall-clock")
     return props
 
 
@@ -688,6 +689,10 @@ class ValidPerfStatPropertyList(Type):
             return info.errormsg(self)
         if not is_perf_available():
             return info.wrap(True)
+        assert isinstance(value, list)
+        if "wall-clock" in value:
+            value = value.copy()
+            value.remove("wall-clock")
         cmd = "perf stat -x ';' -e {props} -- /bin/echo".format(props=",".join(value))
         proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.DEVNULL,
                                 stderr=subprocess.PIPE, universal_newlines=True)
@@ -714,7 +719,7 @@ class PerfStatExecRunner(ExecRunner):
         "repeat": NaturalNumber() // Default(1) // Description("If runner=perf_stat make measurements of the program "
                                                                "repeated n times. Therefore scale the number of times "
                                                                "a program is benchmarked."),
-        "properties": ValidPerfStatPropertyList() // Default(["cache-misses", "cycles", "task-clock",
+        "properties": ValidPerfStatPropertyList() // Default(["wall-clock", "cycles", "cpu-clock", "task-clock",
                                                               "instructions", "branch-misses", "cache-references"])
                       // Description("Measured properties. The number of properties that can be measured at once "
                                      "is limited.")
@@ -730,10 +735,11 @@ class PerfStatExecRunner(ExecRunner):
         do_repeat = self.misc["repeat"] > 1
 
         def modify_cmd(cmd):
-            return "perf stat {repeat} -x ';' -e {props} -- {cmd}".format(
-                props=",".join(self.misc["properties"]),
+            return "perf stat {repeat} {x} -e {props} -- {cmd}".format(
+                props=",".join(x for x in self.misc["properties"] if x != "wall-clock"),
                 cmd=cmd,
-                repeat="--repeat {}".format(self.misc["repeat"]) if do_repeat else ""
+                repeat="--repeat {}".format(self.misc["repeat"]) if do_repeat else "",
+                x="-x ';'" if "wall-clock" not in self.misc["properties"] else ""
             )
 
         block["run_cmds"] = [modify_cmd(cmd) for cmd in block["run_cmds"]]
@@ -742,18 +748,31 @@ class PerfStatExecRunner(ExecRunner):
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         res = res or BenchmarkingResultBlock()
         m = {"__ov-time": exec_res.time}
-        props = self.misc["properties"]
+        props = self.misc["properties"]  # type: t.List[str]
+        has_wall_clock = "wall-clock" in props
+        if has_wall_clock:
+            props = props.copy()
+            props.remove("wall-clock")
+            props.append("wall-clock")
         missing_props = len(props)
         for line in reversed(exec_res.stderr.strip().split("\n")):
             if missing_props == 0:
                 break
-            if ';' in line:
+            if ',' in line or ';' in line or "." in line:
                 try:
-                    var, empty, descr = line.strip().split(";")[0:3]
-                    m[descr] = float(var)
+                    line = line.strip()
+                    prop = props[missing_props - 1]
+                    assert prop in line or prop == "wall-clock"
+                    val = ""  # type: str
+                    if ";" in line:  # csv output with separator ';'
+                        val = line.split(";")[0]
+                    else:
+                        val = line.split(" ")[0]
+                    val = val.replace(",", "")
+                    m[prop] = float(val) if "." in val else int(val)
                     missing_props -= 1
                 except BaseException as ex:
-                    # logging.error(ex)
+                    #logging.error(ex)
                     pass
         res.add_run_data(m)
         return res

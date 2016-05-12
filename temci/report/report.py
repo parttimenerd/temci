@@ -2121,6 +2121,9 @@ class CSVReporter(AbstractReporter):
         :param to_string: return the report as a string and don't output it?
         :return: the report string if ``to_string == True``
         """
+        if not self.misc["out"] == "-" and not os.path.exists(os.path.dirname(self.misc["out"])):
+            logging.error("Folder for report ({}) doesn't exist".format(os.path.dirname(self.misc["out"])))
+            exit(1)
         with click.open_file(self.misc["out"], mode='w') as f:
             import tablib
             data = tablib.Dataset(self.misc["columns"])
