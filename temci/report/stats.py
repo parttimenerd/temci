@@ -1010,7 +1010,7 @@ class TestedPairsAndSingles(BaseStatObject):
 
     @property
     def pairs(self) -> t.List[TestedPair]:
-        if not hasattr(self, "_pairs"):
+        if not hasattr(self, "_pairs") or not self._pairs:
             self._pairs = []
             if len(self.singles) > 1:
                 for i in range(0, len(self.singles) - 1):
@@ -1275,6 +1275,9 @@ class TestedPairProperty(BaseStatObject):
         """
         return TestedPairProperty(self.parent, self.parent.first, self.parent.second,
                                   self.property, self.tester)
+
+    def max_rel_std_dev(self) -> float:
+        return max(self.first.std_dev_per_mean(), self.second.std_dev_per_mean())
 
 
 class SinglesProperty(BaseStatObject):

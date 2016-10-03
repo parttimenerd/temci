@@ -1,3 +1,5 @@
+from temci.utils.number import FNumber
+
 try:
     import yaml
 except ImportError:
@@ -55,7 +57,8 @@ class Settings(metaclass=Singleton):
             "long_properties": BoolOrNone() // Default(True)
                     // Description("Replace the property names in reports with longer more descriptive versions?"),
             "xkcd_like_plots": BoolOrNone() // Default(False)
-                    // Description("Produce xkcd like plots (requires the humor sans font to be installed)")
+                    // Description("Produce xkcd like plots (requires the humor sans font to be installed)"),
+            "number": FNumber.settings_format
         }, all_keys=False),
         "run": Dict({
             "discarded_runs": NaturalNumber() // Description("First n runs that are discarded") // Default(1),

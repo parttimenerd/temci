@@ -34,7 +34,8 @@ from temci.utils.settings import Settings
 from multiprocessing import Pool
 from temci.utils.util import join_strs
 import typing as t
-from temci.utils.number import format_number
+from temci.utils.number import format_number, FNumber, fnumber
+
 
 class ReporterRegistry(AbstractRegistry):
     """
@@ -63,6 +64,7 @@ class AbstractReporter:
         :param stats_helper: used stats helper instance
         :param excluded_properties: measured properties that are excluded from the reports
         """
+        FNumber.init_settings(Settings()["report/number"])
         excluded_properties = excluded_properties or Settings()["report/excluded_properties"]
         self.misc = misc_settings
         """ Configuration """
@@ -126,10 +128,7 @@ class ConsoleReporter(AbstractReporter):
                 for prop in sorted(block.properties):
                     mean = np.mean(block[prop])
                     stdev = np.std(block[prop]) / mean
-                    mean_str = format_number(mean, deviation=stdev,
-                                             scientic_notation=True,
-                                             omit_insignificant_decimal_places=False,
-                                             force_min_decimal_places=True)
+                    mean_str = str(FNumber(mean, rel_deviation=stdev))
                     print_func("\t {prop:<18} mean = {mean:>15s}, deviation = {dev:>5.2%}".format(
                         prop=prop, mean=mean_str,
                         dev=stdev, dev_perc=stdev/mean
@@ -635,7 +634,7 @@ class HTMLReporter2(AbstractReporter):
             force = self.misc["force_override"]
             if not force:
                 from temci.scripts.init import prompt_yesno
-                force = prompt_yesno("The output folder already exists should its contents be overridden?",
+                force = prompt_yesno("The output folder already exists should its contents be overridden? ",
                                      default=False)
             if force:
                 shutil.rmtree(self.misc["out"])
@@ -815,7 +814,7 @@ class HTMLReporter2(AbstractReporter):
                         lying</a>.</p>
                         <p>The geometric standard deviation is <b>%s</b></p>.
                     """ % self._percent_format.format(pair.first_rel_to_second_std())
-                    rel_diff = pair.first_rel_to_second()
+                    rel_diff = fnumber(pair.first_rel_to_second(), rel_deviation=pair.first_rel_to_second_std() - 1)
                     popover.trigger = "hover click"
                 else:
                     pair = pair[property]
@@ -827,8 +826,8 @@ class HTMLReporter2(AbstractReporter):
                     <p>The maximum standard deviation of the left and the right relative to the mean of the right is <b>%s</b>.</p>
                     """ % (property, property, pair.first.mean(), pair.second.mean(),
                            self._percent_format.format(pair.max_std_dev() / pair.second.mean()))
-                    rel_diff = pair.first_rel_to_second()
-                cell = _Cell(self, content=self._percent_format.format(rel_diff), popover=popover, color_class_obj=pair, show_click_on_info=True)
+                    rel_diff = FNumber(pair.first_rel_to_second(), rel_deviation=pair.max_std_dev() / pair.second.mean())
+                cell = _Cell(self, content=str(rel_diff), popover=popover, color_class_obj=pair, show_click_on_info=True)
                 cell.modal_id = self._short_summary_modal(pair)
                 table[i, j] = cell
         return table
@@ -945,11 +944,12 @@ class HTMLReporter2(AbstractReporter):
                     Difference between the mean of the first and the mean of the second.
                     It's the absolute difference and is often less important that the relative differences.
                 """),
-                "func": lambda x: x.mean_diff(),
+                "func": lambda x: fnumber(x.mean_diff(), abs_deviation=x.max_std_dev()),
                 "format": self._float_format
             }, {
                 "title": "... per first mean",
-                "func": lambda x: x.mean_diff_per_mean(),
+                "func": lambda x: fnumber(x.mean_diff_per_mean(), #rel_deviation=x.max_rel_std_dev(),
+                                          is_percent=True),
                 "format": self._percent_format,
                 "popover": _Popover(self, "Explanation", """The mean difference relative to the first mean
                 \\begin{align}
@@ -963,7 +963,8 @@ class HTMLReporter2(AbstractReporter):
                        float(obj.mean_diff()), float(obj.first.mean())))
             }, {
                 "title": "... per max std dev",
-                "func": lambda x: x.mean_diff_per_dev(),
+                "func": lambda x: fnumber(x.mean_diff_per_dev(), #rel_deviation=x.max_rel_std_dev(),
+                                          is_percent=True),
                 "format": self._percent_format,
                 "popover": _Popover(self, "Explanation", """
                     The mean difference relative to the maximum standard deviation:
@@ -986,13 +987,13 @@ class HTMLReporter2(AbstractReporter):
                            md=obj.mean_diff(), std=obj.max_std_dev()), trigger="hover click")
             }, {
                 "title": "... ci (lower bound)",
-                "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[0],
+                "func": lambda x: fnumber(x.mean_diff_ci(self.misc["alpha"])[0]),
                 "format": self._float_format,
                 "extended": True,
                 "popover": ci_popover
             } ,{
                 "title": "... ci (upper bound)",
-                "func": lambda x: x.mean_diff_ci(self.misc["alpha"])[1],
+                "func": lambda x: fnumber(x.mean_diff_ci(self.misc["alpha"])[1]),
                 "format": self._float_format,
                 "extended": True,
                 "popover": ci_popover
@@ -1018,7 +1019,10 @@ class HTMLReporter2(AbstractReporter):
             tested_per_prop = l
 
         def content_func(row_header: str, col_header: str, row: int, col: int):
-            return tested_per_prop[row]["format"].format(tested_per_prop[row]["func"](obj))
+            res = tested_per_prop[row]["func"](obj)
+            if isinstance(res, str):
+                return res
+            return tested_per_prop[row]["format"].format(res)
 
         def header_popover_func(elem, index: int, is_header_row: bool):
             if not is_header_row and "popover" in tested_per_prop[index]:
@@ -1047,11 +1051,12 @@ class HTMLReporter2(AbstractReporter):
                     Difference between the mean of the first and the mean of the second.
                     It's the absolute difference and is often less important that the relative differences.
                 """),
-                "func": lambda x: x.mean_diff(),
+                "func": lambda x: fnumber(x.mean_diff(), abs_deviation=x.max_std_dev()),
                 "format": self._float_format
             }, {
                 "title": "... per first mean",
-                "func": lambda x: x.mean_diff_per_mean(),
+                "func": lambda x: fnumber(x.mean_diff_per_mean(), abs_deviation=x.max_std_dev() / x.first.mean(),
+                                          is_percent=True),
                 "format": self._percent_format,
                 "popover": _Popover(self, "Explanation", """The mean difference relative to the first mean
                 gives a number that helps to talk about the practical significance of the mean difference.
@@ -1060,7 +1065,8 @@ class HTMLReporter2(AbstractReporter):
                 """)
             }, {
                 "title": "... per max std dev",
-                "func": lambda x: x.mean_diff_per_dev(),
+                "func": lambda x: fnumber(x.mean_diff_per_dev(), rel_deviation=x.max_std_dev() / x.first.mean(),
+                                          is_percent=True),
                 "format": self._percent_format,
                 "popover": _Popover(self, "Explanation", """
                 The mean difference relative to the maximum standard deviation is important,
@@ -1077,16 +1083,16 @@ class HTMLReporter2(AbstractReporter):
             tested_per_prop.extend([{
                 "title": "Difference of mins",
                 "popover": None,#Popover(self, "", """  """),
-                "func": lambda x: x.first.min() - x.second.min(),
+                "func": lambda x: fnumber(x.first.min() - x.second.min()),
                 "format": self._float_format
             }, {
                 "title": "... per first min",
-                "func": lambda x: (x.first.min() - x.second.min()) / x.first.min(),
+                "func": lambda x: fnumber((x.first.min() - x.second.min()) / x.first.min(), is_percent=True),
                 "format": self._percent_format,
                 "popover": None,#Popover(self, "Explanation", """            """)
             }, {
                 "title": "... per max std dev",
-                "func": lambda x: (x.first.min() - x.second.min()) / x.max_std_dev(),
+                "func": lambda x: fnumber((x.first.min() - x.second.min()) / x.max_std_dev(), is_percent=True),
                 "format": self._percent_format,
                 "popover": _Popover(self, "Explanation", """
                 The mean difference relative to the maximum standard deviation is important,
@@ -1144,6 +1150,8 @@ class HTMLReporter2(AbstractReporter):
         def content_func(row_header: str, col_header: str, row: int, col: int):
             d = tested_per_prop[col]
             res = d["func"](obj.properties[row_header])
+            if isinstance(res, str):
+                return res
             return d["format"].format(res)
 
         def header_color_obj(elem, index: int, is_header_row: bool):
@@ -1202,7 +1210,7 @@ class HTMLReporter2(AbstractReporter):
         tested_per_prop = [
             {
                 "title": "mean",
-                "func": lambda x: x.mean(),
+                "func": lambda x: fnumber(x.mean(), abs_deviation=x.std_dev()),
                 "format": self._float_format,
                 "popover": _Popover(self, "Explanation", """
                     The simple arithmetical mean
@@ -1220,12 +1228,13 @@ class HTMLReporter2(AbstractReporter):
                     points are spread out over a wider range of values.
                     (<a href='https://en.wikipedia.org/wiki/Standard_deviation'>wikipedia</a>)
                 """, trigger="hover click"),
-                "func": lambda x: x.std_dev(),
+                "func": lambda x: fnumber(x.std_dev(), abs_deviation=x.sem()),
                 "format": self._float_format,
                 "extended": True
             }, {
                 "title": "\(\sigma\) per mean",
-                "func": lambda x: x.std_dev_per_mean(),
+                "func": lambda x: fnumber(x.std_dev_per_mean(), rel_deviation=x.sem() / (x.mean() ** 2),
+                                          is_percent=True),
                 "format": self._percent_format,
                 "popover": _Popover(self, "Explanation", """
                     The standard deviation relative to the mean is a measure of how big the relative variation
@@ -1245,12 +1254,12 @@ class HTMLReporter2(AbstractReporter):
                     degree to which individuals within the sample differ from the sample mean.
                     (<a href='https://en.wikipedia.org/wiki/Standard_error'>wikipedia</a>)</p>""",
                                     trigger="hover focus"),
-                "func": lambda x: x.sem(),
+                "func": lambda x: fnumber(x.sem(), abs_deviation=x.sem() / math.sqrt(x.observations())),
                 "format": self._float_format,
                 "extended": False
             }, {
                 "title": "median",
-                "func": lambda x: x.median(),
+                "func": lambda x: fnumber(x.median(), abs_deviation=x.std_dev()),
                 "format": self._float_format,
                 "popover": _Popover(self, "Explanation", """
                     The median is the value that seperates that data into two equal sizes subsets
@@ -1260,7 +1269,7 @@ class HTMLReporter2(AbstractReporter):
                 "extended": True
             }, {
                 "title": "min",
-                "func": lambda x: x.min(),
+                "func": lambda x: fnumber(x.min()),
                 "format": self._float_format,
                 "popover": _Popover(self, "Explanation", """The minimum value. It's a bad sign if the maximum
                                                   is far lower than the mean and you can't explain it.
@@ -1277,7 +1286,7 @@ class HTMLReporter2(AbstractReporter):
                 }])
         tested_per_prop.extend([{
                 "title": "max",
-                "func": lambda x: x.max(),
+                "func": lambda x: fnumber(x.max()),
                 "format": self._float_format,
                 "popover": _Popover(self, "Explanation", """The maximum value. It's a bad sign if the maximum
                                                   is far higher than the mean and you can't explain it.
@@ -1292,25 +1301,25 @@ class HTMLReporter2(AbstractReporter):
                 "extended": False
             }, {
                 "title": "mean ci (lower bound)",
-                "func": lambda x: x.mean_ci(self.misc["alpha"])[0],
+                "func": lambda x: fnumber(x.mean_ci(self.misc["alpha"])[0]),
                 "format": self._float_format,
                 "extended": True,
                 "popover": mean_ci_popover
             } ,{
                 "title": "mean ci (upper bound)",
-                "func": lambda x: x.mean_ci(self.misc["alpha"])[1],
+                "func": lambda x: fnumber(x.mean_ci(self.misc["alpha"])[1]),
                 "format": self._float_format,
                 "extended": True,
                 "popover": mean_ci_popover
             }, {
                 "title": "std dev ci (lower bound)",
-                "func": lambda x: x.std_dev_ci(self.misc["alpha"])[0],
+                "func": lambda x: fnumber(x.std_dev_ci(self.misc["alpha"])[0]),
                 "format": self._float_format,
                 "extended": True,
                 "popover": mean_ci_popover
             } ,{
                 "title": "std dev ci (upper bound)",
-                "func": lambda x: x.std_dev_ci(self.misc["alpha"])[1],
+                "func": lambda x: fnumber(x.std_dev_ci(self.misc["alpha"])[1]),
                 "format": self._float_format,
                 "extended": True,
                 "popover": mean_ci_popover
@@ -1363,7 +1372,10 @@ class HTMLReporter2(AbstractReporter):
             else:
                 d = tested_per_prop[col]
                 obj = row_header
-            return d["format"].format(d["func"](obj))
+            res = d["func"](obj)
+            if isinstance(res, str):
+                return res
+            return d["format"].format(res)
 
         def header_color_obj(elem, index: int, is_header_row: bool):
             if objs_in_cols == is_header_row:
@@ -1957,9 +1969,9 @@ class _Table:
         rows.append(",".join(repr(cell.content) for cell in [self.orig_anchor_cell] + self.header_row))
 
         def convert_content(text: str) -> str:
-            if text.endswith("%"):
-                return str(float(text[:-1]) / 100)
             try:
+                if text.endswith("%"):
+                    return str(float(text[:-1]) / 100)
                 float(text)
                 return text
             except:
@@ -2086,11 +2098,11 @@ def _parse_csv_reporter_spec(spec: str) -> t.Tuple[str, str]:
         raise SyntaxError("Column spec {!r} isn't valid".format(spec))
 
     parts = spec.split("[")
-    if parts[0] != "description" and (len(parts[1]) < 2 or "]" not in parts[1]
-                                      or parts[1][:-1] not in valid_csv_reporter_modifiers or len(parts[0]) < 1):
-        error()
-    if parts[0] == "description":
+    if len(parts) == 1 and parts[0] != "":
         return parts[0], ""
+    if len(parts[1]) < 2 or "]" not in parts[1] \
+            or parts[1][:-1] not in valid_csv_reporter_modifiers or len(parts[0]) < 1:
+        error()
     return parts[0], parts[1][:-1]
 
 
@@ -2104,7 +2116,7 @@ def _is_valid_csv_reporter_spec_list(specs: t.List[str]) -> bool:
 @register(ReporterRegistry, "csv", Dict({
     "out": FileNameOrStdOut() // Default("-") // Description("Output file name or standard out (-)"),
     "columns": ListOrTuple(Str()) // (lambda x: _is_valid_csv_reporter_spec_list(x))
-               // Description("List of valid column specs, format is 'PROP\\[mod\\]' or 'description', "
+               // Description("List of valid column specs, format is 'PROP\\[mod\\]' or 'ATTRIBUTES' "
                                               "mod is one of: {}".format(join_strs(valid_csv_reporter_modifiers)))
     // Default(["description"])
 }))
@@ -2142,8 +2154,8 @@ class CSVReporter(AbstractReporter):
         return [self._column(single, spec) for spec in specs]
 
     def _column(self, single: Single, spec: t.Tuple[str, str]) -> t.Union[str, int, float]:
-        if spec[0] == "description":
-            return single.description()
+        if spec[1] == "":
+            return single.attributes[spec[0]]
         return self._column_property(single.properties[spec[0]], spec[1])
 
     def _column_property(self, single: SingleProperty, modifier: str) -> t.Union[str, int, float]:
