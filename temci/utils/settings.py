@@ -217,6 +217,7 @@ class Settings(metaclass=Singleton):
 
                 def func(key, path, value):
                     self._set_default(path, value)
+                    self._set(path, value)
 
                 recursive_exec_for_leafs(map, func)
         except (yaml.YAMLError, IOError) as err:
