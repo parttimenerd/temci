@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 import temci.scripts.version as version
 from os import path
 
+# Read contents of README.rst for use as long_description
 here = path.abspath(path.dirname(__file__))
-
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
