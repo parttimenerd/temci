@@ -15,15 +15,15 @@ temci depends on the existence of some packages that aren't installible via `pip
 
 On **Ubuntu** or **Debian** (or a similar distribution) execute the following command with super user privileges::
 
-   apt-get install python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy time linux-tools-`uname -r` gcc make
+   apt-get install time linux-tools-`uname -r` gcc make
 
 On **Fedora** (or similar distribution using the `dnf` or `yum` package manager) execute the following command with super user privileges::
 
-   dnf install python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy perf gcc make
+   dnf install perf gcc make
 
 or::
 
-   yum install python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy perf gcc make
+   yum install perf gcc make
 
 On **Apples OS X** install at least the gnu-time package with homebrew.
 
@@ -51,8 +51,7 @@ Just clone temci and install it via::
 
    git clone https://github.com/parttimenerd/temci
    cd temci
-   ./install_packages.sh # runs the install package commands from above
-   sudo pip3 install .
+   pip3 install .
 
 Post installation
 -----------------
