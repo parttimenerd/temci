@@ -51,8 +51,7 @@ Just clone temci and install it via::
 
    git clone https://github.com/parttimenerd/temci
    cd temci
-   ./install_packages.sh # runs the install package commands from above
-   sudo pip3 install .
+   pip3 install .
 
 Post installation
 -----------------
