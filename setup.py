@@ -1,29 +1,11 @@
-import os
-import sys
 from setuptools import setup, find_packages
 import temci.scripts.version as version
 from os import path
-from distutils.command.install import install as _install
 
 here = path.abspath(path.dirname(__file__))
 
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
-
-def _post_install(dir):
-    pass
-    #from subprocess import call
-    #call(['/bin/sh', 'install_packages.sh'],
-    #     cwd=path.join(dir, 'temci'))
-
-
-class install(_install):
-
-    def run(self):
-        _install.run(self)
-        if os.environ.get('READTHEDOCS', None) != 'True':
-            self.execute(_post_install, (self.install_lib,),
-                         msg="Running post install task")
 
 setup(
     name='temci',
@@ -71,5 +53,4 @@ setup(
         temci=temci.scripts.cli:cli_with_error_catching
         temci_completion=temci.scripts.temci_completion:cli
     ''',
-    cmdclass={'install': install}
 )
