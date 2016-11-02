@@ -65,7 +65,7 @@ driver plugins is given in the `documentation for the run module <temci.run.html
 
 The status of the documentation is given in the section `Status of the documentation`_.
 
-Geting started with simple benchmarking
+Getting started with simple benchmarking
 ---------------------------------------
 
 *Or: How to benchmarking a simple program called ls (a program is every
@@ -166,7 +166,7 @@ How to go further from here
 
 -  If using ``temci init run_config``:
 
-   -  Choose another set of measured properties (e.g. to measure the LL1
+   -  Choose another set of measured properties (e.g. to measure the L1
       cache misses)
    -  Change the used runner. The default runner is ``time`` and uses
       ``time`` (gnu time, not shell builtin) to actually measure the
