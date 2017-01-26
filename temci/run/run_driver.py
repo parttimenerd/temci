@@ -966,7 +966,7 @@ class SpecExecRunner(ExecRunner):
         if len(data) == 0:
             raise BenchmarkingError("No properties in the result file matched begin with {!r} "
                                     "and match the passed regular expression {!r}"
-                                    .format(self.misc["base_path"], self.path_regexp))
+                                    .format(self.misc["base_path"], self._path_regexp))
 
         res = res or BenchmarkingResultBlock()
         res.add_run_data(data)
