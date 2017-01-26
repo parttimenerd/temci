@@ -338,8 +338,8 @@ class ExecValidator:
         """
         self._match(cmd, "program output", out, self.config["expected_output"], True)
         self._match(cmd, "program output", out, self.config["unexpected_output"], False)
-        self._match(cmd, "program error output", out, self.config["expected_erroutput"], True)
-        self._match(cmd, "program error output", out, self.config["unexpected_erroutput"], False)
+        self._match(cmd, "program error output", err, self.config["expected_erroutput"], True)
+        self._match(cmd, "program error output", err, self.config["unexpected_erroutput"], False)
         self._match_return_code(cmd, self.config["expected_return_code"], return_code)
 
     def _match(self, cmd: str, name: str, checked_str: str, checker: List(Str()) | Str(), expect_match: bool):
