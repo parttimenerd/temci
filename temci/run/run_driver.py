@@ -758,10 +758,10 @@ class PerfStatExecRunner(ExecRunner):
         for line in reversed(exec_res.stderr.strip().split("\n")):
             if missing_props == 0:
                 break
-            if ',' in line or ';' in line or "." in line:
+            prop = props[missing_props - 1]
+            if ',' in line or ';' in line or "." in line or prop in line:
                 try:
                     line = line.strip()
-                    prop = props[missing_props - 1]
                     assert prop in line or prop == "wall-clock"
                     val = ""  # type: str
                     if ";" in line:  # csv output with separator ';'
