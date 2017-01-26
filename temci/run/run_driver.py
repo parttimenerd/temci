@@ -961,8 +961,13 @@ class SpecExecRunner(ExecRunner):
                 return props[prop][sub_path]
 
             if prop not in data:
-                data[prop] = data
-            data[prop].append(eval(self.misc["code"]))
+                data[prop] = []
+            result = eval(self.misc["code"])
+            if isinstance(result, list):
+                data[prop].extend(result)
+            else:
+                data[prop].append(result)
+
         if len(data) == 0:
             raise BenchmarkingError("No properties in the result file matched begin with {!r} "
                                     "and match the passed regular expression {!r}"
