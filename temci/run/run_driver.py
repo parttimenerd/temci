@@ -338,8 +338,8 @@ class ExecValidator:
         """
         self._match(cmd, "program output", out, self.config["expected_output"], True)
         self._match(cmd, "program output", out, self.config["unexpected_output"], False)
-        self._match(cmd, "program error output", out, self.config["expected_erroutput"], True)
-        self._match(cmd, "program error output", out, self.config["unexpected_erroutput"], False)
+        self._match(cmd, "program error output", err, self.config["expected_erroutput"], True)
+        self._match(cmd, "program error output", err, self.config["unexpected_erroutput"], False)
         self._match_return_code(cmd, self.config["expected_return_code"], return_code)
 
     def _match(self, cmd: str, name: str, checked_str: str, checker: List(Str()) | Str(), expect_match: bool):
@@ -758,10 +758,10 @@ class PerfStatExecRunner(ExecRunner):
         for line in reversed(exec_res.stderr.strip().split("\n")):
             if missing_props == 0:
                 break
-            if ',' in line or ';' in line or "." in line:
+            prop = props[missing_props - 1]
+            if ',' in line or ';' in line or "." in line or prop in line:
                 try:
                     line = line.strip()
-                    prop = props[missing_props - 1]
                     assert prop in line or prop == "wall-clock"
                     val = ""  # type: str
                     if ";" in line:  # csv output with separator ';'
@@ -961,12 +961,17 @@ class SpecExecRunner(ExecRunner):
                 return props[prop][sub_path]
 
             if prop not in data:
-                data[prop] = data
-            data[prop].append(eval(self.misc["code"]))
+                data[prop] = []
+            result = eval(self.misc["code"])
+            if isinstance(result, list):
+                data[prop].extend(result)
+            else:
+                data[prop].append(result)
+
         if len(data) == 0:
             raise BenchmarkingError("No properties in the result file matched begin with {!r} "
                                     "and match the passed regular expression {!r}"
-                                    .format(self.misc["base_path"], self.path_regexp))
+                                    .format(self.misc["base_path"], self._path_regexp))
 
         res = res or BenchmarkingResultBlock()
         res.add_run_data(data)
