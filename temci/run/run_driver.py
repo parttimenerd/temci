@@ -640,7 +640,7 @@ def is_perf_available() -> bool:
     Is the ``perf`` tool available?
     """
     try:
-        subprocess.check_call(["perf", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.check_call(["perf", "stat", "/bin/echo"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except BaseException:
         return False
     return True
@@ -729,7 +729,10 @@ class PerfStatExecRunner(ExecRunner):
         super().__init__(block)
         if not is_perf_available():
             raise KeyboardInterrupt("The perf tool needed for the perf stat runner isn't installed. You can install it "
-                                    "via the linux-tools (or so) package of your distribution.")
+                                    "via the linux-tools (or so) package of your distribution. If it's installed, "
+                                    "you might by only allowed to use it with super user rights. Test a simple command "
+                                    "like `perf stat /bin/echo` to see what you have to do if you want to use with "
+                                    "your current rights.")
 
     def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
         do_repeat = self.misc["repeat"] > 1
@@ -1063,7 +1066,8 @@ def time_file(_tmp=[]) -> str:
             else:
                 return "false && "
         else:
-            _tmp.append(shutil.which("time"))
+            _tmp.append("/usr/bin/time") # shutil.which("time") doesn't work in later versions
+    assert _tmp[0] != None
     return _tmp[0]
 
 

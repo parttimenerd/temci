@@ -1,9 +1,8 @@
-import os
-import sys
-from setuptools import setup, find_packages
-import temci.scripts.version as version
 from os import path
-from distutils.command.install import install as _install
+
+from setuptools import setup, find_packages
+
+import temci.scripts.version as version
 
 here = path.abspath(path.dirname(__file__))
 
