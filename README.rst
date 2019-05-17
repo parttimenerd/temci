@@ -27,6 +27,9 @@ Installing temci on linux systems should be possible by just installing it via `
 
 If this results in any problems or you're on an Apple system, visit the
 Installation_ page.
+
+Installing a version, with minimal dependencies and without support for `temci init` and the HTML report generation, by setting the enviroment variable `MINIMAL_TEMCI` to `1` prior to the installation. This is currently required for the Nix installation.
+
 Open an issue in the `issue tracker <https://github.com/parttimenerd/temci/issues>`_
 if you experience any weird errors.
 

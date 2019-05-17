@@ -1,4 +1,5 @@
 from os import path
+import os
 
 from setuptools import setup, find_packages
 
@@ -8,6 +9,9 @@ here = path.abspath(path.dirname(__file__))
 
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
+
+non_minimal_deps = ['seaborn', 'cairocffi', 'matplotlib', 'prompt_toolkit', 'ptpython',
+        'docopt', 'Pygments', 'typing', 'glob2', 'globster']
 
 setup(
     name='temci',
@@ -21,15 +25,14 @@ setup(
     include_package_data=True,
     install_requires=[
         'click',
-        'humanfriendly',
+        'humanfriendly', 'pytimeparse',
         'fn',
-        'pytimeparse',
         'cpuset-py3',
         'wcwidth',
         'rainbow_logging_handler',
         'tablib',
         'pyyaml'
-    ],
+    ] + [] if os.getenv("MINIMAL_TEMCI") == "1" else non_minimal_deps,
     license='GPLv3',
     platforms='linux',
     classifiers=[
