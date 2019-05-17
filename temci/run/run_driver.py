@@ -6,6 +6,8 @@ import datetime
 import re
 import shutil
 import collections
+import yaml
+
 from temci.build.builder import Builder, env_variables_for_rand_conf
 from temci.setup import setup
 from temci.utils.settings import Settings
@@ -1177,6 +1179,41 @@ class TimeExecRunner(ExecRunner):
     def get_property_descriptions(self) -> t.Dict[str, str]:
         return get_av_time_properties()
 
+
+@ExecRunDriver.register_runner()
+class OutputExecRunner(ExecRunner):
+    """
+    Parses the output of the called command as YAML dictionary (or list of dictionaries) populate
+    the benchmark results (string key and int or float value).
+
+    For the simplest case, a program just outputs something like `time: 1000.0`.
+    """
+
+    name = "output"
+    misc_options = Dict({})
+
+    def __init__(self, block: RunProgramBlock):
+        super().__init__(block)
+
+    def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
+        pass
+
+    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+                     res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
+        res = res or BenchmarkingResultBlock()
+        dict_type = Dict(all_keys=False, key_type=Str(), value_type=Either(Int(), Float(), List(Either(Int(), Float()))))
+        output = yaml.load(exec_res.stdout.strip())
+        if isinstance(output, dict_type):
+            res.add_run_data(dict(output))
+        elif isinstance(output, List(dict_type)):
+            for entry in list(output):
+                res.add_run_data(entry)
+        else:
+            raise BenchmarkingError("Not a valid benchmarking program output: " + exec_res.stdout)
+        return res
+
+    def get_property_descriptions(self) -> t.Dict[str, str]:
+        return {}
 
 class BenchmarkingError(RuntimeError):
     """
