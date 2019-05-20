@@ -161,7 +161,7 @@ misc_commands_description = {
         "run_config": "Interactive cli to create (or append to) a run config file"
     },
     "short": {
-        "exec": "Exec code snippets directly with the exec run driver"
+        "exec": "Execute commands directly with the exec run driver"
     }
 }
 
@@ -191,6 +191,7 @@ for driver in run_driver.RunDriverRegistry.registry:
 
 def temci__short():
     pass
+
 temci__short.__doc__ = command_docs["short"]
 
 
@@ -201,17 +202,18 @@ def short(**kwargs):
 
 
 @short.command(short_help=misc_commands_description["short"]["exec"])
+@click.argument('commands', nargs=-1, metavar="COMMANDS")
 @cmd_option(common_options)
 @cmd_option(misc_commands["short"]["sub_commands"]["exec"])
 @cmd_option(run_options["run_driver_specific"]["exec"])
-def exec(**kwargs):
-    temci__short__exec(**kwargs)
+def exec(commands, **kwargs):
+    temci__short__exec(list(commands), **kwargs)
 
 
 @document_func(misc_commands_description["short"]["exec"], common_options,
                misc_commands["short"]["sub_commands"]["exec"],
                run_options["run_driver_specific"]["exec"])
-def temci__short__exec(with_description: list = None, without_description: list = None, **kwargs):
+def temci__short__exec(commands: list, with_description: list = None, without_description: list = None, **kwargs):
     runs = []
     if with_description is not None:
         for (descr, cmd) in with_description:
@@ -223,15 +225,14 @@ def temci__short__exec(with_description: list = None, without_description: list 
                     "description": descr
                 }
             })
-    if without_description is not None:
-        for cmd in without_description:
-            runs.append({"run_config": {
-                    "run_cmd": [cmd]
-                },
-                "attributes": {
-                    "description": cmd
-                }
-            })
+    for cmd in commands + (without_description or []):
+        runs.append({"run_config": {
+                "run_cmd": [cmd]
+            },
+            "attributes": {
+                "description": cmd
+            }
+        })
     Settings()["run/driver"] = "exec"
     try:
         RunProcessor(runs).benchmark()

@@ -77,7 +77,7 @@ driver plugins is given in the `documentation for the run module <temci.run.html
 The status of the documentation is given in the section `Status of the documentation`_.
 
 Getting started with simple benchmarking
----------------------------------------
+----------------------------------------
 
 *Or: How to benchmarking a simple program called ls (a program is every
 valid shell code that is executable by /bin/sh)*
@@ -88,15 +88,16 @@ The short one first: Just type:
 
 .. code:: sh
 
-        temci short exec -wd "ls" --runs 100 --out out.yaml
+        temci short exec "ls" --runs 100 --out out.yaml
 
 Explanation:
 
 -  ``short`` is the category of small helper subprograms that allow to
    use some temci features without config files
--  ``-wd`` is the short option for ``--without_description`` an tells
-   temci to use the program as its own description
 -  ``ls`` is the executed program
+    - this is equivalent to ``-wd "ls"``
+    -  where ``-wd`` is the short option for ``--without_description`` an tells
+       temci to use the program as its own description
 -  ``--runs 100`` is short for ``--min_runs 100 --max_runs 100``
 -  ``--min_runs 100`` tells temci to benchmark ``ls`` at least 100 times
    (the default value is currently 20)
