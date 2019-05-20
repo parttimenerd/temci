@@ -1,4 +1,5 @@
 import locale
+from enum import Enum
 
 from temci.utils.util import sphinx_doc, get_doc_for_type_scheme
 
@@ -36,8 +37,16 @@ except ImportError:
     import pureyaml as yaml
 from temci.utils.click_helper import type_scheme_option, cmd_option, CmdOption, CmdOptionList, document_func
 import temci.scripts.version
+import typing as t
 
 Settings().load_files()
+
+
+class ErrorCode(Enum):
+    NO_ERROR = 0
+    PROGRAM_ERROR = 1
+    TEMCI_ERROR = 255
+
 
 @click.group(epilog="""
 temci (version {})  Copyright (C) 2016 Johannes Bechberger
@@ -166,6 +175,21 @@ misc_commands_description = {
 }
 
 
+def benchmark_and_exit(runs: t.List[dict] = None):
+    """
+    Benchmark and exit with an exit code if an error occurred:
+    0 if everything went okay, 1 if at least one benchmarked program failed, 255 if temci itself failed
+    """
+    try:
+        processor = RunProcessor(runs)
+        processor.benchmark()
+        if processor.recorded_error():
+            sys.exit(ErrorCode.PROGRAM_ERROR.value)
+    except KeyboardInterrupt:
+        logging.error("KeyboardInterrupt. Cleaned up everything.")
+        sys.exit(ErrorCode.TEMCI_ERROR.value)
+
+
 # Register a command for each run driver
 for driver in run_driver.RunDriverRegistry.registry:
     _options = CmdOptionList(common_options, run_options["common"], run_options["run_driver_specific"][driver])
@@ -179,10 +203,7 @@ for driver in run_driver.RunDriverRegistry.registry:
     def _func2(run_file, **kwargs):
         Settings()["run/driver"] = driver
         Settings()["run/in"] = run_file
-        try:
-            RunProcessor().benchmark()
-        except KeyboardInterrupt:
-            logging.error("KeyboardInterrupt. Cleaned up everything.")
+        benchmark_and_exit()
     _func2.__name__ = "temci__" + driver
     document_func(command_docs[driver], _options, argument="configuration YAML file")(_func2)
     globals()["temci__" + driver] = _func2
@@ -225,7 +246,7 @@ def temci__short__exec(commands: list, with_description: list = None, without_de
                     "description": descr
                 }
             })
-    for cmd in commands + (without_description or []):
+    for cmd in commands + (list(without_description) or []):
         runs.append({"run_config": {
                 "run_cmd": [cmd]
             },
@@ -234,10 +255,7 @@ def temci__short__exec(commands: list, with_description: list = None, without_de
             }
         })
     Settings()["run/driver"] = "exec"
-    try:
-        RunProcessor(runs).benchmark()
-    except KeyboardInterrupt:
-        logging.error("KeyboardInterrupt. Cleaned up everything.")
+    benchmark_and_exit(runs)
 
 
 @cli.command(short_help=command_docs["report"])

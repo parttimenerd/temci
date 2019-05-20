@@ -41,3 +41,12 @@ interaction is disabled (by stopping X11)
 
 Stopping a process here means to send a process a SIGSTOP signal and
 resume it by sending a SIGCONT signal later.
+
+Error Codes
+~~~~~~~~~~~
+
+==== =======================================
+   0 no error
+   1 at least one benchmarked program failed
+ 255 temci itself failed
+==== =======================================

@@ -228,6 +228,9 @@ class RunProcessor:
         self._benchmarking_block_run(block_size=self.discarded_runs, discard=True, bench_all=True)
         return (time.time() - start_time) / self.discarded_runs
 
+    def recorded_error(self) -> bool:
+        return len(self.erroneous_run_blocks) > 0
+
     def teardown(self):
         """ Teardown everything (make the system useable again) """
         self.pool.teardown()
@@ -250,7 +253,7 @@ class RunProcessor:
             self.stats_helper.valid_runs()[0].description()
             subject = "Finished " + join_strs([repr(run.description()) for run in self.stats_helper.valid_runs()])
             send_mail(Settings()["run/send_mail"], subject, report, [Settings()["run/out"]])
-        if len(self.erroneous_run_blocks) > 0:
+        if self.recorded_error():
             descrs = []
             msgs = []
             for (i, result) in self.erroneous_run_blocks:
