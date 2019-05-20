@@ -645,6 +645,7 @@ class HTMLReporter2(AbstractReporter):
                 return
         resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
         shutil.copytree(resources_path, self.misc["out"])
+        os.chmod(self.misc["out"], 0o755)
         runs = self.stats_helper.valid_runs()
         self._percent_format = self.misc["percent_format"]
         self._float_format = self.misc["float_format"]
