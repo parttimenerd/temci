@@ -5,30 +5,38 @@ temci
 
 An advanced benchmarking tool written in python3 that supports binary randomization and the generation of visually appealing reports.
 
-It runs on sufficiently new linux systems and (rudimentary) on Apple's OS X systems.
+It runs on sufficiently new Linux systems and (rudimentarily) on Apple's OS X systems.
 
-The development started as part of my bachelor thesis in october 2015. The bachelor thesis (written in german) can be found `here <https://pp.info.uni-karlsruhe.de/uploads/publikationen/bechberger16bachelorarbeit.pdf>`_.
+The development started as part of my bachelor thesis in October 2015. The bachelor thesis (written in German) can be found `here <https://pp.info.uni-karlsruhe.de/uploads/publikationen/bechberger16bachelorarbeit.pdf>`_.
 
 Why should you use temci?
 -------------------------
 
 temci allows you to easily measure the execution time (and other things)
 of programs and compare them against each other resulting in a pretty
-HTML5 based report. Furthermore it set's up the environment to ensure
+HTML5 based report. Furthermore it sets up the environment to ensure
 benchmarking results with a low variance and use some kind of assembly
 randomisation to reduce the effect of caching.
 
 Installation
 ------------
 
-Installing temci on linux systems should be possible by just installing it via ``pip3``::
+The simplest way to install temci and its dependencies on either Linux or macOS
+is to use the `Nix package manager <https://nixos.org/nix/>`_. After installing
+Nix, execute
+
+.. code:: sh
+
+          nix-env -f https://github.com/parttimenerd/temci/archive/master.tar.gz -i
+
+Alternatively, installing temci on Linux systems should be possible by just installing it via ``pip3``::
 
     pip3 install temci
 
 If this results in any problems or you're on an Apple system, visit the
 Installation_ page.
 
-Installing a version, with minimal dependencies and without support for `temci init` and the HTML report generation, by setting the enviroment variable `MINIMAL_TEMCI` to `1` prior to the installation. This is currently required for the Nix installation and requires at least python 3.6.
+Installing a version with minimal dependencies and without support for `temci init` and the HTML report generation is possible by setting the enviroment variable `MINIMAL_TEMCI` to `1` prior to the installation. This is currently done by the Nix installation and requires at least python 3.6.
 
 Open an issue in the `issue tracker <https://github.com/parttimenerd/temci/issues>`_
 if you experience any weird errors.

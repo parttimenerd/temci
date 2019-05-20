@@ -17,8 +17,6 @@ import time
 
 import humanfriendly
 
-if util.can_import("init"):
-    from temci.scripts.init import prompt_run_config, prompt_build_config
 from temci.utils.typecheck import *
 
 from temci.run.run_processor import RunProcessor
@@ -292,6 +290,7 @@ def build_config(**kwargs):
                misc_commands["init"]["sub_commands"]["build_config"],
                common_options)
 def temci__init__build_config(**kwargs):
+    from temci.scripts.init import prompt_build_config
     prompt_build_config()
 
 
@@ -299,6 +298,7 @@ def temci__init__build_config(**kwargs):
 @cmd_option(misc_commands["init"]["sub_commands"]["run_config"])
 @cmd_option(common_options)
 def run_config(**kwargs):
+    from temci.scripts.init import prompt_run_config
     prompt_run_config()
 
 
@@ -306,6 +306,7 @@ def run_config(**kwargs):
                misc_commands["init"]["sub_commands"]["run_config"],
                common_options)
 def temci__init__run_config(**kwargs):
+    from temci.scripts.init import prompt_run_config
     prompt_run_config()
 
 

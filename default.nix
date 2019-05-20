@@ -7,6 +7,7 @@ in buildPythonApplication rec {
   name = "temci-${version}";
   version = "local";
   src = ./.;
+  MINIMAL_TEMCI = 1;
   propagatedBuildInputs = [
     click
     pypi.humanfriendly

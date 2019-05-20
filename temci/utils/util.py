@@ -150,8 +150,6 @@ def can_import(module: str) -> bool:
         return True
     if in_standalone_mode:
         return False
-    if module in ["init", "prompt_toolkit"]:
-        return len(sys.argv) >= 2 and sys.argv[1] == "init"
     if len(sys.argv) == 1 or sys.argv[1] in ["completion", "version", "assembler"]:
         return False
     return True
