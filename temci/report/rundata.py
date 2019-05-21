@@ -135,6 +135,19 @@ class RunData(object):
                 data[prop] = self.data[prop]
         return self.clone(data=data)
 
+    def include_properties(self, properties: t.List[str]) -> 'RunData':
+        """
+        Creates a new run data instance with only the passed properties.
+
+        :param properties: included properties
+        :return: new run data instance
+        """
+        data = {}
+        for prop in self.data:
+            if prop in properties:
+                data[prop] = self.data[prop]
+        return self.clone(data=data)
+
     def exclude_invalid(self) -> t.Tuple[t.Optional['RunData'], t.List[str]]:
         """
         Exclude properties that only have zeros or NaNs as measurements.
@@ -514,6 +527,19 @@ class RunDataStatsHelper(object):
                 runs.append(run.exclude_properties(properties))
         return self.clone(runs=runs)
 
+    def include_properties(self, properties: t.List[str]) -> 'RunDataStatsHelper':
+        """
+        Create a new instance with only the passed properties.
+
+        :param properties: included properties
+        :return: new instance
+        """
+        runs = []
+        for run in self.runs:
+            if run is not None:
+                runs.append(run.include_properties(properties))
+        return self.clone(runs=runs)
+
     def exclude_invalid(self) -> t.Tuple['RunDataStatsHelper', 'ExcludedInvalidData']:
         """
         Exclude all properties of run datas that only have zeros or NaNs as measurements.
@@ -545,12 +571,12 @@ class RunDataStatsHelper(object):
             return
         self.property_descriptions.update(property_descriptions)
 
-    def long_properties(self, property_format: str = "[{}]") -> t.Tuple['RunDataStatsHelper',t.Callable[[str], t.Optional[str]]]:
+    def long_properties(self, property_format: str = "[{}]") -> t.Tuple['RunDataStatsHelper', t.Dict[str, str]]:
         """
         Replace the short properties names with their descriptions if possible.
 
         :param property_format: format string that gets a property description and produces a longer property name
-        :return: new instance, a function that returns a long property name for a given short property name
+        :return: new instance, a dict that returns a long property name for a given short property name
         """
         runs = []
         formatted_properties = {}  # type: t.Dict[str, str]
@@ -560,7 +586,8 @@ class RunDataStatsHelper(object):
             if run is not None:
                 runs.append(run.long_properties(formatted_properties))
 
-        return self.clone(runs=runs), lambda s: formatted_properties[s]
+        return self.clone(runs=runs), formatted_properties
+
 
 class ExcludedInvalidData:
     """

@@ -80,14 +80,17 @@ class AbstractReporter:
         else:
             self.stats_helper = stats_helper
         self.stats_helper = self.stats_helper.exclude_properties(excluded_properties)  # type: RunDataStatsHelper
+        include_props = Settings()["stats/properties"]
+        if include_props is not "all":
+            self.stats_helper = self.stats_helper.include_properties(include_props)
         self.stats_helper.make_descriptions_distinct()
         self.excluded_data_info = ExcludedInvalidData()  # type: ExcludedInvalidData
         if Settings()["report/exclude_invalid"]:
             self.stats_helper, self.excluded_data_info = self.stats_helper.exclude_invalid()
-        self.to_long_prop_mapper = lambda s: s
+        self.to_long_prop_dict = {}
         """ Maps a property name to a long property name """
         if Settings()["report/long_properties"]:
-            self.stats_helper, self.to_long_prop_mapper = self.stats_helper.long_properties()
+            self.stats_helper, self.to_long_prop_dict = self.stats_helper.long_properties()
         self.stats = TestedPairsAndSingles(self.stats_helper.valid_runs())  # type: TestedPairsAndSingles
         """ This object is used to simplify the work with the data and the statistics """
         if not self.stats_helper.properties():
@@ -639,8 +642,7 @@ class HTMLReporter2(AbstractReporter):
         if os.path.exists(self.misc["out"]):
             force = self.misc["force_override"]
             if not force:
-                from temci.scripts.init import prompt_yesno
-                force = prompt_yesno("The output folder already exists should its contents be overridden? ",
+                force = click.prompt("The output folder already exists should its contents be overridden? ", type=bool,
                                      default=False)
             if force:
                 shutil.rmtree(self.misc["out"])
@@ -2183,7 +2185,7 @@ class CSVReporter(AbstractReporter):
     def _column(self, single: Single, spec: t.Tuple[str, str]) -> t.Union[str, int, float]:
         if spec[1] == "":
             return single.attributes[spec[0]]
-        long_prop = self.to_long_prop_mapper(spec[0])
+        long_prop = self.to_long_prop_dict[spec[0]] if spec[0] in self.to_long_prop_dict else spec[0]
         if long_prop is None or long_prop not in single.properties:
             raise SyntaxError("No such property {}".format(long_prop))
         return self._column_property(single.properties[long_prop], spec[1], spec[2])
