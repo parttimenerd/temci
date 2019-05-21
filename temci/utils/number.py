@@ -1,5 +1,7 @@
 import sys
 import typing as t
+from enum import Enum
+
 import math
 from temci.utils.typecheck import *
 
@@ -9,6 +11,22 @@ Number = t.Union[int, float]
 
 def fnumber(number: Number, rel_deviation: Number = None, abs_deviation: Number = None, is_percent: bool = False) -> str:
     return FNumber(number, rel_deviation, abs_deviation, is_percent).format()
+
+
+class ParenthesesMode(Enum):
+
+    DIGIT_CHANGE = "d"
+    ORDER_OF_MAGNITUDE = "o"
+
+    @classmethod
+    def map(cls, key: t.Union[str, 'ParenthesesMode']) -> 'ParenthesesMode':
+        if isinstance(key, ParenthesesMode):
+            return key
+        return {
+            "d": ParenthesesMode.DIGIT_CHANGE,
+            "o": ParenthesesMode.ORDER_OF_MAGNITUDE
+        }[key]
+
 
 class FNumber:
     """
@@ -31,14 +49,23 @@ class FNumber:
         "force_min_decimal_places": Bool() // Description("Don't omit the minimum number of decimal places "
                                                           "if insignificant?") // Default(True),
         "percentages": Bool() // Description("Show as percentages") // Default(False),
-        "sigmas": NaturalNumber(lambda i: i > 0) // Description("Digits are considered significant if they don't change "
-                                                      "if the number itself changes += $sigmas * std dev")
-                      // Default(2)
+        "sigmas": NaturalNumber(lambda i: i > 0) // Description("Number of standard deviation used for the digit "
+                                                                "significance evaluation")
+                      // Default(2),
+        "parentheses_mode": ExactEither("d", "o") // Description("Mode for showing the parentheses: either "
+                                                                 "d (Digits are considered significant if they "
+                                                                 "don't change if the number itself changes += "
+                                                                 "$sigmas * std dev) or o (digits are considered"
+                                                                 "significant if they are bigger than $sigmas * std "
+                                                                 "dev)")
+                    // Default("o")
     })
     settings = settings_format.get_default()  # type: t.Dict[str, t.Union[int, bool]]
 
     def __init__(self, number: Number, rel_deviation: Number = None, abs_deviation: Number = None,
-                 is_percent: bool = None, scientific_notation: bool = None):
+                 is_percent: bool = None, scientific_notation: bool = None,
+                 parentheses_mode: t.Union[str, ParenthesesMode] = None,
+                 parentheses: bool = None):
         self.number = number  # type: Number
         assert not (rel_deviation is not None and abs_deviation is not None)
         self.deviation = None  # type: t.Optional[Number]
@@ -53,7 +80,10 @@ class FNumber:
         self.is_percent = is_percent if is_percent is not None else self.settings["percentages"]
         self.scientific_notation = scientific_notation if scientific_notation is not None \
                                                        else self.settings["scientific_notation"]
-
+        self.parentheses_mode = ParenthesesMode.map(parentheses_mode if parentheses_mode is not None \
+                                                                     else self.settings["parentheses_mode"])
+        self.parentheses = parentheses if parentheses is not None \
+                                       else self.settings["parentheses"]
     def __int__(self) -> int:
         return int(self.number)
 
@@ -67,12 +97,12 @@ class FNumber:
         if math.isnan(self.number):
             return str(self.number)
         dev = self.deviation
-        parentheses = self.settings["parentheses"]
+        parentheses = self.parentheses
         if dev is None:
             dev = 0
             parentheses = False
         num = self.number
-        scientific_notation = self.settings["scientific_notation"]
+        scientific_notation = self.scientific_notation
         if self.is_percent:
             dev *= 100.0
             num *= 100.0
@@ -81,11 +111,12 @@ class FNumber:
         return format_number(num, deviation=dev, parentheses=parentheses,
                              min_decimal_places=self.settings["min_decimal_places"],
                              max_decimal_places=self.settings["max_decimal_places"],
-                             scientific_notation=self.scientific_notation,
+                             scientific_notation=scientific_notation,
                              scientific_notation_si_prefixes=self.settings["scientific_notation_si_prefixes"],
                              omit_insignificant_decimal_places=self.settings["omit_insignificant_decimal_places"],
                              force_min_decimal_places=self.settings["force_min_decimal_places"],
-                             sigmas=self.settings["sigmas"]
+                             sigmas=self.settings["sigmas"],
+                             parentheses_mode=self.parentheses_mode
                              ) + ("%" if self.is_percent else "")
 
     def format(self) -> str:
@@ -110,7 +141,9 @@ def format_number(number: Number, deviation: float = 0.0,
                   scientific_notation_si_prefixes: bool = True,
                   force_min_decimal_places: bool = False,
                   relative_to_deviation: bool = False,
-                  sigmas: int = 2) -> str:
+                  sigmas: int = 2,
+                  parentheses_mode: ParenthesesMode = ParenthesesMode.ORDER_OF_MAGNITUDE
+                  ) -> str:
     """
     Format the passed number
 
@@ -129,14 +162,8 @@ def format_number(number: Number, deviation: float = 0.0,
     :param force_min_decimal_places: don't omit the minimum number of decimal places if insignificant?
     :param relative_to_deviation: format the number relative to its deviation, i.e. "10\sigma"
     :param sigmas: number of standard deviations for significance
+    :param parentheses_mode: mode for selecting the significant digits
     :return: the number formatted as a string
-    """
-    """
-    :param number: number to format
-    :param deviation: relative standard deviation associated with the number
-    :param parentheses: show parantheses around non significant digits?
-    :param explicit_deviation:
-
     """
     prefix = ""
     if number < 0:
@@ -154,7 +181,8 @@ def format_number(number: Number, deviation: float = 0.0,
         "force_min_decimal_places": force_min_decimal_places,
         "relative_to_deviation": relative_to_deviation,
         "scientific_notation": scientific_notation,
-        "sigmas": sigmas
+        "sigmas": sigmas,
+        "parentheses_mode": parentheses_mode
     }
     if explicit_deviation:
         return prefix + _format_number(**kwargs)
@@ -169,7 +197,6 @@ def format_number(number: Number, deviation: float = 0.0,
         return prefix + _format_number(**kwargs)
 
 
-
 def _format_number(number: Number, deviation: float,
                    parentheses: bool = True, explicit_deviation: bool = False,
                    is_deviation_absolute: bool = False,
@@ -180,7 +207,8 @@ def _format_number(number: Number, deviation: float,
                    relative_to_deviation: bool = False,
                    scientific_notation: bool = False,
                    scientific_notation_si_prefixes: bool = True,
-                   sigmas: int = 2) -> str:
+                   sigmas: int = 2,
+                   parentheses_mode: ParenthesesMode = ParenthesesMode.ORDER_OF_MAGNITUDE) -> str:
     app = ""
     if relative_to_deviation:
         app = "𝜎"
@@ -200,7 +228,8 @@ def _format_number(number: Number, deviation: float,
                             relative_to_deviation=relative_to_deviation,
                             scientific_notation=scientific_notation,
                             scientific_notation_si_prefixes=scientific_notation_si_prefixes,
-                            sigmas=sigmas)
+                            sigmas=sigmas,
+                            parentheses_mode=parentheses_mode)
         dev = format_number(deviation, deviation, parentheses=False, explicit_deviation=False,
                             is_deviation_absolute=True, min_decimal_places=min_decimal_places,
                             max_decimal_places=max_decimal_places,
@@ -211,7 +240,7 @@ def _format_number(number: Number, deviation: float,
                             scientific_notation_si_prefixes=scientific_notation_si_prefixes,
                             sigmas=sigmas)
         return num + "±" + dev
-    last_sig = _last_significant_digit(number, deviation, sigmas)
+    last_sig = _last_significant_digit(number, deviation, sigmas, parentheses_mode)
 
     num = ""
 
@@ -276,25 +305,31 @@ def format_number_sn(number: Number, scientific_notation_steps: int = 3,
 
 
 def _number_to_si_prefix(exponent: int) -> str:
-    assert exponent % 3 == 0 and exponent <= 24 and exponent >= -24
+    assert exponent % 3 == 0 and 24 >= exponent >= -24
     return ["Y", "Z", "E", "P", "T", "G", "M", "k",
             "", "m", "µ", "n", "f", "a", "z", "y"][int((24 - exponent) / 3)]
 
 
-def _last_significant_digit(number: Number, abs_deviation: float, sigmas: int = 2) -> int:
+def _last_significant_digit(number: Number, abs_deviation: float, sigmas: int = 2,
+                            parentheses_mode: ParenthesesMode = ParenthesesMode.ORDER_OF_MAGNITUDE) -> int:
     """
     Calculates the position down to which the passed number is significant.
     […][2][1][0].[-1][-2][…]
 
-    Significant <=> the digit does not change if the number is $sigmas deviations bigger or smaller
+    Significant <=>
+        DIGIT_CHANGE mode -> the digit does not change if the number is $sigmas deviations bigger or smaller
+        OOM -> the digit position is bigger than the order of magnitude than $sigmas deviations
     """
-    sig_num = 0
     if abs_deviation == 0:
         return -1
     if number < 0 or abs_deviation < 0:
         raise Exception()
-    upper = number + 2 * abs_deviation
-    lower = number - 2 * abs_deviation
+
+    if parentheses_mode is ParenthesesMode.ORDER_OF_MAGNITUDE:
+        return math.ceil(math.log10(sigmas * abs_deviation))
+
+    upper = number + sigmas * abs_deviation
+    lower = number - sigmas * abs_deviation
 
     current_power = math.ceil(math.log10(upper))
     min_power = math.floor(math.log10(sys.float_info.min))

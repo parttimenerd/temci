@@ -35,7 +35,7 @@ from temci.utils.settings import Settings
 from multiprocessing import Pool
 from temci.utils.util import join_strs
 import typing as t
-from temci.utils.number import format_number, FNumber, fnumber
+from temci.utils.number import format_number, FNumber, fnumber, ParenthesesMode
 
 
 class ReporterRegistry(AbstractRegistry):
@@ -2098,8 +2098,9 @@ valid_csv_reporter_modifiers = ["mean", "stddev", "property", "min", "max", "std
 
 FORMAT_OPTIONS = {
     "%": "format as percentage",
-    "p": "wrap insignificant digits in paratheses (+- 2 std dev)",
-    "s": "use scientific notation, configured in report/number"
+    "p": "wrap insignificant digits in parentheses (+- 2 std dev)",
+    "s": "use scientific notation, configured in report/number",
+    "o": "wrap digits in the order of magnitude of 2 std devs in parentheses"
 }
 
 
@@ -2201,4 +2202,7 @@ class CSVReporter(AbstractReporter):
         return FNumber(num,
                        abs_deviation=(single.std_dev() if "p" in opts else None),
                        is_percent=("%" in opts),
-                       scientific_notation=("s" in opts)).format()
+                       scientific_notation=("s" in opts),
+                       parentheses=("o" in opts or "p" in opts),
+                       parentheses_mode=ParenthesesMode.DIGIT_CHANGE if "p" in opts else \
+                                        (ParenthesesMode.ORDER_OF_MAGNITUDE if "o" in opts else None)).format()
