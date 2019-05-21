@@ -102,7 +102,9 @@ class AbstractReporter:
 
 
 @register(ReporterRegistry, "console", Dict({
-    "out": FileNameOrStdOut() // Default("-") // Description("Output file name or stdard out (-)")
+    "out": FileNameOrStdOut() // Default("-") // Description("Output file name or stdard out (-)"),
+    "with_tester_results": Bool() // Default(True) // Description("Print statistical tests for every property for every"
+                                                                  " two programs")
 }))
 class ConsoleReporter(AbstractReporter):
     """
@@ -136,7 +138,7 @@ class ConsoleReporter(AbstractReporter):
                         prop=prop, mean=mean_str,
                         dev=stdev, dev_perc=stdev/mean
                     ), file=f)
-            if with_tester_results:
+            if with_tester_results and self.misc["with_tester_results"]:
                 self._report_list("Equal program blocks",
                                   self.stats_helper.get_evaluation(with_equal=True,
                                                                    with_uncertain=False,
@@ -199,6 +201,7 @@ class HTMLReporter(AbstractReporter):
             shutil.rmtree(self.misc["out"])
         resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
         shutil.copytree(resources_path, self.misc["out"])
+        os.chmod(self.misc["out"], 0o755)
         runs = self.stats_helper.valid_runs()
         html = """
 <html>
@@ -2136,7 +2139,7 @@ def _is_valid_csv_reporter_spec_list(specs: t.List[str]) -> bool:
     "columns": ListOrTuple(Str()) // (lambda x: _is_valid_csv_reporter_spec_list(x))
                // Description("List of valid column specs, format is a comma separated list of 'PROPERTY\\[mod\\]' or 'ATTRIBUTE' "
                               "mod is one of: {}, optionally a formatting option can be given via"
-                              "PROPERTY[mod|OPT1OPT2…], where the OPTs are one of the following: {}. "
+                              "PROPERTY\\[mod|OPT1OPT2…\\], where the OPTs are one of the following: {}. "
                               "PROPERTY can be either the description or the short version of the property. "
                               "Configure the number formatting further via the number settings in the settings file"
                               .format(join_strs(valid_csv_reporter_modifiers),
