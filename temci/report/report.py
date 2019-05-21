@@ -1,4 +1,5 @@
 import logging
+from enum import Enum, unique
 
 import math
 import re
@@ -83,8 +84,10 @@ class AbstractReporter:
         self.excluded_data_info = ExcludedInvalidData()  # type: ExcludedInvalidData
         if Settings()["report/exclude_invalid"]:
             self.stats_helper, self.excluded_data_info = self.stats_helper.exclude_invalid()
+        self.to_long_prop_mapper = lambda s: s
+        """ Maps a property name to a long property name """
         if Settings()["report/long_properties"]:
-            self.stats_helper = self.stats_helper.long_properties()
+            self.stats_helper, self.to_long_prop_mapper = self.stats_helper.long_properties()
         self.stats = TestedPairsAndSingles(self.stats_helper.valid_runs())  # type: TestedPairsAndSingles
         """ This object is used to simplify the work with the data and the statistics """
         if not self.stats_helper.properties():
@@ -2089,21 +2092,34 @@ def html_escape_property(property: str) -> str:
 valid_csv_reporter_modifiers = ["mean", "stddev", "property", "min", "max", "stddev per mean"]  # type: t.List[str]
 
 
-def _parse_csv_reporter_specs(specs: t.List[str]) -> t.List[t.Tuple[str, str]]:
-    return [_parse_csv_reporter_spec(spec) for spec in specs]
+FORMAT_OPTIONS = {
+    "%": "format as percentage",
+    "p": "wrap insignificant digits in paratheses (+- 2 std dev), format with SI postfixes"
+}
 
 
-def _parse_csv_reporter_spec(spec: str) -> t.Tuple[str, str]:
+def _parse_csv_reporter_specs(specs: t.List[str]) -> t.List[t.Tuple[str, str, t.Set[str]]]:
+    return list(itertools.chain.from_iterable(_parse_csv_reporter_spec(spec) for spec in specs))
+
+
+def _parse_csv_reporter_spec(spec: str) -> t.List[t.Tuple[str, str, t.Set[str]]]:
+    return list(map(_parse_csv_reporter_spec_single, spec.split(",")))
+
+
+def _parse_csv_reporter_spec_single(spec: str) -> t.Tuple[str, str, t.Set[str]]:
     def error():
         raise SyntaxError("Column spec {!r} isn't valid".format(spec))
 
-    parts = spec.split("[")
+    parts = spec.strip().split("[")
     if len(parts) == 1 and parts[0] != "":
         return parts[0], ""
-    if len(parts[1]) < 2 or "]" not in parts[1] \
-            or parts[1][:-1] not in valid_csv_reporter_modifiers or len(parts[0]) < 1:
+    if len(parts[1]) < 2 or "]" not in parts[1]:
         error()
-    return parts[0], parts[1][:-1]
+    prop, opt = (parts[1][:-1] + "|").split("|")[0:2]
+    if parts[1][:-1].split("|")[0] not in valid_csv_reporter_modifiers or \
+            len(parts[0]) < 1 or any(x not in FORMAT_OPTIONS for x in opt):
+        error()
+    return parts[0], prop, [x for x in opt if x is not " "]
 
 
 def _is_valid_csv_reporter_spec_list(specs: t.List[str]) -> bool:
@@ -2116,8 +2132,13 @@ def _is_valid_csv_reporter_spec_list(specs: t.List[str]) -> bool:
 @register(ReporterRegistry, "csv", Dict({
     "out": FileNameOrStdOut() // Default("-") // Description("Output file name or standard out (-)"),
     "columns": ListOrTuple(Str()) // (lambda x: _is_valid_csv_reporter_spec_list(x))
-               // Description("List of valid column specs, format is 'PROP\\[mod\\]' or 'ATTRIBUTES' "
-                                              "mod is one of: {}".format(join_strs(valid_csv_reporter_modifiers)))
+               // Description("List of valid column specs, format is a comma separated list of 'PROPERTY\\[mod\\]' or 'ATTRIBUTE' "
+                              "mod is one of: {}, optionally a formatting option can be given via"
+                              "PROPERTY[mod|OPT1OPT2…], where the OPTs are one of the following: {}. "
+                              "PROPERTY can be either the description or the short version of the property. "
+                              "Configure the number formatting further via the number settings in the settings file"
+                              .format(join_strs(valid_csv_reporter_modifiers),
+                                      join_strs("{} ({})".format(k, v) for k, v in FORMAT_OPTIONS.items())))
     // Default(["description"])
 }))
 class CSVReporter(AbstractReporter):
@@ -2138,7 +2159,7 @@ class CSVReporter(AbstractReporter):
             exit(1)
         with click.open_file(self.misc["out"], mode='w') as f:
             import tablib
-            data = tablib.Dataset(self.misc["columns"])
+            data = tablib.Dataset(itertools.chain.from_iterable(x.split(",") for x in self.misc["columns"]))
             for row in self._table():
                 data.append(row)
             f.write(data.csv)
@@ -2150,15 +2171,18 @@ class CSVReporter(AbstractReporter):
             table.append(self._row(single, specs))
         return table
 
-    def _row(self, single: Single, specs: t.List[t.Tuple[str, str]]) -> t.List[t.Union[str, int, float]]:
+    def _row(self, single: Single, specs: t.List[t.Tuple[str, str, t.List[str]]]) -> t.List[t.Union[str, int, float]]:
         return [self._column(single, spec) for spec in specs]
 
     def _column(self, single: Single, spec: t.Tuple[str, str]) -> t.Union[str, int, float]:
         if spec[1] == "":
             return single.attributes[spec[0]]
-        return self._column_property(single.properties[spec[0]], spec[1])
+        long_prop = self.to_long_prop_mapper(spec[0])
+        if long_prop is None or long_prop not in single.properties:
+            raise SyntaxError("No such property {}".format(long_prop))
+        return self._column_property(single.properties[long_prop], spec[1], spec[2])
 
-    def _column_property(self, single: SingleProperty, modifier: str) -> t.Union[str, int, float]:
+    def _column_property(self, single: SingleProperty, modifier: str, opts: t.List[str]) -> t.Union[str, int, float]:
         mod = {
             "mean": lambda: single.mean(),
             "stddev": lambda: single.std_dev(),
@@ -2168,4 +2192,5 @@ class CSVReporter(AbstractReporter):
             "max": lambda: single.max(),
             "stddev per mean": lambda: single.std_dev_per_mean()
         }
-        return mod[modifier]()
+        num = mod[modifier]()
+        return FNumber(num, abs_deviation=(single.std_dev() if "p" in opts else None), is_percent=("%" in opts)).format()

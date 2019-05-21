@@ -935,36 +935,4 @@ if sphinx_doc():
 
 if __name__ == "__main__":
     # for testing purposes only
-
-    sys.argv[1:] = ["short", "exec", "-wd", "ls", "--max_runs", "120", "--min_runs", "100"]
-    #sys.argv[1:] = ["exec", "-wd", "ls", "-wd", "ls ..", "-wd", "ls /tmp", "--min_runs", "5", "--max_runs", "5",
-    #                "--out", "ls_100.yaml", "--stop_start"]
-    #sys.argv[1:] = ["report", "../misc/cparser_c_time.yaml", "--reporter", "html"]
-    #sys.argv[1:] = ["init", "settings"]
-    #sys.argv[1:] = ["completion", "zsh"]
-    #sys.argv[1:] = ["assembler", "'dsafasdf sdaf'"]
-    # default = Settings().type_scheme.get_default_yaml()
-    # print(str(default))
-    # print(yaml.load(default) == Settings().type_scheme.get_default())
-
-    #sys.argv[1:] = ["run", "spec_like.exec.yaml", "--min_runs", "20", "--max_runs", "20"]
-
-    #sys.argv[1:] = ["completion", "bash"]
-
-    #if len(sys.argv) == 1:
-    #    sys.argv[1:] = ['build', os.path.join(os.path.abspath("."), 'build.yaml')]
-    #    os.chdir(os.path.abspath("../../../test/hadori"))
-
-    #print(repr(sys.argv))
-
-    #run_driver.ExecRunDriver.get_for_name("stop_start").setup()
-
-    #import cProfile
-    t = time.time()
-    #cProfile.runctx("cli()", globals(), locals(), filename="cli.profile")
-    print("Execution took ", humanfriendly.format_timespan(time.time() - t))
-    #ctr.create_snapshot()
-    # create kcachegrind valid file via "python3 -m pyprof2calltree -i cli.profile"
-    #ctr.stats.print_summary()
-    #tr.print_diff()
     cli()

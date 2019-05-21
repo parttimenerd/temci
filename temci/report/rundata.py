@@ -545,12 +545,12 @@ class RunDataStatsHelper(object):
             return
         self.property_descriptions.update(property_descriptions)
 
-    def long_properties(self, property_format: str = "[{}]") -> 'RunDataStatsHelper':
+    def long_properties(self, property_format: str = "[{}]") -> t.Tuple['RunDataStatsHelper',t.Callable[[str], t.Optional[str]]]:
         """
         Replace the short properties names with their descriptions if possible.
 
         :param property_format: format string that gets a property description and produces a longer property name
-        :return: new instance
+        :return: new instance, a function that returns a long property name for a given short property name
         """
         runs = []
         formatted_properties = {}  # type: t.Dict[str, str]
@@ -559,8 +559,8 @@ class RunDataStatsHelper(object):
         for run in self.runs:
             if run is not None:
                 runs.append(run.long_properties(formatted_properties))
-        return self.clone(runs=runs)
 
+        return self.clone(runs=runs), lambda s: formatted_properties[s]
 
 class ExcludedInvalidData:
     """
