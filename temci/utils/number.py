@@ -1,3 +1,4 @@
+import sys
 import typing as t
 import math
 from temci.utils.typecheck import *
@@ -29,7 +30,10 @@ class FNumber:
                       // Default(False),
         "force_min_decimal_places": Bool() // Description("Don't omit the minimum number of decimal places "
                                                           "if insignificant?") // Default(True),
-        "percentages": Bool() // Description("Show as percentages") // Default(False)
+        "percentages": Bool() // Description("Show as percentages") // Default(False),
+        "sigmas": NaturalNumber(lambda i: i > 0) // Description("Digits are considered significant if they don't change "
+                                                      "if the number itself changes += $sigmas * std dev")
+                      // Default(2)
     })
     settings = settings_format.get_default()  # type: t.Dict[str, t.Union[int, bool]]
 
@@ -78,7 +82,8 @@ class FNumber:
                              scientific_notation=scientific_notation,
                              scientific_notation_si_prefixes=self.settings["scientific_notation_si_prefixes"],
                              omit_insignificant_decimal_places=self.settings["omit_insignificant_decimal_places"],
-                             force_min_decimal_places=self.settings["force_min_decimal_places"]
+                             force_min_decimal_places=self.settings["force_min_decimal_places"],
+                             sigmas=self.settings["sigmas"]
                              ) + ("%" if self.is_percent else "")
 
     def format(self) -> str:
@@ -102,7 +107,8 @@ def format_number(number: Number, deviation: float = 0.0,
                   scientific_notation_decimal_places: int = None,
                   scientific_notation_si_prefixes: bool = True,
                   force_min_decimal_places: bool = False,
-                  relative_to_deviation: bool = False) -> str:
+                  relative_to_deviation: bool = False,
+                  sigmas: int = 2) -> str:
     """
     Format the passed number
 
@@ -120,6 +126,7 @@ def format_number(number: Number, deviation: float = 0.0,
     :param scientific_notation_si_prefixes: use si prefixes instead of "e…"
     :param force_min_decimal_places: don't omit the minimum number of decimal places if insignificant?
     :param relative_to_deviation: format the number relative to its deviation, i.e. "10\sigma"
+    :param sigmas: number of standard deviations for significance
     :return: the number formatted as a string
     """
     """
@@ -145,6 +152,7 @@ def format_number(number: Number, deviation: float = 0.0,
         "force_min_decimal_places": force_min_decimal_places,
         "relative_to_deviation": relative_to_deviation,
         "scientific_notation": scientific_notation,
+        "sigmas": sigmas
     }
     if explicit_deviation:
         return prefix + _format_number(**kwargs)
@@ -169,7 +177,8 @@ def _format_number(number: Number, deviation: float,
                    force_min_decimal_places: bool = False,
                    relative_to_deviation: bool = False,
                    scientific_notation: bool = False,
-                   scientific_notation_si_prefixes: bool = True) -> str:
+                   scientific_notation_si_prefixes: bool = True,
+                   sigmas: int = 2) -> str:
     app = ""
     if relative_to_deviation:
         app = "𝜎"
@@ -188,7 +197,8 @@ def _format_number(number: Number, deviation: float,
                             force_min_decimal_places=force_min_decimal_places,
                             relative_to_deviation=relative_to_deviation,
                             scientific_notation=scientific_notation,
-                            scientific_notation_si_prefixes=scientific_notation_si_prefixes)
+                            scientific_notation_si_prefixes=scientific_notation_si_prefixes,
+                            sigmas=sigmas)
         dev = format_number(deviation, deviation, parentheses=False, explicit_deviation=False,
                             is_deviation_absolute=True, min_decimal_places=min_decimal_places,
                             max_decimal_places=max_decimal_places,
@@ -196,9 +206,10 @@ def _format_number(number: Number, deviation: float,
                             force_min_decimal_places=force_min_decimal_places,
                             relative_to_deviation=relative_to_deviation,
                             scientific_notation=scientific_notation,
-                            scientific_notation_si_prefixes=scientific_notation_si_prefixes)
+                            scientific_notation_si_prefixes=scientific_notation_si_prefixes,
+                            sigmas=sigmas)
         return num + "±" + dev
-    last_sig = _last_significant_digit(number, deviation)
+    last_sig = _last_significant_digit(number, deviation, sigmas)
 
     num = ""
 
@@ -268,18 +279,33 @@ def _number_to_si_prefix(exponent: int) -> str:
             "", "m", "µ", "n", "f", "a", "z", "y"][int((24 - exponent) / 3)]
 
 
-def _last_significant_digit(number: Number, abs_deviation: float) -> int:
+def _last_significant_digit(number: Number, abs_deviation: float, sigmas: int = 2) -> int:
     """
     Calculates the position down to which the passed number is significant.
     […][2][1][0].[-1][-2][…]
+
+    Significant <=> the digit does not change if the number is $sigmas deviations bigger or smaller
     """
     sig_num = 0
     if abs_deviation == 0:
         return -1
-    log = math.floor(math.log10(abs_deviation))
-    if abs_deviation < 5 * math.pow(10, log):
-        return log
-    return log + 1
+    if number < 0 or abs_deviation < 0:
+        raise Exception()
+    upper = number + 2 * abs_deviation
+    lower = number - 2 * abs_deviation
+
+    current_power = math.ceil(math.log10(upper))
+    min_power = math.floor(math.log10(sys.float_info.min))
+
+    while current_power >= min_power:
+        if _n_th_digit(upper, current_power) != _n_th_digit(lower, current_power):
+            return current_power + 1
+        current_power -= 1
+    return -1
+
+
+def _n_th_digit(number: Number, n: int) -> int:
+    return math.floor(number / math.pow(10, n)) % 10
 
 
 def _first_digit(number: Number) -> int:
