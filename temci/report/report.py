@@ -81,7 +81,7 @@ class AbstractReporter:
             self.stats_helper = stats_helper
         self.stats_helper = self.stats_helper.exclude_properties(excluded_properties)  # type: RunDataStatsHelper
         include_props = Settings()["stats/properties"]
-        if include_props is not "all":
+        if "all" not in include_props:
             self.stats_helper = self.stats_helper.include_properties(include_props)
         self.stats_helper.make_descriptions_distinct()
         self.excluded_data_info = ExcludedInvalidData()  # type: ExcludedInvalidData
@@ -967,7 +967,7 @@ class HTMLReporter2(AbstractReporter):
                 \\end{align}
                 gives a number that helps to talk about the practical significance of the mean difference.
                 A tiny difference might be cool, but irrelevant (as caching effects are probably higher, use the
-                <pre>temci build</pre> if you're curious about this).
+                <pre>temci build</pre> if your curious about this).
                 """ % (obj.first.parent.description(), obj.second.parent.description(), str(obj.first.parent),
                        float(obj.mean_diff()), float(obj.first.mean())))
             }, {
@@ -1070,7 +1070,7 @@ class HTMLReporter2(AbstractReporter):
                 "popover": _Popover(self, "Explanation", """The mean difference relative to the first mean
                 gives a number that helps to talk about the practical significance of the mean difference.
                 A tiny difference might be cool, but irrelevant (as caching effects are probably higher, use the
-                \\verb|temci build| if you're curious about this).
+                \\verb|temci build| if you are curious about this).
                 """)
             }, {
                 "title": "... per max std dev",
@@ -1583,7 +1583,7 @@ class HTMLReporter2(AbstractReporter):
                     values (for a given property) come out of the same population for both benchmarked programs.
                     Or short: That the programs have the same characteristics for a given property. <br/>
                     <b>Important note</b>: Statistical tests can only given an probability of the null hypothesis being incorrect.
-                    But this okay, if you're aim is to see whether a specific program is better (different) than another
+                    But this okay, if your aim is to see whether a specific program is better (different) than another
                     program in some respect. <br/>
                """)
 
