@@ -38,7 +38,7 @@ class FNumber:
     settings = settings_format.get_default()  # type: t.Dict[str, t.Union[int, bool]]
 
     def __init__(self, number: Number, rel_deviation: Number = None, abs_deviation: Number = None,
-                 is_percent: bool = None):
+                 is_percent: bool = None, scientific_notation: bool = None):
         self.number = number  # type: Number
         assert not (rel_deviation is not None and abs_deviation is not None)
         self.deviation = None  # type: t.Optional[Number]
@@ -51,6 +51,8 @@ class FNumber:
         elif rel_deviation is not None:
             self.deviation = abs(rel_deviation)
         self.is_percent = is_percent if is_percent is not None else self.settings["percentages"]
+        self.scientific_notation = scientific_notation if scientific_notation is not None \
+                                                       else self.settings["scientific_notation"]
 
     def __int__(self) -> int:
         return int(self.number)
@@ -79,7 +81,7 @@ class FNumber:
         return format_number(num, deviation=dev, parentheses=parentheses,
                              min_decimal_places=self.settings["min_decimal_places"],
                              max_decimal_places=self.settings["max_decimal_places"],
-                             scientific_notation=scientific_notation,
+                             scientific_notation=self.scientific_notation,
                              scientific_notation_si_prefixes=self.settings["scientific_notation_si_prefixes"],
                              omit_insignificant_decimal_places=self.settings["omit_insignificant_decimal_places"],
                              force_min_decimal_places=self.settings["force_min_decimal_places"],

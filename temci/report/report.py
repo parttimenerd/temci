@@ -2094,7 +2094,8 @@ valid_csv_reporter_modifiers = ["mean", "stddev", "property", "min", "max", "std
 
 FORMAT_OPTIONS = {
     "%": "format as percentage",
-    "p": "wrap insignificant digits in paratheses (+- 2 std dev), format with SI postfixes"
+    "p": "wrap insignificant digits in paratheses (+- 2 std dev)",
+    "s": "use scientific notation, configured in report/number"
 }
 
 
@@ -2193,4 +2194,7 @@ class CSVReporter(AbstractReporter):
             "stddev per mean": lambda: single.std_dev_per_mean()
         }
         num = mod[modifier]()
-        return FNumber(num, abs_deviation=(single.std_dev() if "p" in opts else None), is_percent=("%" in opts)).format()
+        return FNumber(num,
+                       abs_deviation=(single.std_dev() if "p" in opts else None),
+                       is_percent=("%" in opts),
+                       scientific_notation=("s" in opts)).format()
