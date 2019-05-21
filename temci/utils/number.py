@@ -19,7 +19,7 @@ class FNumber:
                       // Default(True),
         "min_decimal_places": NaturalNumber() // Description("The minimum number of shown decimal places "
                                                              "if decimal places are shown") // Default(3),
-        "max_decimal_places": Optional(NaturalNumber()) // Description("The maximum number of decimal places")
+        "max_decimal_places": NaturalNumber() // Description("The maximum number of decimal places")
                       // Default(5),
         "scientific_notation": Bool() // Description("Use the exponential notation, i.e. '10e3' for 1000")
                       // Default(True),
@@ -28,12 +28,13 @@ class FNumber:
         "omit_insignificant_decimal_places": Bool() // Description("Omit insignificant decimal places")
                       // Default(False),
         "force_min_decimal_places": Bool() // Description("Don't omit the minimum number of decimal places "
-                                                          "if insignificant?") // Default(True)
+                                                          "if insignificant?") // Default(True),
+        "percentages": Bool() // Description("Show as percentages") // Default(False)
     })
     settings = settings_format.get_default()  # type: t.Dict[str, t.Union[int, bool]]
 
     def __init__(self, number: Number, rel_deviation: Number = None, abs_deviation: Number = None,
-                 is_percent: bool = False):
+                 is_percent: bool = None):
         self.number = number  # type: Number
         assert not (rel_deviation is not None and abs_deviation is not None)
         self.deviation = None  # type: t.Optional[Number]
@@ -45,7 +46,7 @@ class FNumber:
                 self.deviation = 0
         elif rel_deviation is not None:
             self.deviation = abs(rel_deviation)
-        self.is_percent = is_percent
+        self.is_percent = is_percent if is_percent is not None else self.settings["percentages"]
 
     def __int__(self) -> int:
         return int(self.number)

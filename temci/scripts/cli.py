@@ -1,6 +1,7 @@
 import locale
 from enum import Enum
 
+from temci.utils.number import FNumber
 from temci.utils.util import sphinx_doc, get_doc_for_type_scheme
 
 import warnings
@@ -39,6 +40,7 @@ from temci.utils.click_helper import type_scheme_option, cmd_option, CmdOption, 
 import temci.scripts.version
 import typing as t
 
+
 Settings().load_files()
 
 
@@ -74,7 +76,8 @@ command_docs = {
     "setup": "Compile all needed binaries in the temci scripts folder",
     "version": "Print the current version ({})".format(temci.scripts.version.version),
     "run_package": "Execute a package and create a package that can be executed afterwards to reverse most changes",
-    "exec_package": "Execute a package"
+    "exec_package": "Execute a package",
+    "format": "Format a number"
 }
 for driver in run_driver.RunDriverRegistry.registry:
     command_docs[driver] = run_driver.RunDriverRegistry.registry[driver].__description__.strip().split("\n")[0]
@@ -370,6 +373,24 @@ def temci__version(**kwargs):
     print(temci.scripts.version.version)
 
 
+format_options = CmdOption.from_non_plugin_settings("report/number")
+
+@cli.command(short_help=command_docs["format"])
+@click.argument("number", type=float)
+@click.argument("abs_deviation", type=float, default=0)
+@cmd_option(common_options)
+@cmd_option(format_options)
+def format(number, abs_deviation, **kwargs):
+    temci__format(number, abs_deviation, **kwargs)
+
+
+@document_func(command_docs["format"],
+               common_options,
+               format_options)
+def temci__format(number, abs_deviation, **kwargs):
+    print(FNumber(number, abs_deviation=abs_deviation).format())
+
+
 @cli.command(short_help=command_docs["run_package"])
 @click.argument('package', type=click.Path(exists=True))
 @cmd_option(common_options)
@@ -398,6 +419,12 @@ def run_package(package: str, **kwargs):
 def temci__exec_package(package: str):
     from temci.package.dsl import execute
     execute(package)
+
+
+@cli.group(short_help=command_docs["completion"])
+@cmd_option(common_options)
+def completion(**kwargs):
+    pass
 
 
 
@@ -576,6 +603,10 @@ _temci(){{
         "exec_package|run_package": {
             "pattern": "*.temci",
             "options": package_options
+        },
+        "format": {
+            "pattern": "*",
+            "options": format_options
         }
     }
 
@@ -789,6 +820,13 @@ def temci__completion__bash():
         {misc_commands_code}
 
         case ${{COMP_WORDS[1]}} in
+            format)
+                args=(
+                    $common_opts
+                    $format_common_opts
+                )
+                COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
+                ;;
             report)
                 case ${{COMP_WORDS[2]}} in
                 *.yaml)
@@ -869,6 +907,7 @@ def temci__completion__bash():
     """.format(common_opts=process_options(common_options),
                run_common_opts=process_options(run_options["common"]),
                report_common_opts=process_options(report_options),
+               format_common_opts=process_options(format_options),
                commands=" ".join(sorted(command_docs.keys())),
                run_drivers="|".join(run_options["run_driver_specific"].keys()),
                misc_commands_case_code=process_misc_commands_case(),
@@ -930,7 +969,6 @@ if sphinx_doc():
     The whole configuration file has the following structure:
 
 """ + get_doc_for_type_scheme(Settings().type_scheme)
-
 
 
 if __name__ == "__main__":
