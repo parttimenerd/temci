@@ -27,7 +27,7 @@ class CPUSet:
     This class needs root privileges to operate properly. Warns if not.
     """
 
-    def __init__(self, active: bool = has_root_privileges(), base_core_number: int = None,
+    def __init__(self, active: bool = True, base_core_number: int = None,
                  parallel: int = None, sub_core_number: int = None):
         """
         Initializes the cpu sets an determines the number of parallel programs (parallel_number variable).
@@ -64,8 +64,8 @@ class CPUSet:
                              "on system with just {} cores. Note: The benchmark controller "
                              "needs a cpuset too.".format(self.av_cores))
             self.base_core_number = self.av_cores - self.sub_core_number * self.parallel_number - 1
-        if not active:
-            if not has_root_privileges():
+        if not self.active:
+            if active and not has_root_privileges():
                 logging.warning("CPUSet functionality is disabled because root privileges are missing.")
             return
         logging.info("Initialize CPUSet")

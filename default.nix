@@ -20,5 +20,8 @@ in buildPythonApplication rec {
     scipy seaborn
     pyyaml
   ];
+  postPatch = ''
+    substituteInPlace temci/run/run_driver.py --replace /usr/bin/time ${pkgs.time}/bin/time
+  '';
   doCheck = false;
 }

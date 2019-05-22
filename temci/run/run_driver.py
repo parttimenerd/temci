@@ -342,7 +342,7 @@ class ExecValidator:
         self._match(cmd, "program output", out, self.config["unexpected_output"], False)
         self._match(cmd, "program error output", err, self.config["expected_erroutput"], True)
         self._match(cmd, "program error output", err, self.config["unexpected_erroutput"], False)
-        self._match_return_code(cmd, self.config["expected_return_code"], return_code)
+        self._match_return_code(cmd, err, self.config["expected_return_code"], return_code)
 
     def _match(self, cmd: str, name: str, checked_str: str, checker: List(Str()) | Str(), expect_match: bool):
         if not isinstance(checker, List()):
@@ -355,12 +355,12 @@ class ExecValidator:
             raise BenchmarkingError("{} for {!r} contains the string {!r}, it's: {}"
                                     .format(name, cmd, checker[bools.index(True)], checked_str))
 
-    def _match_return_code(self, cmd: str, exptected_codes: t.Union[t.List[int], int], return_code: int):
+    def _match_return_code(self, cmd: str, err: str, exptected_codes: t.Union[t.List[int], int], return_code: int):
         if isinstance(exptected_codes, int):
             exptected_codes = [exptected_codes]
         if return_code not in exptected_codes:
-            raise BenchmarkingError("Unexpected return code {} of {!r}, expected {}"
-                                    .format(str(return_code), cmd, join_strs(list(map(str, exptected_codes)), "or")))
+            raise BenchmarkingError("Unexpected return code {} of {!r}, expected {}\nstderr:\n{}"
+                                    .format(str(return_code), cmd, join_strs(list(map(str, exptected_codes)), "or"), err))
 
 
 @register(RunDriverRegistry, "exec", Dict({
