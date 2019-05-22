@@ -210,14 +210,14 @@ class HTMLReporter(AbstractReporter):
 <html>
     <head>
         <title>Benchmarking report</title>
-        <link rel="stylesheet" src="http://gregfranko.com/jquery.tocify.js/css/jquery.ui.all.css">
-        <link rel="stylesheet" src="http://gregfranko.com/jquery.tocify.js/css/jquery.tocify.css">
+        <link rel="stylesheet" src="jquery.ui.all.css">
+        <link rel="stylesheet" src="jquery.tocify.css">
         <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="file://{resources_path}/style.css">
-        <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+        <link rel="stylesheet" href="style.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
-        <script src="http://gregfranko.com/jquery.tocify.js/js/jquery-ui-1.9.1.custom.min.js"></script>
-        <script src="file://{resources_path}/script.js"></script>
+        <script src="jquery-ui-1.9.1.custom.min.js"></script>
+        <script src="script.js"></script>
     </head>
     <body style="font-family: sans-serif;">
         <div id="toc"></div>
@@ -305,7 +305,7 @@ class HTMLReporter(AbstractReporter):
             plt.title(prop)
             plt.close()
             ret_str += """
-                <td><img src="file://{filename}" class="img-rounded"></td>
+                <td><img src="{filename}" class="img-rounded"></td>
             """.format(filename=filename, sm=self._small_size)
         ret_str += """
             </tr>
@@ -323,7 +323,7 @@ class HTMLReporter(AbstractReporter):
             plt.savefig(filename)
             plt.close()
             ret_str += """
-                <img src="file://{filename}"/>
+                <img src="{filename}"/>
             """.format(filename=filename)
             prop_data = data[prop]
             vals = {
@@ -368,8 +368,8 @@ class HTMLReporter(AbstractReporter):
                 <h3>{prop}</h3><small>{benchs} benchmarks<br/></small><br/>
                 <table class="table">
                     <tr>
-                        <td><img src="file://{filename}"/></td>
-                        <td><img src="file://{filename2}"/></td>
+                        <td><img src="{filename}"/></td>
+                        <td><img src="{filename2}"/></td>
                     </tr>
                 </table>
                 <h4>Probability of the null hypothesis</h4>
@@ -424,12 +424,12 @@ class HTMLReporter(AbstractReporter):
         """
         for prop in sorted(self.stats_helper.properties()):
             inner_html += """
-                    <td><img src="file://{filename}"/></td>
+                    <td><img src="{filename}"/></td>
             """.format(filename=self._jointplot(first, second, prop, size=self._small_size, show_ticks=False))
         inner_html += "</tr><tr>"
         for prop in sorted(self.stats_helper.properties()):
             inner_html += """
-                    <td><img src="file://{filename}"/></td>
+                    <td><img src="{filename}"/></td>
             """.format(filename=self._barplot(first, second, prop, size=self._small_size, show_ticks=False))
         inner_html += "</tr><tr>"
         for prop in sorted(self.stats_helper.properties()):
@@ -658,15 +658,15 @@ class HTMLReporter2(AbstractReporter):
         html = """<html lang="en">
     <head>
         <title>Benchmarking report</title>
-        <link rel="stylesheet" src="http://gregfranko.com/jquery.tocify.js/css/jquery.ui.all.css">
-        <link rel="stylesheet" src="http://gregfranko.com/jquery.tocify.js/css/jquery.tocify.css">
+        <link rel="stylesheet" src="jquery.ui.all.css">
+        <link rel="stylesheet" src="jquery.tocify.css">
         <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="file:style.css">
-        <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+        <link rel="stylesheet" href="style.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
-        <script src="http://gregfranko.com/jquery.tocify.js/js/jquery-ui-1.9.1.custom.min.js"></script>
-        <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_SVG"></script>
-        <script src="file:script.js"></script>
+        <script src="jquery-ui-1.9.1.custom.min.js"></script>
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_SVG"></script>
+        <script src="script.js"></script>
     </head>
     <body style="font-family: sans-serif;">
         <a href="" id="hidden_link" style="display: none;"></a>
@@ -1430,7 +1430,7 @@ class HTMLReporter2(AbstractReporter):
         return """
             <center>
                 <div {popover}>
-                    <img width="100%" src="file:{img}" class="img"></img>
+                    <img width="100%" src="{img}" class="img"></img>
                 </div>
             </center>
         """.format(popover=self._img_filenames_popover(filenames, kind),
@@ -1446,32 +1446,32 @@ class HTMLReporter2(AbstractReporter):
         """
         if "img" in filenames:
             html += """
-                <a href='file:{img}' class='list-group-item'>
+                <a href='{img}' class='list-group-item'>
                     The current image
                 </a>
             """.format(**filenames)
         if "pdf" in filenames:
             html += """
-                <a href='file:{pdf}' class='list-group-item'>
+                <a href='{pdf}' class='list-group-item'>
                     PDF (generated by matplotlib)
                 </a>
             """.format(**filenames)
         if "tex" in filenames:
             if kind == "hist":
                 html += """
-                    <a href='file:{tex}' class='list-group-item'>
+                    <a href='{tex}' class='list-group-item'>
                         TeX (requiring the package <code>pgfplots</code>)
                     </a>
                 """.format(**filenames)
             elif kind == "boxplot":
                 html += """
-                    <a href='file:{tex}' class='list-group-item'>
+                    <a href='{tex}' class='list-group-item'>
                         TeX (requiring the package <code>pgfplots</code> and
                         <small><code>\\usepgfplotslibrary{{statistics}}</code></small>)
                     </a>
                 """.format(**filenames)
             html +="""
-                <a href='file:{tex_standalone}' class='list-group-item'>
+                <a href='{tex_standalone}' class='list-group-item'>
                     Standalone TeX
                 </a>
             """.format(**filenames)
@@ -1938,7 +1938,7 @@ class _Table:
             """.format(descr=d["descr"], id=id, filename="table" + d["ending"], mime=d["mime"])
         if self.parent.misc["gen_xls"]:
             html += """
-                <a href='file:{filename}' class='list-group-item'>
+                <a href='{filename}' class='list-group-item'>
                     Excel (.xls) file
                 </a>
             """.format(filename=self.xls())
