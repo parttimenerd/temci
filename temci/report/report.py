@@ -2202,7 +2202,7 @@ class CSVReporter(AbstractReporter):
         }
         num = mod[modifier]()
         return FNumber(num,
-                       abs_deviation=(single.std_dev() if "p" in opts else None),
+                       abs_deviation=single.std_dev(),
                        is_percent=("%" in opts),
                        scientific_notation=("s" in opts),
                        parentheses=("o" in opts or "p" in opts),
