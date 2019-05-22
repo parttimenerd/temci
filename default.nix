@@ -17,7 +17,7 @@ in buildPythonApplication rec {
     wcwidth
     pypi.rainbow-logging-handler
     tablib unicodecsv
-    scipy pandas matplotlib
+    scipy seaborn
     pyyaml
   ];
   doCheck = false;
