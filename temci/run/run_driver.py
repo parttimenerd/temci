@@ -775,7 +775,8 @@ class PerfStatExecRunner(ExecRunner):
                     else:
                         val = line.split(" ")[0]
                     val = val.replace(",", "")
-                    m[prop] = float(val) if "." in val else int(val)
+                    divisor = 1000.0 if "(msec)" in line else 1
+                    m[prop] = (float(val) / divisor) if "." in val else (int(val) // divisor)
                     missing_props -= 1
                 except BaseException as ex:
                     #logging.error(ex)
