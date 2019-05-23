@@ -433,7 +433,6 @@ class ExecRunDriver(AbstractRunDriver):
 
     def benchmark(self, block: RunProgramBlock, runs: int,
                   cpuset: CPUSet = None, set_id: int = 0) -> BenchmarkingResultBlock:
-        t = time.time()
         block = block.copy()
         try:
             self._setup_block(block)
@@ -451,10 +450,6 @@ class ExecRunDriver(AbstractRunDriver):
             self._teardown_block(block)
         except BaseException as err:
             return BenchmarkingResultBlock(error=err)
-        t = time.time() - t
-        assert isinstance(res, BenchmarkingResultBlock)
-        res.data["__ov-time"] = [t / runs] * runs
-        # print(res.data)
         return res
 
     ExecResult = namedtuple("ExecResult", ['time', 'stderr', 'stdout'])
@@ -495,10 +490,10 @@ class ExecRunDriver(AbstractRunDriver):
         env.update(block["env"])
         env.update({'LC_NUMERIC': 'en_US.UTF-8'})
         # print(env["PATH"])
-        t = time.time()
         executed_cmd = "; ".join(executed_cmd)
         proc = None
         try:
+            t = time.time()
             proc = subprocess.Popen(["/bin/sh", "-c", executed_cmd], stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
                                     universal_newlines=True,

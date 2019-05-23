@@ -416,7 +416,7 @@ class RunDataStatsHelper(object):
         summed = 0
         to_bench = range(0, len(self.runs)) if all else self.get_program_ids_to_bench()
         for i in to_bench:
-            summed += scipy.mean(self.runs[i]["__ov-time"] if "__ov_time" in self.runs[i].data else 0) * run_bin_size
+            summed += scipy.mean(self.runs[i]["__ov-time"] if "__ov-time" in self.runs[i].data else 0) * run_bin_size
         return summed
 
     #ef add_run_data(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
