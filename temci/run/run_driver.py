@@ -235,7 +235,7 @@ class AbstractRunDriver(AbstractRegistry):
         """ Used and active plugins """
         miss_root_plugins = []
         is_root = has_root_privileges()
-        for used in self.get_used():
+        for used in self.get_used_plugins():
             klass = self.get_class(used)
             if klass.needs_root_privileges and not is_root:
                 miss_root_plugins.append(used)
@@ -300,6 +300,9 @@ class AbstractRunDriver(AbstractRegistry):
         """
         return {}
 
+    def get_used_plugins(self) -> t.List[str]:
+        return self.get_used()
+
 
 class ExecValidator:
     """
@@ -363,12 +366,25 @@ class ExecValidator:
                                     .format(str(return_code), cmd, join_strs(list(map(str, exptected_codes)), "or"), err))
 
 
+_intel = ",disable_intel_turbo" if does_command_succeed("ls /sys/devices/system/cpu/intel_pstate/no_turbo") else ""
+
+PRESET_PLUGIN_MODES = {
+    "none": ("", "enable none by default"),
+    "all": ("cpu_governor,disable_swap,sync,stop_start,other_nice,nice,disable_aslr,disable_ht" + _intel,
+            "enable all, might freeze your system"),
+    "usable": ("cpu_governor,disable_swap,sync,nice,disable_aslr,disable_ht" + _intel,
+               "like 'all' but doesn't affect other processes")
+}
+
+
 @register(RunDriverRegistry, "exec", Dict({
     "runner": ExactEither("")
               // Description("If not '' overrides the runner setting for each program block")
               // Default(""),
     "random_cmd": Bool() // Default(True)
-                  // Description("Pick a random command if more than one run command is passed.")
+                  // Description("Pick a random command if more than one run command is passed."),
+    "preset": ExactEither(*PRESET_PLUGIN_MODES.keys()) // Default("none")
+            // Description("Enable other plugins by default: {}".format("; ".join("{} = {} ({})".format(k, *t) for k, t in PRESET_PLUGIN_MODES.items())))
 }, all_keys=False))
 class ExecRunDriver(AbstractRunDriver):
     """
@@ -577,6 +593,17 @@ class ExecRunDriver(AbstractRunDriver):
 
     def get_property_descriptions(self) -> t.Dict[str, str]:
         return self.runner.get_property_descriptions() if self.runner else {}
+
+    def get_used_plugins(self) -> t.List[str]:
+        """
+        Get the list of name of the used plugins (use_list=True)
+        or the names of the used plugin (use_list=False).
+        """
+        used = super().get_used()
+        for plugin in PRESET_PLUGIN_MODES[self.misc_settings["preset"]][0].split(","):
+            if plugin not in used and plugin is not "":
+                used.append(plugin)
+        return used
 
 
 class ExecRunner:

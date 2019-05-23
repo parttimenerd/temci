@@ -53,7 +53,7 @@ class AbstractRunWorkerPool:
             #if Settings()["run/cpuset/active"]:
             #    logging.warning("Currently disabling hyper threading doesn't work well in combination with cpusets")
             #    return
-            self._disable_hyper_threading()
+            self.disable_hyper_threading()
 
     def submit(self, block: RunProgramBlock, id: int, runs: int):
         """
@@ -84,9 +84,10 @@ class AbstractRunWorkerPool:
         This should be called if all benchmarking with this pool is finished.
         """
         if Settings()["run/disable_hyper_threading"]:
-            self._enable_hyper_threading()
+            self.enable_hyper_threading()
 
-    def _disable_hyper_threading(self):
+    @classmethod
+    def disable_hyper_threading(cls):
         """
          Adapted from http://unix.stackexchange.com/a/223322
         """
@@ -128,20 +129,22 @@ class AbstractRunWorkerPool:
         if (total_cores * total_physical_cpus) * 2 == total_logical_cpus:
             hyperthreading = True
 
-        self._ht_cores = []  # type: t.List[int]
+        cls._ht_cores = []  # type: t.List[int]
 
         if hyperthreading:
 
             for c in cores:
                 for p, val in enumerate(cores[c]):
                     if p > 0:
-                        self._ht_cores.append(val)
-        self._set_status_of_ht_cores(self._ht_cores, 0)
+                        cls._ht_cores.append(val)
+        cls._set_status_of_ht_cores(cls._ht_cores, 0)
 
-    def _enable_hyper_threading(self):
-        self._set_status_of_ht_cores(self._ht_cores, 1)
+    @classmethod
+    def enable_hyper_threading(cls):
+        cls._set_status_of_ht_cores(cls._ht_cores, 1)
 
-    def _set_status_of_ht_cores(self, ht_cores: t.List[int], online_status: int):
+    @classmethod
+    def _set_status_of_ht_cores(cls, ht_cores: t.List[int], online_status: int):
         if len(ht_cores) == 0:
             return
         arg = "\n".join("echo {} > /sys/devices/system/cpu/cpu{}/online"

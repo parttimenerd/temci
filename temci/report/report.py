@@ -137,7 +137,7 @@ class ConsoleReporter(AbstractReporter):
                     mean = np.mean(block[prop])
                     stdev = np.std(block[prop]) / mean
                     mean_str = str(FNumber(mean, rel_deviation=stdev))
-                    print_func("\t {prop:<18} mean = {mean:>15s}, deviation = {dev:>5.2%}".format(
+                    print_func("\t {prop:<18} mean = {mean:>15s}, deviation = {dev:>5.5%}".format(
                         prop=prop, mean=mean_str,
                         dev=stdev, dev_perc=stdev/mean
                     ), file=f)

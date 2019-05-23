@@ -1,10 +1,11 @@
 """
 This module consists of run driver plugin implementations.
 """
-from temci.utils.util import get_memory_page_size, does_program_exist, does_command_succeed
+from temci.run.run_worker_pool import AbstractRunWorkerPool
+from temci.utils.registry import register
+from temci.utils.util import get_memory_page_size, does_program_exist, does_command_succeed, has_root_privileges
 from .run_driver import RunProgramBlock
 from .run_driver import ExecRunDriver
-from ..utils.registry import register
 from ..utils.typecheck import *
 import temci.setup.setup as setup
 import subprocess, logging, os, signal, random, multiprocessing, time
@@ -420,7 +421,7 @@ class CPUGovernor(AbstractRunDriverPlugin):
             with open(cpu_path + "scaling_governor", "r") as f:
                 self._old_governors.append(f.readline().strip())
             with open(cpu_path + "scaling_available_governors") as f:
-                self._av_governors.append(f.readline().strip().split(" "))
+                self._av_governors.extend(f.readline().strip().split(" "))
             num += 1
         for cpu in range(len(self._cpu_paths)):
             self._set_scaling_governor(cpu, self.misc_settings["governor"])
@@ -434,6 +435,54 @@ class CPUGovernor(AbstractRunDriverPlugin):
         if governor not in self._av_governors:
             raise ValueError("No such governor {} for cpu {}, expected one of these: ".
                              format(cpu, governor, ", ".join(self._av_governors)))
-        with open(self.cpu_paths[cpu] + "scaling_governor", "w") as f:
-            self._exec_command("echo {gov} >  {p}scaling_governor"
-                               .format(gov=governor, p=self._cpu_paths[cpu]))
+        cpu_file = self._cpu_paths[cpu] + "scaling_governor"
+        if list(open(cpu_file, "r"))[0].strip() != governor:
+            try:
+                self._exec_command("echo {} >  {}".format(governor, cpu_file))
+            except EnvironmentError as err:
+                logging.warn(err)
+
+
+@register(ExecRunDriver, "disable_aslr", Dict({}))
+class DisableASLR(AbstractRunDriverPlugin):
+    """
+    Disable address space randomization
+    """
+
+    needs_root_privileges = True
+
+    def setup(self):
+        self._exec_command("echo 0 > /proc/sys/kernel/randomize_va_space")
+
+    def teardown(self):
+        self._exec_command("echo 1 > /proc/sys/kernel/randomize_va_space")
+
+
+@register(ExecRunDriver, "disable_ht", Dict({}))
+class DisableHyperThreading(AbstractRunDriverPlugin):
+    """
+    Disable hyper-threading
+    """
+
+    needs_root_privileges = True
+
+    def setup(self):
+        AbstractRunWorkerPool.disable_hyper_threading()
+
+    def teardown(self):
+        AbstractRunWorkerPool.enable_hyper_threading()
+
+
+@register(ExecRunDriver, "disable_intel_turbo", Dict({}))
+class DisableIntelTurbo(AbstractRunDriverPlugin):
+    """
+    Disable intel turbo mode
+    """
+
+    needs_root_privileges = True
+
+    def setup(self):
+        self._exec_command("echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo")
+
+    def teardown(self):
+        self._exec_command("echo 0 > /sys/devices/system/cpu/intel_pstate/no_turbo")

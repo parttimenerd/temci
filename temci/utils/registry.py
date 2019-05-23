@@ -69,7 +69,7 @@ class AbstractRegistry:
             return Settings()[key]
 
     @classmethod
-    def register(cls, name: str, klass: type, misc_type: Type):
+    def register(cls, name: str, klass: type, misc_type: Type, activate_by_default: bool = None):
         """
         Registers a new class.
         The constructor of the class gets as first argument the misc settings.
@@ -117,7 +117,7 @@ class AbstractRegistry:
                                                                     format_str_list(use_key_list.allowed_values)))
             active_path = "{}_active".format("/".join([cls.settings_key_path, name]))
             if not Settings().validate_key_path(active_path.split("/")):
-                Settings().modify_setting(active_path, BoolOrNone() // Default(None))
+                Settings().modify_setting(active_path, BoolOrNone() // Default(activate_by_default))
             Settings().get_type_scheme(active_path) // Description("Enable: " + klass.__description__)
         else:
             if not Settings().validate_key_path(use_key_path.split("/")) \

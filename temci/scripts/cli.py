@@ -89,7 +89,8 @@ common_options = CmdOptionList(
 run_options = {
     "common": CmdOptionList(
         CmdOption.from_non_plugin_settings("run"),
-        CmdOption.from_non_plugin_settings("stats", name_prefix="stats_")
+        CmdOption.from_non_plugin_settings("stats", name_prefix="stats_"),
+        CmdOption.from_non_plugin_settings("report/number", name_prefix="report_number_")
     ),
     "run_driver_specific": {  # besides DRIVER_misc and plugins
         "exec": CmdOptionList()
