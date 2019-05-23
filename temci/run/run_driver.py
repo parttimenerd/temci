@@ -735,7 +735,7 @@ class PerfStatExecRunner(ExecRunner):
         do_repeat = self.misc["repeat"] > 1
 
         def modify_cmd(cmd):
-            return "perf stat {repeat} {x} -e {props} -- {cmd}".format(
+            return "perf stat --sync {repeat} {x} -e {props} -- {cmd}".format(
                 props=",".join(x for x in self.misc["properties"] if x != "wall-clock"),
                 cmd=cmd,
                 repeat="--repeat {}".format(self.misc["repeat"]) if do_repeat else "",
