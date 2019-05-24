@@ -211,8 +211,8 @@ This is useful for example for processing the benchmarking results.
 Before importing other parts of the library the module `temci.utils.library_init` has to be loaded,
 which runs the necessary setup code (reading the settings file, …).
 
-Use temci to setup and benchmarking environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Use temci to setup a benchmarking environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Use `temci short shell COMMAND` to run a command (`sh` by default) in a shell that is inside
 the benchmarking environment. Most options (like `--preset`) of `temci short exec` are
 supported.
