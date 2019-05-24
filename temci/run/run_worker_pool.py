@@ -86,8 +86,9 @@ class AbstractRunWorkerPool:
         if Settings()["run/disable_hyper_threading"]:
             self.enable_hyper_threading()
 
+
     @classmethod
-    def disable_hyper_threading(cls):
+    def get_hyper_threading_cores(cls) -> t.List[int]:
         """
          Adapted from http://unix.stackexchange.com/a/223322
         """
@@ -129,19 +130,26 @@ class AbstractRunWorkerPool:
         if (total_cores * total_physical_cpus) * 2 == total_logical_cpus:
             hyperthreading = True
 
-        cls._ht_cores = []  # type: t.List[int]
+        ht_cores = []  # type: t.List[int]
 
         if hyperthreading:
 
             for c in cores:
                 for p, val in enumerate(cores[c]):
                     if p > 0:
-                        cls._ht_cores.append(val)
-        cls._set_status_of_ht_cores(cls._ht_cores, 0)
+                        ht_cores.append(val)
+        return ht_cores
+
+
+    @classmethod
+    def disable_hyper_threading(cls):
+        if has_root_privileges():
+            cls._set_status_of_ht_cores(cls.get_hyper_threading_cores(), 0)
 
     @classmethod
     def enable_hyper_threading(cls):
-        cls._set_status_of_ht_cores(cls._ht_cores, 1)
+        if has_root_privileges():
+            cls._set_status_of_ht_cores(cls.get_hyper_threading_cores(), 1)
 
     @classmethod
     def _set_status_of_ht_cores(cls, ht_cores: t.List[int], online_status: int):
