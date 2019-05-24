@@ -163,7 +163,8 @@ class RunProcessor:
             label_format = "{:32s}"
             if show_progress:
                 with click.progressbar(range(0, self.max_runs + self.discarded_runs),
-                                       label=label_format.format(start_label)) as runs:
+                                       label=label_format.format(start_label),
+                                       file=None if self.pool.run_driver.runs_benchmarks else "-") as runs:
                     for run in runs:
                         if run < self.discarded_runs:
                             self._benchmarking_block_run(block_size=1, discard=True)

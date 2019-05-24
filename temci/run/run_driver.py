@@ -220,6 +220,7 @@ class AbstractRunDriver(AbstractRegistry):
     plugin_synonym = ("run driver plugin", "run driver plugins")
     block_type_scheme = Dict()
     """ Type scheme for the program block configuration """
+    runs_benchmarks = True
 
     def __init__(self, misc_settings: dict = None):
         """
@@ -627,6 +628,7 @@ class ShellRunDriver(ExecRunDriver):
         "env": Dict(all_keys=False, key_type=Str()) // Default({}) // Description("Environment variables"),
         "cwd": (List(Str()) | Str()) // Default(".") // Description("Execution directory"),
     }, all_keys=False)
+    runs_benchmarks = False
 
     def __init__(self, misc_settings: dict = None):
         super().__init__(misc_settings)
