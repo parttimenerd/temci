@@ -21,6 +21,7 @@ in buildPythonApplication rec {
     pyyaml
   ];
   postPatch = ''
+    substituteInPlace temci/run/cpuset.py --replace python3 ${pkgs.python3.withPackages (ps: [ pypi.cpuset-py3 ])}/bin/python3
     substituteInPlace temci/run/run_driver.py --replace /usr/bin/time ${pkgs.time}/bin/time
   '';
   doCheck = false;
