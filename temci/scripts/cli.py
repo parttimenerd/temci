@@ -938,6 +938,16 @@ def temci__assembler(call: str):
     process_assembler(call.split(" "))
 
 
+def cli_with_verb_arg_handling():
+    """
+    Handles ` -- ` properly and calls the cli
+    """
+    if "--" in sys.argv:
+        split_index = sys.argv.index("--")
+        sys.argv = sys.argv[:split_index] + [" ".join(sys.argv[split_index + 1:])]
+    cli()
+
+
 def cli_with_error_catching():
     """
     Process the command line arguments and catch (some) errors.
@@ -947,7 +957,7 @@ def cli_with_error_catching():
     except:
         pass
     try:
-        cli()
+        cli_with_verb_arg_handling()
     except EnvironmentError as err:
         logging.error(err)
         exit(1)
