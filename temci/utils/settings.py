@@ -65,7 +65,7 @@ class Settings(metaclass=Singleton):
             "min_runs": NaturalNumber() // Default(20) // Description("Minimum number of benchmarking runs"),
             "max_runs": NaturalNumber() // Default(100) // Description("Maximum number of benchmarking runs"),
             "runs": Int(lambda x: x >= -1) // Default(-1) // Description("if != -1 sets max and min runs to it's value"),
-            "max_time": ValidTimeSpan() // Default("2h") // Description("Maximum time the whole benchmarking should take "
+            "max_time": ValidTimeSpan() // Default("1000h") // Description("Maximum time the whole benchmarking should take "
                                                                         "+- time to execute one block."), # in seconds
             "run_block_size": PositiveInt() // Default(1)
                               // Description("Number of benchmarking runs that are done together"),

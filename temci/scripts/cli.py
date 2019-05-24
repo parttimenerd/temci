@@ -157,7 +157,9 @@ misc_commands = {
                                     completion_hints={"zsh": "_command"}),
                           run_options["run_driver_specific"]["exec"],
                           run_options["common"]
-                          )
+                          ),
+            "shell": CmdOptionList(run_options["run_driver_specific"]["exec"],
+                          run_options["common"])
         }
     },
     "clean": CmdOptionList()
@@ -174,7 +176,8 @@ misc_commands_description = {
         "run_config": "Interactive cli to create (or append to) a run config file"
     },
     "short": {
-        "exec": "Execute commands directly with the exec run driver"
+        "exec": "Execute commands directly with the exec run driver",
+        "shell": "Execute a command in a shell with benchmarking setup"
     }
 }
 
@@ -230,14 +233,12 @@ def short(**kwargs):
 @click.argument('commands', nargs=-1, metavar="COMMANDS")
 @cmd_option(common_options)
 @cmd_option(misc_commands["short"]["sub_commands"]["exec"])
-@cmd_option(run_options["run_driver_specific"]["exec"])
 def exec(commands, **kwargs):
     temci__short__exec(list(commands), **kwargs)
 
 
 @document_func(misc_commands_description["short"]["exec"], common_options,
-               misc_commands["short"]["sub_commands"]["exec"],
-               run_options["run_driver_specific"]["exec"])
+               misc_commands["short"]["sub_commands"]["exec"])
 def temci__short__exec(commands: list, with_description: list = None, without_description: list = None, **kwargs):
     runs = []
     if with_description is not None:
@@ -260,6 +261,30 @@ def temci__short__exec(commands: list, with_description: list = None, without_de
         })
     Settings()["run/driver"] = "exec"
     benchmark_and_exit(runs)
+
+
+@short.command(short_help=misc_commands_description["short"]["shell"])
+@click.argument('command', nargs=1, metavar="COMMAND", default="sh")
+@cmd_option(common_options)
+@cmd_option(misc_commands["short"]["sub_commands"]["shell"])
+def shell(command, **kwargs):
+    temci__short__shell(command, **kwargs)
+
+
+@document_func(misc_commands_description["short"]["shell"], common_options,
+               misc_commands["short"]["sub_commands"]["shell"])
+def temci__short__shell(command: str, **kwargs):
+    Settings()["run/driver"] = "shell"
+    Settings()["run/runs"] = 1
+    Settings()["run/discarded_runs"] = 0
+    Settings()["run/cpuset/parallel"] = 0
+    benchmark_and_exit([{"run_config": {
+                "run_cmd": [command]
+            },
+            "attributes": {
+                "description": command
+            }
+        }])
 
 
 @cli.command(short_help=command_docs["report"])

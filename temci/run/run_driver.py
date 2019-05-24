@@ -485,7 +485,7 @@ class ExecRunDriver(AbstractRunDriver):
         return res
 
     def _exec_command(self, cmds: list, block: RunProgramBlock,
-                      cpuset: CPUSet = None, set_id: int = 0) -> ExecResult:
+                      cpuset: CPUSet = None, set_id: int = 0, redirect_out: bool = True) -> ExecResult:
         """
         Executes one randomly chosen command of the passed ones.
         And takes additional settings in the passed run program block into account.
@@ -510,21 +510,25 @@ class ExecRunDriver(AbstractRunDriver):
         proc = None
         try:
             t = time.time()
-            proc = subprocess.Popen(["/bin/sh", "-c", executed_cmd], stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
+            proc = subprocess.Popen(["/bin/sh", "-c", executed_cmd],
+                                    stdout=subprocess.PIPE if redirect_out else None,
+                                    stderr= subprocess.PIPE if redirect_out else None,
                                     universal_newlines=True,
                                     cwd=cwd,
                                     env=env, )
             # preexec_fn=os.setsid)
+            if not redirect_out:
+                proc.wait()
             out, err = proc.communicate()
             t = time.time() - t
-            ExecValidator(block["validator"]).validate(cmd, out, err, proc.poll())
+            if redirect_out:
+                ExecValidator(block["validator"]).validate(cmd, out, err, proc.poll())
             # if proc.poll() > 0:
             #    msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
             # logging.error(msg)
             #    raise BenchmarkingError(msg)
             return self.ExecResult(time=t, stderr=str(err), stdout=str(out))
-        except:
+        except err:
             if proc is not None:
                 try:
                     proc.terminate()
@@ -604,6 +608,58 @@ class ExecRunDriver(AbstractRunDriver):
             if plugin not in used and plugin is not "":
                 used.append(plugin)
         return used
+
+
+@register(RunDriverRegistry, "shell", Dict({
+    "preset": ExactEither(*PRESET_PLUGIN_MODES.keys()) // Default("none")
+            // Description("Enable other plugins by default: {}".format("; ".join("{} = {} ({})".format(k, *t) for k, t in PRESET_PLUGIN_MODES.items())))
+}, all_keys=False))
+class ShellRunDriver(ExecRunDriver):
+    """
+    Implements a run driver that runs the benched command a single time with redirected in- and output.
+    It can be used to run own benchmarking commands inside a sane benchmarking environment
+
+    The constructor calls the ``setup`` method.
+    """
+
+    block_type_scheme = Dict({
+        "run_cmd": Str() // Default("sh") // Description("Command to run"),
+        "env": Dict(all_keys=False, key_type=Str()) // Default({}) // Description("Environment variables"),
+        "cwd": (List(Str()) | Str()) // Default(".") // Description("Execution directory"),
+    }, all_keys=False)
+
+    def __init__(self, misc_settings: dict = None):
+        super().__init__(misc_settings)
+        self.misc_settings["random_cmd"] = False
+
+    def _setup_block(self, block: RunProgramBlock):
+        block["cwds"] = [block["cwd"]]
+        block["cmd_prefix"] = []
+        AbstractRunDriver._setup_block(self, block)
+
+    def benchmark(self, block: RunProgramBlock, runs: int,
+                  cpuset: CPUSet = None, set_id: int = 0) -> BenchmarkingResultBlock:
+        block = block.copy()
+        try:
+            self._setup_block(block)
+            gc.collect()
+            gc.disable()
+        except IOError as err:
+            return BenchmarkingResultBlock(error=err)
+        try:
+            self._exec_command(block["run_cmd"], block, cpuset, set_id, redirect_out=False)
+        except BaseException as ex:
+            return BenchmarkingResultBlock(error=ex)
+        finally:
+            gc.enable()
+        try:
+            self._teardown_block(block)
+        except BaseException as err:
+            return BenchmarkingResultBlock(error=err)
+        return BenchmarkingResultBlock([])
+
+    def teardown(self):
+        super().teardown()
 
 
 class ExecRunner:
