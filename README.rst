@@ -205,6 +205,13 @@ How to go further from here
    result file.
 
 
+Use temci as a library
+~~~~~~~~~~~~~~~~~~~~~~
+This is useful for example for processing the benchmarking results.
+Before importing other parts of the library the module `temci.utils.library_init` has to be loaded,
+which runs the necessary setup code (reading the settings file, …).
+
+
 Why is temci called temci?
 --------------------------
 
