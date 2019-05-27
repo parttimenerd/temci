@@ -150,7 +150,7 @@ class RunData(object):
 
     def exclude_invalid(self) -> t.Tuple[t.Optional['RunData'], t.List[str]]:
         """
-        Exclude properties that only have zeros or NaNs as measurements.
+        Exclude properties that only have NaNs as measurements.
 
         :return: (new run data instance or None if all properties are excluded or the current if nothing changed,
                   excluded properties)
@@ -159,7 +159,7 @@ class RunData(object):
         excluded = []
         nan = float("nan")
         for prop in self.data:
-            if not all(x == 0 or x == nan for x in self.data[prop]):
+            if not all(x == nan for x in self.data[prop]):
                 data[prop] = self.data[prop]
             else:
                 excluded.append(prop)
