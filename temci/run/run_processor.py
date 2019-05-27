@@ -3,6 +3,7 @@ import random
 
 import click
 
+from temci.utils.sudo_utils import chown
 from temci.utils.util import join_strs, in_standalone_mode
 
 from temci.utils.mail import send_mail
@@ -275,6 +276,7 @@ class RunProcessor:
             and all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
             with open(Settings()["run/out"], "w") as f:
                 f.write(yaml.dump(self.stats_helper.serialize()))
+                chown(f)
 
     def store_erroneous(self):
         """ Store the failing program blocks in a file ending with ``.erroneous.yaml``. """
@@ -285,6 +287,7 @@ class RunProcessor:
             blocks = [self.runs[x[0]] for x in self.erroneous_run_blocks]
             with open(file_name, "w") as f:
                 f.write(yaml.dump(blocks))
+                chown(f)
         except IOError as err:
             logging.error("Can't write erroneous program blocks to " + file_name)
 

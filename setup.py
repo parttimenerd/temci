@@ -51,7 +51,7 @@ setup(
     ],
     entry_points='''
         [console_scripts]
-        temci=temci.scripts.cli:cli_with_error_catching
+        temci=temci.scripts.run:run
         temci_completion=temci.scripts.temci_completion:cli
     '''
 )

@@ -8,6 +8,8 @@ import subprocess
 
 import io
 
+from temci.utils.sudo_utils import chown
+
 try:
     import yaml
 except ImportError:
@@ -692,6 +694,7 @@ def prompt_config(name: str, prompt_dict_func: t.Callable[[], dict]):
             fd = open(file, "w+")
     else:
         fd = open(file, "w+")
+        chown(fd)
 
     blocks.append(prompt_dict_func())
 

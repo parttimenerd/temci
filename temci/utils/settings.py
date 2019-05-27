@@ -141,7 +141,13 @@ class Settings(metaclass=Singleton):
                          // Description("If not empty, recipient of a mail if an error occurs or a command finished."),
             "reverse_file": FileName() // Default("reverse.temci")
                         // Description("Name of the produced file to reverse the actions of a package.")
-        })
+        }),
+        "env": Dict({"USER": Str(), "PATH": Str()}, all_keys=False)
+               // Default({"USER": os.getenv("USER"), "PATH": os.getenv("PATH")})
+               // Description("Environment variables for the benchmarked programs, includes the user used for "
+                              "generated files"),
+        "sudo": Bool() // Default(False) // Description("Acquire sudo privileges and run benchmark programs with "
+                                                        "non-sudo user. Only supported on the command line.")
     }, all_keys=False)
     """ Type scheme of the settings """
     config_file_name = "temci.yaml"  # type: str

@@ -62,7 +62,8 @@ This program is still in an alpha stage. It may happen that
 you're system needs to be rebooted to be usable again.
 """.format(temci.scripts.version.version))
 def cli():
-    pass
+    if "TEMCI_ENV" in os.environ:
+        Settings()["env"] = json.loads(os.getenv("TEMCI_ENV"))
 
 
 command_docs = {

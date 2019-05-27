@@ -15,6 +15,8 @@ from temci.report.testers import Tester, TesterRegistry
 from temci.utils.settings import Settings
 import typing as t
 import temci.utils.util as util
+from temci.utils.sudo_utils import chown
+
 if util.can_import("scipy"):
     import numpy as np
     import scipy as sp
@@ -481,6 +483,7 @@ class BaseStatObject:
 """
         with open(filename, "w") as f:
             f.write(tex)
+            chown(f)
         return os.path.realpath(filename)
 
     def _store_as_image(self, filename: str, fig_width: float, fig_height: float) -> str:
@@ -1391,6 +1394,7 @@ class SinglesProperty(BaseStatObject):
 """
         with open(filename, "w") as f:
             f.write(tex)
+            chown(f)
         return os.path.realpath(filename)
 
     def max(self) -> float:

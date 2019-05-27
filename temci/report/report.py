@@ -18,6 +18,7 @@ from temci.report.stats import TestedPairsAndSingles, BaseStatObject, TestedPair
     StatMessageType, Single, SingleProperty, SinglesProperty
 from temci.report.testers import TesterRegistry, Tester
 from temci.report.rundata import RunDataStatsHelper, RunData, ExcludedInvalidData
+from temci.utils.sudo_utils import chown
 from temci.utils.typecheck import *
 from temci.utils.registry import AbstractRegistry, register
 import temci.utils.util as util
@@ -157,6 +158,7 @@ class ConsoleReporter(AbstractReporter):
                                                                    with_uncertain=True,
                                                                    with_unequal=False),
                                   f, print_func)
+            chown(f)
         if to_string:
             return output[0]
 
@@ -205,6 +207,7 @@ class HTMLReporter(AbstractReporter):
         resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
         shutil.copytree(resources_path, self.misc["out"])
         os.chmod(self.misc["out"], 0o755)
+        chown(self.misc["out"])
         runs = self.stats_helper.valid_runs()
         html = """
 <html>
@@ -276,6 +279,7 @@ class HTMLReporter(AbstractReporter):
         """
         with open(os.path.join(self.misc["out"], self.misc["html_filename"]), "w") as f:
             f.write(html_string)
+            chown(f)
 
     def _set_fig_size(self, size: int):
         import matplotlib.pyplot as plt
@@ -651,6 +655,7 @@ class HTMLReporter2(AbstractReporter):
         resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
         shutil.copytree(resources_path, self.misc["out"])
         os.chmod(self.misc["out"], 0o755)
+        chown(self.misc["out"])
         runs = self.stats_helper.valid_runs()
         self._percent_format = self.misc["percent_format"]
         self._float_format = self.misc["float_format"]
@@ -778,6 +783,7 @@ class HTMLReporter2(AbstractReporter):
         with open(report_filename, "w") as f:
             f.write(html_string)
             logging.info("Wrote report into " + report_filename)
+            chown(f)
 
     def _format_excluded_data_warnings(self):
         html = ""
@@ -1999,6 +2005,7 @@ class _Table:
         filename = self.parent.get_random_filename() + ".xls"
         with open(filename, "wb") as f:
             f.write(data.xls)
+            chown(f)
         return filename
 
 
@@ -2171,6 +2178,7 @@ class CSVReporter(AbstractReporter):
             for row in self._table():
                 data.append(row)
             f.write(data.csv)
+            chown(f)
 
     def _table(self) -> t.List[t.List[t.Union[str, int, float]]]:
         table = []

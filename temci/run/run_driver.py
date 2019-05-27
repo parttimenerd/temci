@@ -4,6 +4,7 @@ This modules contains the base run driver, needed helper classes and registries.
 import os
 import datetime
 import re
+import shlex
 import shutil
 import collections
 import yaml
@@ -11,6 +12,7 @@ import yaml
 from temci.build.builder import Builder, env_variables_for_rand_conf
 from temci.setup import setup
 from temci.utils.settings import Settings
+from temci.utils.sudo_utils import get_bench_user, bench_as_different_user
 from temci.utils.typecheck import NoInfo
 from temci.utils.util import has_root_privileges, join_strs, does_command_succeed, sphinx_doc, on_apple_os, \
     does_program_exist
@@ -243,7 +245,7 @@ class AbstractRunDriver(AbstractRegistry):
             else:
                 self.used_plugins.append(self.get_for_name(used))
         if miss_root_plugins:
-            logging.warning("The following plugins are disabled because they need root privileges: " +
+            logging.warning("The following plugins are disabled because they need root privileges (consider using `--sudo`): " +
                             join_strs(miss_root_plugins))
         self.setup()
 
@@ -498,12 +500,16 @@ class ExecRunDriver(AbstractRunDriver):
         typecheck(cmds, List(Str()))
         rand_index = random.randrange(0, len(cmds)) if self.misc_settings["random_cmd"] else 0
         cmd = cmds[rand_index]
+        if bench_as_different_user():
+            cmd = "sudo -u {} -E  PATH={} sh -c {}".format(get_bench_user(),
+                                                           shlex.quote(Settings()["env"]["PATH"]),
+                                                           shlex.quote(cmd))
         cwd = block["cwds"][rand_index]
         executed_cmd = block["cmd_prefix"] + [cmd]
         if cpuset is not None and has_root_privileges():
             executed_cmd.insert(0, "cset proc --move --force --pid $$ {} > /dev/null" \
                                 .format(cpuset.get_sub_set(set_id)))
-        env = os.environ.copy()
+        env = Settings()["env"].copy() if bench_as_different_user() else os.environ.copy()
         env.update(block["env"])
         env.update({'LC_NUMERIC': 'en_US.UTF-8'})
         # print(env["PATH"])
