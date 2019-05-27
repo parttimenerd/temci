@@ -258,11 +258,12 @@ def _format_number(number: Number, deviation: float,
             if force_min_decimal_places:
                 decimal_places = min_decimal_places
             dec_part = "{{:.{}f}}".format(decimal_places).format(number - math.floor(number))[2:]
-            num += "."
-            if parentheses:
-                num += "(" + dec_part + ")"
-            else:
-                num += dec_part
+            if max_decimal_places is not 0:
+                num += "."
+                if parentheses:
+                    num += "(" + dec_part + ")"
+                else:
+                    num += dec_part
     else:
         dec_digits = min_decimal_places
         if not omit_insignificant_decimal_places or force_min_decimal_places:
@@ -271,11 +272,12 @@ def _format_number(number: Number, deviation: float,
             dec_digits = min(dec_digits, max_decimal_places)
         dec_part = "{{:.{}f}}".format(dec_digits)
         dec_part = dec_part.format(number - math.floor(number))[2:]
-        num += "."
-        if parentheses and len(dec_part[abs(last_sig):]) > 0:
-            num += dec_part[0:abs(last_sig)] + "(" + dec_part[abs(last_sig):] + ")"
-        else:
-            num += dec_part
+        if max_decimal_places is not 0:
+            num += "."
+            if parentheses and len(dec_part[abs(last_sig):]) > 0:
+                num += dec_part[0:abs(last_sig)] + "(" + dec_part[abs(last_sig):] + ")"
+            else:
+                num += dec_part
     return num + app
 
 
