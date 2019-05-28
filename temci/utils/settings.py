@@ -54,7 +54,7 @@ class Settings(metaclass=Singleton):
                     // Description("Properties that aren't shown in the report."),
             "exclude_invalid": BoolOrNone() // Default(True)
                     // Description("Exclude all data sets that contain only NaNs."),
-            "long_properties": BoolOrNone() // Default(True)
+            "long_properties": BoolOrNone() // Default(False)
                     // Description("Replace the property names in reports with longer more descriptive versions?"),
             "xkcd_like_plots": BoolOrNone() // Default(False)
                     // Description("Produce xkcd like plots (requires the humor sans font to be installed)"),

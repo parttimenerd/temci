@@ -813,6 +813,9 @@ class HTMLReporter2(AbstractReporter):
 
         for i in range(self.stats.number_of_singles()):
             for j in range(self.stats.number_of_singles()):
+                if i == j:
+                    table[i, j] = _Cell(self)
+                    continue
                 popover = _Popover(self, "Explanation", content="")
                 cell = None
                 pair = self.stats.get_pair(i, j)
