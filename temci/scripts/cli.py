@@ -234,7 +234,6 @@ def short(**kwargs):
 @click.argument('commands', nargs=-1, metavar="COMMANDS")
 @cmd_option(common_options)
 @cmd_option(misc_commands["short"]["sub_commands"]["exec"])
-@cmd_option(run_options["run_driver_specific"]["exec"])
 def exec(commands, **kwargs):
     temci__short__exec(list(commands), **kwargs)
 
@@ -262,7 +261,6 @@ def temci__short__exec(commands: list, with_description: list = None, without_de
             }
         })
     Settings()["run/driver"] = "exec"
-    print(Settings()["run/max_time"])
     benchmark_and_exit(runs)
 
 

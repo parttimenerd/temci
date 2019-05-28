@@ -1,5 +1,6 @@
 import copy
 import random
+import traceback
 
 import click
 
@@ -83,10 +84,12 @@ class RunProcessor:
                 os.remove(Settings()["run/out"])
         self.start_time = time.time()  # type: float
         """ Unix time stamp of the start of the benchmarking """
-        self.end_time = None  # type: float
+        self.end_time = -1  # type: float
         """ Unix time stamp of the point in time that the benchmarking can at most reach """
         try:
-            self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"])
+            max_time = pytimeparse.parse(Settings()["run/max_time"])
+            if max_time > -1:
+                self.end_time = self.start_time + max_time
         except:
             self.teardown()
             raise
@@ -138,7 +141,7 @@ class RunProcessor:
             estimated_time = self.stats_helper.estimate_time_for_next_round(self.run_block_size,
                                                                             all=self.block_run_count < self.min_runs)
             to_bench_count = len(self.stats_helper.get_program_ids_to_bench())
-            if round(time.time() + estimated_time) > self.end_time:
+            if -1 < self.end_time < round(time.time() + estimated_time):
                 logging.warning("Ran to long ({}) and is therefore now aborted. "
                                 "{} program blocks should've been benchmarked again."
                                 .format(humanfriendly.format_timespan(time.time() + estimated_time - self.start_time),
@@ -224,14 +227,17 @@ class RunProcessor:
                     if self.discard_all_data_for_block_on_error:
                         self.stats_helper.discard_run_data(id)
                     logging.error("Program block no. {} failed: {}".format(id, result.error))
+                    logging.info("".join(traceback.format_exception(None, result.error, result.error.__traceback__)))
                     self.store_erroneous()
+                    if isinstance(result.error, KeyboardInterrupt):
+                        raise result.error
                 elif not discard:
                     self.stats_helper.add_data_block(id, result.data)
             if not discard:
                 self.block_run_count += block_size
         except BaseException as ex:
-            self.store_and_teardown()
-            logging.error("Forced teardown of RunProcessor")
+            #self.store_and_teardown()
+            #logging.error("Forced teardown of RunProcessor")
             raise
         if not discard and self.store_often:
             self.store()
