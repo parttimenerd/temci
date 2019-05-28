@@ -23,6 +23,7 @@ except ImportError:
     import pureyaml as yaml
 #from temci.run.remote import RemoteRunWorkerPool
 
+
 class RunProcessor:
     """
     This class handles the coordination of the whole benchmarking process.
@@ -80,12 +81,21 @@ class RunProcessor:
         #    self.pool = RemoteRunWorkerPool(Settings()["run/remote"], Settings()["run/remote_port"])
             if os.path.exists(Settings()["run/out"]):
                 os.remove(Settings()["run/out"])
+        self.start_time = time.time()  # type: float
+        """ Unix time stamp of the start of the benchmarking """
+        self.end_time = None  # type: float
+        """ Unix time stamp of the point in time that the benchmarking can at most reach """
+        try:
+            self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"])
+        except:
+            self.teardown()
+            raise
         self.pool = None  # type: AbstractRunWorkerPool
         """ Used run worker pool that abstracts the benchmarking """
         if Settings()["run/cpuset/parallel"] == 0:
-            self.pool = RunWorkerPool()
+            self.pool = RunWorkerPool(end_time=self.end_time)
         else:
-            self.pool = ParallelRunWorkerPool()
+            self.pool = ParallelRunWorkerPool(end_time=self.end_time)
         self.run_block_size = Settings()["run/run_block_size"]  # type: int
         """ Number of benchmarking runs that are done together """
         self.discarded_runs = Settings()["run/discarded_runs"]  # type: int
@@ -107,23 +117,17 @@ class RunProcessor:
         """ Do a fixed number of benchmarking runs? """
         if self.fixed_runs:
             self.min_runs = self.max_runs = self.min_runs = Settings()["run/runs"]
-        self.start_time = round(time.time())  # type: float
-        """ Unix time stamp of the start of the benchmarking """
-        self.end_time = None  # type: float
-        """ Unix time stamp of the point in time that the benchmarking can at most reach """
-        try:
-            self.end_time = self.start_time + pytimeparse.parse(Settings()["run/max_time"])
-        except:
-            self.teardown()
-            raise
         self.store_often = Settings()["run/store_often"]  # type: bool
         """ Store the result file after each set of blocks is benchmarked """
         self.block_run_count = 0  # type: int
         """ Number of benchmarked blocks """
         self.erroneous_run_blocks = []  # type: t.List[t.Tuple[int, BenchmarkingResultBlock]]
         """ List of all failing run blocks (id and results till failing) """
+        self.discard_all_data_for_block_on_error = Settings()["run/discard_all_data_for_block_on_error"]
 
     def _finished(self) -> bool:
+        if self.pool.time_left() == 0:
+            return True
         if self.fixed_runs:
             return self.block_run_count >= self.max_runs
         return (len(self.stats_helper.get_program_ids_to_bench()) == 0 \
@@ -190,6 +194,8 @@ class RunProcessor:
                 self.print_report()
             raise
         self.store_and_teardown()
+        if self.show_report:
+            self.print_report()
 
     def _benchmarking_block_run(self, block_size: int = None, discard: bool = False, bench_all: bool = None):
         block_size = block_size or self.run_block_size
@@ -204,12 +210,19 @@ class RunProcessor:
                 random.shuffle(to_bench)
             if len(to_bench) == 0:
                 return
+            benched = 0
             for (id, run_block) in to_bench:
-                self.pool.submit(run_block, id, self.run_block_size)
-            for (block, result, id) in self.pool.results(len(to_bench)):
+                if self.pool.time_left() > 0:
+                    benched += 1
+                    self.pool.submit(run_block, id, self.run_block_size)
+                else:
+                    logging.warn("Ran into timeout")
+                    break
+            for (block, result, id) in self.pool.results(benched):
                 if result.error:
                     self.erroneous_run_blocks.append((id, result))
-                    self.stats_helper.disable_run_data(id)
+                    if self.discard_all_data_for_block_on_error:
+                        self.stats_helper.discard_run_data(id)
                     logging.error("Program block no. {} failed: {}".format(id, result.error))
                     self.store_erroneous()
                 elif not discard:

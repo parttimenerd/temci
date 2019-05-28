@@ -136,12 +136,12 @@ class ConsoleReporter(AbstractReporter):
                       .format(descr=block.description(), num=len(block.data[block.properties[0]])), file=f)
                 for prop in sorted(block.properties):
                     mean = np.mean(block[prop])
-                    stdev = np.std(block[prop]) / mean
-                    mean_str = str(FNumber(mean, rel_deviation=stdev))
-                    print_func("\t {prop:<18} mean = {mean:>15s}, deviation = {dev:>5.5%}".format(
+                    std = np.std(block[prop])
+                    mean_str = str(FNumber(mean, abs_deviation=std))
+                    dev = "{:>5.5%}".format(std / mean) if mean != 0 else "{:>5.5}".format(std)
+                    print_func("\t {prop:<18} mean = {mean:>15s}, deviation = {dev}".format(
                         prop=prop, mean=mean_str,
-                        dev=stdev, dev_perc=stdev/mean
-                    ), file=f)
+                        dev=dev), file=f)
             if with_tester_results and self.misc["with_tester_results"]:
                 self._report_list("Equal program blocks",
                                   self.stats_helper.get_evaluation(with_equal=True,

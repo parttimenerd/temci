@@ -65,8 +65,8 @@ class Settings(metaclass=Singleton):
             "min_runs": NaturalNumber() // Default(20) // Description("Minimum number of benchmarking runs"),
             "max_runs": NaturalNumber() // Default(100) // Description("Maximum number of benchmarking runs"),
             "runs": Int(lambda x: x >= -1) // Default(-1) // Description("if != -1 sets max and min runs to it's value"),
-            "max_time": ValidTimeSpan() // Default("1000h") // Description("Maximum time the whole benchmarking should take "
-                                                                        "+- time to execute one block."), # in seconds
+            "max_time": ValidTimeSpan() // Default("1000h") // Description("Maximum time the whole benchmarking should take"), # in seconds
+            "max_block_time": ValidTimeSpan() // Default("1000h") // Description("Maximum time one run block should take"),
             "run_block_size": PositiveInt() // Default(1)
                               // Description("Number of benchmarking runs that are done together"),
             "in": Str() // Default("input.exec.yaml")
@@ -98,7 +98,9 @@ class Settings(metaclass=Singleton):
             "shuffle": Bool() // Default(True) // Description("Randomize the order in which the program blocks are "
                                                               "benchmarked."),
             "send_mail": Str() // Default("")
-                         // Description("If not empty, recipient of a mail after the benchmarking finished.")
+                         // Description("If not empty, recipient of a mail after the benchmarking finished."),
+            "discard_all_data_for_block_on_error": Bool() // Default(False)
+                         // Description("Discard all run data for the failing program on error")
         }),
         "build": Dict({
             "rand": Dict({

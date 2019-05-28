@@ -5,6 +5,8 @@ import re
 
 import time
 
+import humanfriendly
+
 from temci.utils.util import has_root_privileges
 from ..utils.typecheck import *
 from ..utils.settings import Settings
@@ -24,7 +26,7 @@ class AbstractRunWorkerPool:
     An abstract run worker pool that just deals with the hyper threading setting.
     """
 
-    def __init__(self, run_driver_name: str = None):
+    def __init__(self, run_driver_name: str = None, end_time: float = -1):
         """
         Create an instance.
 
@@ -45,6 +47,7 @@ class AbstractRunWorkerPool:
         self.run_driver = RunDriverRegistry().get_for_name(run_driver_name)  # type: AbstractRunDriver
         """ Used run driver instance """
         self.cpuset = None  # type: CPUSet
+        self.end_time = end_time
         """ Used cpu set instance """
         if Settings()["run/disable_hyper_threading"]:
             if not has_root_privileges():
@@ -86,6 +89,8 @@ class AbstractRunWorkerPool:
         if Settings()["run/disable_hyper_threading"]:
             self.enable_hyper_threading()
 
+    def time_left(self) -> float:
+        return max(self.end_time - time.time(), 0)
 
     @classmethod
     def get_hyper_threading_cores(cls) -> t.List[int]:
@@ -140,6 +145,11 @@ class AbstractRunWorkerPool:
                         ht_cores.append(val)
         return ht_cores
 
+    def next_block_timeout(self) -> float:
+        timeout = humanfriendly.parse_timespan(Settings()["run/max_block_time"])
+        if timeout > -1:
+            return max(min(self.time_left(), timeout), 0)
+        return max(self.time_left(), 0)
 
     @classmethod
     def disable_hyper_threading(cls):
@@ -171,8 +181,8 @@ class RunWorkerPool(AbstractRunWorkerPool):
     This run worker pool implements the sequential benchmarking of program blocks.
     """
 
-    def __init__(self, run_driver_name: str = None):
-        super().__init__(run_driver_name)
+    def __init__(self, run_driver_name: str = None, end_time: float = -1):
+        super().__init__(run_driver_name, end_time)
         if run_driver_name is None:
             run_driver_name = RunDriverRegistry().get_used()
         self.cpuset = CPUSet(parallel=0) if Settings()["run/cpuset/active"] else CPUSet(active=False)
@@ -183,7 +193,8 @@ class RunWorkerPool(AbstractRunWorkerPool):
         typecheck(runs, NaturalNumber())
         typecheck(id, NaturalNumber())
         block.is_enqueued = True
-        self.result_queue.put((block, self.run_driver.benchmark(block, runs), id))
+        print(self.next_block_timeout())
+        self.result_queue.put((block, self.run_driver.benchmark(block, runs, timeout=self.next_block_timeout()), id))
         block.is_enqueued = False
 
     def results(self, expected_num: int) -> ResultGenerator:
@@ -203,8 +214,8 @@ class ParallelRunWorkerPool(AbstractRunWorkerPool):
     It uses a server-client-model to benchmark on different cpu cores.
     """
 
-    def __init__(self, run_driver_name: str = None):
-        super().__init__(run_driver_name)
+    def __init__(self, run_driver_name: str = None, end_time: float = -1):
+        super().__init__(run_driver_name, end_time)
         if run_driver_name is None:
             run_driver_name = RunDriverRegistry().get_used()
         if Settings()["run/cpuset/active"]:
@@ -227,6 +238,8 @@ class ParallelRunWorkerPool(AbstractRunWorkerPool):
             raise
 
     def submit(self, block: RunProgramBlock, id: int, runs: int):
+        if self.time_left() <= 0:
+            return
         typecheck(block, RunProgramBlock)
         typecheck(runs, NaturalNumber())
         typecheck(id, NaturalNumber())
@@ -302,4 +315,4 @@ class BenchmarkingThread(threading.Thread):
                 raise
 
     def _process_block(self, block: RunProgramBlock, runs: int) -> BenchmarkingResultBlock:
-        return self.driver.benchmark(block, runs, self.cpuset, self.id)
+        return self.driver.benchmark(block, runs, self.cpuset, self.id, timeout=self.pool.next_block_timeout())

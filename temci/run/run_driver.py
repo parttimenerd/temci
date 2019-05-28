@@ -7,6 +7,9 @@ import re
 import shlex
 import shutil
 import collections
+from threading import Timer
+
+import humanfriendly
 import yaml
 
 from temci.build.builder import Builder, env_variables_for_rand_conf
@@ -28,6 +31,13 @@ import typing as t
 
 Number = t.Union[int, float]
 """ Numeric value """
+
+
+class TimeoutException(BaseException):
+
+    def __init__(self, cmd: str, timeout: float):
+        super().__init__("The following run command hit a timeout after {}: {}"
+                            .format(humanfriendly.format_timespan(timeout), cmd))
 
 
 class RunDriverRegistry(AbstractRegistry):
@@ -285,7 +295,8 @@ class AbstractRunDriver(AbstractRegistry):
             plugin.teardown_block(block)
 
     def benchmark(self, block: RunProgramBlock, runs: int,
-                  cpuset: CPUSet = None, set_id: int = 0) -> BenchmarkingResultBlock:
+                  cpuset: CPUSet = None, set_id: int = 0,
+                  timeout: float = -1) -> BenchmarkingResultBlock:
         """
         Benchmark the passed program block "runs" times and return the benchmarking results.
 
@@ -293,6 +304,7 @@ class AbstractRunDriver(AbstractRegistry):
         :param runs: number of benchmarking runs
         :param cpuset: used CPUSet instance
         :param set_id: id of the cpu set the benchmarked block should be executed in
+        :param timeout: timeout or -1 if no timeout is given
         :return: object that contains a dictionary of properties with associated raw run data
         """
         raise NotImplementedError()
@@ -451,7 +463,8 @@ class ExecRunDriver(AbstractRunDriver):
         super()._setup_block(block)
 
     def benchmark(self, block: RunProgramBlock, runs: int,
-                  cpuset: CPUSet = None, set_id: int = 0) -> BenchmarkingResultBlock:
+                  cpuset: CPUSet = None, set_id: int = 0,
+                  timeout: float = -1) -> BenchmarkingResultBlock:
         block = block.copy()
         try:
             self._setup_block(block)
@@ -460,7 +473,7 @@ class ExecRunDriver(AbstractRunDriver):
         except IOError as err:
             return BenchmarkingResultBlock(error=err)
         try:
-            res = self._benchmark(block, runs, cpuset, set_id)
+            res = self._benchmark(block, runs, cpuset, set_id, timeout=timeout)
         except BaseException as ex:
             return BenchmarkingResultBlock(error=ex)
         finally:
@@ -474,21 +487,23 @@ class ExecRunDriver(AbstractRunDriver):
     ExecResult = namedtuple("ExecResult", ['time', 'stderr', 'stdout'])
     """ A simple named tuple named ExecResult with to properties: time, stderr and stdout """
 
-    def _benchmark(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None, set_id: int = 0):
+    def _benchmark(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None,
+                   set_id: int = 0, timeout: float = -1):
         block = block.copy()
         self.runner = self.get_runner(block)
         self.runner.setup_block(block, cpuset, set_id)
         results = []
         for i in range(runs):
             self._setup_block_run(block)
-            results.append(self._exec_command(block["run_cmds"], block, cpuset, set_id))
+            results.append(self._exec_command(block["run_cmds"], block, cpuset, set_id, timeout=timeout))
         res = None  # type: BenchmarkingResultBlock
         for exec_res in results:
             res = self.runner.parse_result(exec_res, res)
         return res
 
     def _exec_command(self, cmds: list, block: RunProgramBlock,
-                      cpuset: CPUSet = None, set_id: int = 0, redirect_out: bool = True) -> ExecResult:
+                      cpuset: CPUSet = None, set_id: int = 0, redirect_out: bool = True,
+                      timeout: float = -1) -> ExecResult:
         """
         Executes one randomly chosen command of the passed ones.
         And takes additional settings in the passed run program block into account.
@@ -515,6 +530,7 @@ class ExecRunDriver(AbstractRunDriver):
         # print(env["PATH"])
         executed_cmd = "; ".join(executed_cmd)
         proc = None
+
         try:
             t = time.time()
             proc = subprocess.Popen(["/bin/sh", "-c", executed_cmd],
@@ -525,8 +541,8 @@ class ExecRunDriver(AbstractRunDriver):
                                     env=env, )
             # preexec_fn=os.setsid)
             if not redirect_out:
-                proc.wait()
-            out, err = proc.communicate()
+                proc.wait(timeout=timeout if timeout > -1 else None)
+            out, err = proc.communicate(timeout=timeout if timeout > -1 else None)
             t = time.time() - t
             if redirect_out:
                 ExecValidator(block["validator"]).validate(cmd, out, err, proc.poll())
@@ -535,13 +551,15 @@ class ExecRunDriver(AbstractRunDriver):
             # logging.error(msg)
             #    raise BenchmarkingError(msg)
             return self.ExecResult(time=t, stderr=str(err), stdout=str(out))
-        except err:
+        except Exception as ex:
             if proc is not None:
                 try:
                     proc.terminate()
                     # os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
                 except BaseException as err:
                     pass
+            if isinstance(ex, subprocess.TimeoutExpired):
+                raise TimeoutException(executed_cmd, timeout)
             raise
 
     def teardown(self):
@@ -646,7 +664,8 @@ class ShellRunDriver(ExecRunDriver):
         AbstractRunDriver._setup_block(self, block)
 
     def benchmark(self, block: RunProgramBlock, runs: int,
-                  cpuset: CPUSet = None, set_id: int = 0) -> BenchmarkingResultBlock:
+                  cpuset: CPUSet = None, set_id: int = 0,
+                  timeout: float = -1) -> BenchmarkingResultBlock:
         block = block.copy()
         try:
             self._setup_block(block)
@@ -655,7 +674,7 @@ class ShellRunDriver(ExecRunDriver):
         except IOError as err:
             return BenchmarkingResultBlock(error=err)
         try:
-            self._exec_command(block["run_cmd"], block, cpuset, set_id, redirect_out=False)
+            self._exec_command(block["run_cmd"], block, cpuset, set_id, redirect_out=False, timeout=timeout)
         except BaseException as ex:
             return BenchmarkingResultBlock(error=ex)
         finally:

@@ -182,7 +182,7 @@ class CmdOption:
         """ Callback that sets the setting """
         if type_scheme is not None and not isinstance(type_scheme, click.ParamType):
             self.callback = lambda a, b: None
-        if settings_key is not None and not isinstance(self.type_scheme, click.ParamType):
+        if settings_key is not None and (not isinstance(self.type_scheme, click.ParamType) or isinstance(self.type_scheme, Type)):
             def callback(param: click.Option, val):
                 try:
                     Settings()[settings_key] = val

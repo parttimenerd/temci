@@ -57,8 +57,9 @@ Usage
 -----
 
 *Side note: This tool needs root privileges for some benchmarking
-features.* *If you're not root, it will not fail, but it will warn you and
-disable the* *features.*
+features (using the `--sudo` flag is preferred over calling temci
+with sudo directly).* *If you're not root, it will not fail, but
+it will warn you and disable the* *features.*
 
 There are currently two good ways to explore the features of temci: 1.
 Play around with temci using the provided tab completion for zsh

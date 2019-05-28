@@ -432,7 +432,7 @@ class RunDataStatsHelper(object):
     #   self.runs.append(RunData(data, attributes=attributes, property_descriptions))
     #   return len(self.runs) - 1
 
-    def disable_run_data(self, id: int):
+    def discard_run_data(self, id: int):
         """
         Disable that run data object with the given id.
         """
