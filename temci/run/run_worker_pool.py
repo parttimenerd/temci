@@ -90,7 +90,13 @@ class AbstractRunWorkerPool:
             self.enable_hyper_threading()
 
     def time_left(self) -> float:
+        """
+        Does not work properly if self.end_time == -1
+        """
         return max(self.end_time - time.time(), 0)
+
+    def has_time_left(self) -> bool:
+        return self.end_time == -1 or self.time_left() > 0
 
     @classmethod
     def get_hyper_threading_cores(cls) -> t.List[int]:
@@ -147,9 +153,11 @@ class AbstractRunWorkerPool:
 
     def next_block_timeout(self) -> float:
         timeout = parse_timespan(Settings()["run/max_block_time"])
+        if not self.has_time_left():
+            return 0
         if timeout > -1:
-            return max(min(self.time_left(), timeout), 0)
-        return max(self.time_left(), 0)
+            return max(min(self.time_left() if self.end_time != -1 else timeout, timeout), 0)
+        return -1 if self.end_time == -1 else max(self.time_left(), 0)
 
     @classmethod
     def disable_hyper_threading(cls):

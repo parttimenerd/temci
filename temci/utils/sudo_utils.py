@@ -10,7 +10,7 @@ from temci.utils.settings import Settings
 
 def get_bench_user() -> str:
     user = Settings()["env"]["USER"]
-    return os.getenv("USER", get_bench_user()) if user == "" else user
+    return os.getenv("USER", "") if user == "" else user
 
 
 def bench_as_different_user() -> bool:

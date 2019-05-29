@@ -14,8 +14,6 @@ import shutil
 import pytimeparse
 from rainbow_logging_handler import RainbowLoggingHandler
 
-from temci.utils.typecheck import Type
-
 
 def recursive_exec_for_leafs(data: dict, func, _path_prep = []):
     """
@@ -167,7 +165,7 @@ def sphinx_doc() -> bool:
     return _sphinx_doc
 
 
-def get_doc_for_type_scheme(type_scheme: Type) -> str:
+def get_doc_for_type_scheme(type_scheme: 'Type') -> str:
     """ Return a class documentation string for the given type scheme. Use the default_yaml method. """
     return """
 
@@ -270,7 +268,9 @@ def parse_timespan(time: str) -> float:
     """
     Parse a time span expression, see https://pypi.org/project/pytimeparse/
 
+    Supports -1 to express an infinite time span
+
     :param time: time span expression, mixture of different time units is possible
     :return: time span in seconds
     """
-    return pytimeparse.parse(time)
+    return pytimeparse.parse(time) if time != "-1" else -1

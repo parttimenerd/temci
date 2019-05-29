@@ -129,7 +129,7 @@ class RunProcessor:
         self.discard_all_data_for_block_on_error = Settings()["run/discard_all_data_for_block_on_error"]
 
     def _finished(self) -> bool:
-        if self.pool.time_left() == 0:
+        if not self.pool.has_time_left():
             return True
         if self.fixed_runs:
             return self.block_run_count >= self.max_runs
@@ -215,7 +215,7 @@ class RunProcessor:
                 return
             benched = 0
             for (id, run_block) in to_bench:
-                if self.pool.time_left() > 0:
+                if self.pool.has_time_left() > 0:
                     benched += 1
                     self.pool.submit(run_block, id, self.run_block_size)
                 else:
