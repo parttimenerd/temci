@@ -15,7 +15,7 @@ import yaml
 from temci.build.builder import Builder, env_variables_for_rand_conf
 from temci.setup import setup
 from temci.utils.settings import Settings
-from temci.utils.sudo_utils import get_bench_user, bench_as_different_user
+from temci.utils.sudo_utils import get_bench_user, bench_as_different_user, get_env_setting
 from temci.utils.typecheck import NoInfo
 from temci.utils.util import has_root_privileges, join_strs, does_command_succeed, sphinx_doc, on_apple_os, \
     does_program_exist
