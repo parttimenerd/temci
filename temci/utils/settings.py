@@ -145,7 +145,7 @@ class Settings(metaclass=Singleton):
                         // Description("Name of the produced file to reverse the actions of a package.")
         }),
         "env": Dict({"USER": Str(), "PATH": Str()}, all_keys=False)
-               // Default({"USER": os.getenv("USER"), "PATH": os.getenv("PATH")})
+               // Default({"USER": "", "PATH": ""})
                // Description("Environment variables for the benchmarked programs, includes the user used for "
                               "generated files"),
         "sudo": Bool() // Default(False) // Description("Acquire sudo privileges and run benchmark programs with "

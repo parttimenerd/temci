@@ -524,7 +524,7 @@ class ExecRunDriver(AbstractRunDriver):
         if cpuset is not None and has_root_privileges():
             executed_cmd.insert(0, "cset proc --move --force --pid $$ {} > /dev/null" \
                                 .format(cpuset.get_sub_set(set_id)))
-        env = Settings()["env"].copy() if bench_as_different_user() else os.environ.copy()
+        env = get_env_setting() if bench_as_different_user() else os.environ.copy()
         env.update(block["env"])
         env.update({'LC_NUMERIC': 'en_US.UTF-8'})
         # print(env["PATH"])
