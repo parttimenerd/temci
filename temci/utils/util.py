@@ -10,6 +10,8 @@ import sys
 import logging
 
 import shutil
+
+import pytimeparse
 from rainbow_logging_handler import RainbowLoggingHandler
 
 from temci.utils.typecheck import Type
@@ -262,3 +264,13 @@ def geom_std(values: t.List[float]) -> float:
     import scipy as sp
     gmean = stats.gmean(values)
     return sp.exp(sp.sqrt(sp.sum([sp.log(x / gmean) ** 2 for x in values]) / len(values)))
+
+
+def parse_timespan(time: str) -> float:
+    """
+    Parse a time span expression, see https://pypi.org/project/pytimeparse/
+
+    :param time: time span expression, mixture of different time units is possible
+    :return: time span in seconds
+    """
+    return pytimeparse.parse(time)

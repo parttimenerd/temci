@@ -5,7 +5,7 @@ import traceback
 import click
 
 from temci.utils.sudo_utils import chown
-from temci.utils.util import join_strs, in_standalone_mode
+from temci.utils.util import join_strs, in_standalone_mode, parse_timespan
 
 from temci.utils.mail import send_mail
 from temci.utils.typecheck import *
@@ -16,7 +16,7 @@ import temci.run.run_driver_plugin
 from temci.report.rundata import RunDataStatsHelper, RunData
 from temci.utils.settings import Settings
 from temci.report.report_processor import ReporterRegistry
-import time, logging, humanfriendly, sys, math, pytimeparse, os
+import time, logging, humanfriendly, sys, math, os
 import typing as t
 try:
     import yaml
@@ -87,7 +87,7 @@ class RunProcessor:
         self.end_time = -1  # type: float
         """ Unix time stamp of the point in time that the benchmarking can at most reach """
         try:
-            max_time = pytimeparse.parse(Settings()["run/max_time"])
+            max_time = parse_timespan(Settings()["run/max_time"])
             if max_time > -1:
                 self.end_time = self.start_time + max_time
         except:

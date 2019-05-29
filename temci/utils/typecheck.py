@@ -25,6 +25,8 @@ For more examples look into the test_typecheck.py file.
 
 import typing as t
 
+from temci.utils.util import parse_timespan
+
 __all__ = [
     "Type",
     "Exact",
@@ -67,7 +69,6 @@ __all__ = [
     "typecheck_locals"
 ]
 
-import pytimeparse
 import itertools, os, click, inspect
 try:
     import yaml
@@ -1553,7 +1554,7 @@ class ValidTimeSpan(Type, click.ParamType):
 
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         res = Str().__instancecheck__(value, info)
-        wrong = not bool(res) or pytimeparse.parse(value) == None
+        wrong = not bool(res) or parse_timespan(value) == None
         if wrong:
             return info.errormsg(self, value)
         return info.wrap(True)

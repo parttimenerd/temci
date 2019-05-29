@@ -7,7 +7,7 @@ import time
 
 import humanfriendly
 
-from temci.utils.util import has_root_privileges
+from temci.utils.util import has_root_privileges, parse_timespan
 from ..utils.typecheck import *
 from ..utils.settings import Settings
 from .run_driver import RunProgramBlock, BenchmarkingResultBlock, AbstractRunDriver, RunDriverRegistry
@@ -146,7 +146,7 @@ class AbstractRunWorkerPool:
         return ht_cores
 
     def next_block_timeout(self) -> float:
-        timeout = humanfriendly.parse_timespan(Settings()["run/max_block_time"])
+        timeout = parse_timespan(Settings()["run/max_block_time"])
         if timeout > -1:
             return max(min(self.time_left(), timeout), 0)
         return max(self.time_left(), 0)
