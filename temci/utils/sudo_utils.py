@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 from io import TextIOWrapper, BufferedRandom, BufferedRWPair, BufferedWriter, IOBase
@@ -21,13 +22,27 @@ def get_bench_uid_and_gid() -> Tuple[int, int]:
     return pwnam.pw_uid, pwnam.pw_gid
 
 
+_logged_chown_error = False
+
+
 def chown(path: Union[str, TextIOWrapper, BufferedRandom, BufferedRWPair, BufferedWriter, IOBase]):
+    if not bench_as_different_user():
+        return
     if isinstance(path, IOBase) and path.isatty():
         return
     if not isinstance(path, str):
         return chown(path.name)
+    ids = ()
     try:
-        os.chown(path, *get_bench_uid_and_gid())
+        ids = get_bench_uid_and_gid()
+    except:
+        global _logged_chown_error
+        if not _logged_chown_error:
+            logging.warn("Could not get user id for user {} therefore no chowning possible".format(get_bench_user()))
+            _logged_chown_error = True
+        return
+    try:
+        os.chown(path, *ids)
     except FileNotFoundError:
         pass
 
