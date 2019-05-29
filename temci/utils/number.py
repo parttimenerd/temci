@@ -244,6 +244,21 @@ def _format_number(number: Number, deviation: float,
 
     num = ""
 
+    decimal_places = 0
+    if last_sig >= 0:  # decimal part is insignificant
+        if not omit_insignificant_decimal_places or force_min_decimal_places:
+            if force_min_decimal_places:
+                decimal_places = min_decimal_places
+    else:
+        decimal_places = min_decimal_places
+        if not omit_insignificant_decimal_places or force_min_decimal_places:
+            decimal_places = max(abs(last_sig), min_decimal_places)
+        if max_decimal_places is not None:
+            decimal_places = min(decimal_places, max_decimal_places)
+
+    # round the number
+    number = round(number * (10 ** decimal_places)) / (10 ** decimal_places)
+
     # format the integer part
     if last_sig <= 0 or not parentheses:   # integer part is significant
         num = str(int(number))
@@ -254,9 +269,6 @@ def _format_number(number: Number, deviation: float,
     # format the decimal part
     if last_sig >= 0: # decimal part is insignificant
         if not omit_insignificant_decimal_places or force_min_decimal_places:
-            decimal_places = 0
-            if force_min_decimal_places:
-                decimal_places = min_decimal_places
             dec_part = "{{:.{}f}}".format(decimal_places).format(number - math.floor(number))[2:]
             if max_decimal_places is not 0:
                 num += "."
@@ -266,11 +278,7 @@ def _format_number(number: Number, deviation: float,
                     num += dec_part
     else:
         dec_digits = min_decimal_places
-        if not omit_insignificant_decimal_places or force_min_decimal_places:
-            dec_digits = max(abs(last_sig), min_decimal_places)
-        if max_decimal_places is not None:
-            dec_digits = min(dec_digits, max_decimal_places)
-        dec_part = "{{:.{}f}}".format(dec_digits)
+        dec_part = "{{:.{}f}}".format(decimal_places)
         dec_part = dec_part.format(number - math.floor(number))[2:]
         if max_decimal_places is not 0:
             num += "."
