@@ -1121,7 +1121,7 @@ class SignificanceTooLowError(SignificanceTooLowWarning):
     @classmethod
     def check_value(cls, value) -> bool:
         r = Settings()["stats/uncertainty_range"]
-        return r[1] > value
+        return r[1] < value
 
 
 class TestedPairProperty(BaseStatObject):
