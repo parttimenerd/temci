@@ -4,3 +4,12 @@ rainbow_logging_handler
 pytimeparse
 prompt_toolkit
 humanfriendly
+logutils
+colorama
+click
+fn
+wcwidth
+tablib
+pyyaml
+seaborn
+scipy
