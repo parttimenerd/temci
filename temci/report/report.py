@@ -47,7 +47,7 @@ class ReporterRegistry(AbstractRegistry):
     settings_key_path = "report"
     use_key = "reporter"
     use_list = False
-    default = "html2"
+    default = "console"
     registry = {}
     plugin_synonym = ("reporter", "reporter")
 
@@ -167,7 +167,7 @@ class ConsoleReporter(AbstractReporter):
             print_func(title, file=file)
             print_func("####################", file=file)
         for item in list:
-            print_func("\t {} ⟷ {}".format(item["data"][0].description(),
+            print_func("\t {}  ⟷  {}".format(item["data"][0].description(),
                                        item["data"][1].description()), file=file)
             for prop in sorted(item["properties"]):
                 prop_data = item["properties"][prop]
