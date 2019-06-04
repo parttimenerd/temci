@@ -5,6 +5,7 @@ these objects.
 """
 
 from temci.report.testers import Tester, TesterRegistry
+from temci.run.run_driver import filter_runs
 from temci.utils.typecheck import *
 from temci.utils.settings import Settings
 import temci.utils.util as util
@@ -208,7 +209,7 @@ class RunDataStatsHelper(object):
                                                             Settings()["stats/uncertainty_range"])
         """ Used statistical tester """
         typecheck(runs, List(T(RunData)))
-        self.runs = runs  # type: t.List[RunData]
+        self.runs = filter_runs(runs, Settings()["report/included_blocks"])  # type: t.List[RunData]
         """ Data of serveral runs from several measured program blocks """
         self.external_count = external_count  # type: int
         """

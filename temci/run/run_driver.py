@@ -69,6 +69,20 @@ class RunDriverRegistry(AbstractRegistry):
     """.format(yaml="\n        ".join(klass.block_type_scheme.string_representation().split("\n")))
 
 
+def filter_runs(blocks: t.List[t.Union['RunProgramBlock','RunData']], included: t.List[str]) -> t.List['RunProgramBlock']:
+    """
+    Filter run blocks (all: include all), identified by their description or their number in the file (starting with 0)
+    and run datas (only identified by their description)
+
+    :param blocks: blocks or run datas to filter
+    :param included: include query
+    :return: filtered list
+    """
+    return [block for block in blocks
+            if ("description" in block.attributes and block.attributes["description"] in included) or
+            (isinstance(block, RunProgramBlock) and str(block.id) in included) or "all" in included]
+
+
 class RunProgramBlock:
     """
     An object that contains every needed information of a program block.

@@ -11,7 +11,7 @@ from temci.utils.mail import send_mail
 from temci.utils.typecheck import *
 from temci.run.run_worker_pool import RunWorkerPool, ParallelRunWorkerPool, AbstractRunWorkerPool
 from temci.run.run_driver import RunProgramBlock, BenchmarkingResultBlock, RunDriverRegistry, ExecRunDriver, \
-    is_perf_available
+    is_perf_available, filter_runs
 import temci.run.run_driver_plugin
 from temci.report.rundata import RunDataStatsHelper, RunData
 from temci.utils.settings import Settings
@@ -57,6 +57,7 @@ class RunProcessor:
         """ Run program blocks for each dictionary in ``runs```"""
         for (id, run) in enumerate(runs):
             self.run_blocks.append(RunProgramBlock.from_dict(id, copy.deepcopy(run)))
+        self.run_blocks = filter_runs(self.run_blocks, Settings()["run/included_blocks"])
         self.append = Settings().default(append, "run/append")  # type: bool
         """ Append to the old benchmarks if there are any in the result file? """
         self.show_report = Settings().default(show_report, "run/show_report")  # type: bool
