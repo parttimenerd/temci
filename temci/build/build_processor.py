@@ -1,3 +1,5 @@
+from temci.utils.util import get_doc_for_type_scheme, sphinx_doc, document
+
 try:
     import yaml
 except ImportError:
@@ -8,6 +10,7 @@ from .builder import Builder, BuilderKeyboardInterrupt
 import typing as t
 
 
+@document(block_scheme="A block in the configuration has the following format:")
 class BuildProcessor:
     """
     Build programs with possible randomizations.
@@ -21,8 +24,7 @@ class BuildProcessor:
             "build_cmd": Str() // Default("") // Description("Command to build this program block"),
             "number": (PositiveInt() | NonExistent()) // Default(1)
                       // Description("Number of times to build this program"),
-            "randomization": (Dict(key_type=Str(), value_type=Int()|Bool()) | NonExistent())
-                             // Default({})
+            "randomization": Builder.rand_conf_scheme // Default({})
                 // Description("Randomization configuration"),
             "working_dir": (DirName() | NonExistent()) // Default(".")
                 // Description("Working directory in which the build command is run"),

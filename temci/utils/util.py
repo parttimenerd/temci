@@ -160,6 +160,7 @@ in_standalone_mode = False  # type: bool
 
 _sphinx_doc = os.environ.get("SPHINXDOC", os.environ.get('READTHEDOCS', None)) == 'True'
 
+
 def sphinx_doc() -> bool:
     """ Is the code only loaded to document it with sphinx? """
     return _sphinx_doc
@@ -173,7 +174,29 @@ def get_doc_for_type_scheme(type_scheme: 'Type') -> str:
 
         {default_yaml}
 
-    """.format(default_yaml="\n        ".join(type_scheme.get_default_yaml().split("\n")))
+    """.format(default_yaml="\n        ".join(type_scheme.string_representation().split("\n")))
+
+
+def document(**kwargs: t.Dict[str, str]):
+    """
+    Document
+
+    :param kwargs: class attribute, documentation prefix
+    """
+
+    def dec(klass):
+        if sphinx_doc():
+            for k, v in kwargs.items():
+                klass.__doc__ += """
+
+    {}
+
+    {}
+
+                """.format(v, get_doc_for_type_scheme(klass.__dict__[k]))
+        return klass
+
+    return dec
 
 
 class Singleton(type):

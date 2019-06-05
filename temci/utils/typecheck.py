@@ -347,6 +347,9 @@ class Type(object):
     def __str__(self) -> str:
         return "Type()"
 
+    def __repr__(self) -> str:
+        return str(self)
+
     def _validate_types(self, *types: t.Tuple['Type']):
         """
         Checks if all the passed values are instance of the Type class (or a sub class)
@@ -410,7 +413,8 @@ class Type(object):
         :raises: ValueError if the default value isn't set
         """
         if self.default is None:
-            raise ValueError("{} has no default value.".format(self))
+            return None
+            #raise ValueError("{} has no default value.".format(self))
         return self.default.default
 
     def has_default(self) -> bool:
@@ -1019,6 +1023,9 @@ class Dict(Type):
         return fmt.format(data=data_str, all_keys=self.all_keys, key_type=self.key_type,
                           value_type=self.value_type)
 
+    def __repr__(self) -> str:
+        return self.string_representation()
+
     def __getitem__(self, key) -> Type:
         """
         Returns the Type of the keys value.
@@ -1154,12 +1161,13 @@ class Dict(Type):
                 comment_lines = map(lambda x: "# " + x, comment_lines)
                 strs.extend(comment_lines)
             key_yaml = yaml.dump(key).split("\n")[0]
-            if len(self.data[key].string_representation(str_list=True, defaults=defaults[key])) == 1 and \
+            default = defaults[key] if defaults and key in defaults else None
+            if len(self.data[key].string_representation(str_list=True, defaults=default)) == 1 and \
                     (not isinstance(self.data[key], Dict) or len(self.data[key].data.keys()) == 0):
-                value_yaml = self.data[key].string_representation(1, indentation, str_list=False, defaults=defaults[key])
+                value_yaml = self.data[key].string_representation(1, indentation, str_list=False, defaults=default)
                 strs.append("{}: {}".format(key_yaml, value_yaml))
             else:
-                value_yaml = self.data[key].string_representation(1, indentation, str_list=True, defaults=defaults[key])
+                value_yaml = self.data[key].string_representation(1, indentation, str_list=True, defaults=default)
                 strs.append("{}: {}".format(key_yaml, value_yaml[0]))
                 if len(value_yaml) > 1:
                     strs.extend(value_yaml[1:])
