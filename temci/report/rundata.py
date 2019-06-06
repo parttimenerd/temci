@@ -24,10 +24,19 @@ def get_for_tag(per_tag_settings_key: str, main_key: str, tag: t.Optional[str]):
     return per_tag[tag] if tag is not None and tag in per_tag else Settings()[main_key]
 
 
+@util.document(block_type_scheme="An entry in the run output list")
 class RunData(object):
     """
     A set of benchmarking data for a specific program block.
     """
+
+    block_type_scheme = Dict({
+                    "data": Dict(key_type=Str(), value_type=List(Int()|Float()), all_keys=False) // Default({}),
+                    "attributes": Dict({
+                        "tag": Optional(Str()) // Default(None) // Description("Tag of this block"),
+                        "description": Optional(Str()) // Default(None)
+                    }, key_type=Str(), all_keys=False)
+                }, all_keys=False)
 
     def __init__(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
                  external: bool = False):
@@ -126,7 +135,7 @@ class RunData(object):
 
     def description(self) -> str:
         """ Description of this instance based on the attributes """
-        if "description" in self.attributes:
+        if "description" in self.attributes and self.attributes["description"] is not None:
             return self.attributes["description"]
         return ", ".join("{}={}".format(key, self.attributes[key]) for key in self.attributes)
 
@@ -249,7 +258,7 @@ class RunDataStatsHelper(object):
         descr_attrs = defaultdict(lambda: 0)  # type: t.Dict[str, int]
         descr_nr_zero = {}  # type: t.Dict[str, RunData]
         for single in self.runs:
-            if "description" in single.attributes:
+            if "description" in single.attributes and single.attributes["description"] is not None:
                 descr = single.attributes["description"]
                 num = descr_attrs[descr]
                 descr_attrs[descr] += 1
@@ -287,7 +296,7 @@ class RunDataStatsHelper(object):
             }
 
             "runs": [
-                {"attributes": {"attr1": ..., ...},
+                {"attributes": {"attr1": ..., ..., ["description": …], ["tag": …]},
                  "data": {"__ov-time": [...], ...}
                  ["property_descriptions": {"__ov-time": "Overall time"}]},
                  ...
@@ -300,8 +309,7 @@ class RunDataStatsHelper(object):
         """
         typecheck(runs, List(Dict({
                     "data": Dict(key_type=Str(), value_type=List(Int()|Float()), all_keys=False) | NonExistent(),
-                    "attributes": Dict(key_type=Str(), all_keys=False)
-                }, all_keys=False)|
+                }, all_keys=False) |
                              Dict({
                                  "property_descriptions": NonExistent() |
                                                           Dict(key_type=Str(), value_type=Str(), all_keys=False)})),

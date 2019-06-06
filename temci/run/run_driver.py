@@ -438,7 +438,12 @@ class ExecRunDriver(AbstractRunDriver):
         "env": Dict(all_keys=False, key_type=Str()) // Default({}) // Description("Environment variables"),
         "cmd_prefix": List(Str()) // Default([]) // Description("Command to append before the commands to benchmark"),
         "revision": (Int(lambda x: x >= -1) | Str()) // Default(-1) // Description("Used revision (or revision number)."
-                                                                                   "-1 is the current revision."),
+                                                                                   "-1 is the current revision, checks out "
+                                                                                   "the revision"),
+        "attributes": Dict({
+            "tag": Optional(Str()) // Default(None) // Description("Tag of this block"),
+            "description": Optional(Str()) // Default(None)
+        }, all_keys=False, key_type=Str(), value_type=Any()),
         "cwd": (List(Str()) | Str()) // Default(".") // Description("Execution directories for each command"),
         "runner": ExactEither().dont_typecheck_default() // Default("time") // Description("Used runner"),
         "disable_aslr": Bool() // Default(False) // Description("Disable the address space layout randomization"),
