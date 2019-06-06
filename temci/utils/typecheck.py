@@ -125,7 +125,7 @@ class Info:
 
     def add_to_name(self, app_str: str) -> 'Info':
         """
-        Creates a new info object based on this one with the given appendix to it's value representation.
+        Creates a new info object based on this one with the given appendix to its value representation.
         It's used to give information about what part of the main value is currently examined.
 
         :param app_str: app string appended to the own app string to create the app string for the new info object
@@ -426,7 +426,7 @@ class Type(object):
     def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) \
             -> t.Union[str, t.List[str]]:
         """
-        Produce a YAML like string that contains the default value and the description of this type and it's possible sub types.
+        Produce a YAML like string that contains the default value and the description of this type and its possible sub types.
 
         :param indents: number of indents in front of each produced line
         :param indentation: indentation width in number of white spaces
@@ -448,7 +448,7 @@ class Type(object):
             -> t.Union[str, t.List[str]]:
         """
         Produce a YAML string that contains the default value (if possible), the description of this type
-        and more and it's possible sub types.
+        and more and its possible sub types.
 
         :param indents: number of indents in front of each produced line
         :param indentation: indentation width in number of white spaces
@@ -1121,7 +1121,7 @@ class Dict(Type):
             -> t.Union[str, t.List[str]]:
         """
         Produce a YAML string that contains the default value (if possible), the description of this type
-        and more and it's possible sub types.
+        and more and its possible sub types.
 
         :param indents: number of indents in front of each produced line
         :param indentation: indentation width in number of white spaces

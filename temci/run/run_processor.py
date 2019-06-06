@@ -143,14 +143,14 @@ class RunProcessor:
                                                                             all=self.block_run_count < self.min_runs)
             to_bench_count = len(self.stats_helper.get_program_ids_to_bench())
             if -1 < self.end_time < round(time.time() + estimated_time):
-                logging.warning("Ran to long ({}) and is therefore now aborted. "
+                logging.warning("Ran too long ({}) and is therefore now aborted. "
                                 "{} program blocks should've been benchmarked again."
                                 .format(humanfriendly.format_timespan(time.time() + estimated_time - self.start_time),
                                         to_bench_count))
                 return False
         if self.block_run_count >= self.max_runs and self.block_run_count >= self.min_runs:
             #print("benchmarked too often, block run count ", self.block_run_count, self.block_run_count + self.run_block_size > self.min_runs)
-            logging.warning("Benchmarked program blocks to often and aborted therefore now.")
+            logging.warning("Benchmarked program blocks too often and aborted therefore now.")
             return False
         return True
 

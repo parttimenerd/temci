@@ -360,7 +360,7 @@ class GitDriver(VCSDriver):
 
     def _list_of_commit_tuples(self) -> t.List[t.Tuple[str, str]]:
         """
-        Executes `git log BRANCH` and parses it's output lines into tuples (hash, msg).
+        Executes `git log BRANCH` and parses its output lines into tuples (hash, msg).
         :return: list of tuples
         """
         res = self._exec_command("git log --oneline {}".format(self.branch), cacheable=True).split("\n")

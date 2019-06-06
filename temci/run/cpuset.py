@@ -149,7 +149,7 @@ class CPUSet:
             if proc.poll() > 0:
                 raise EnvironmentError(
                     "Cannot mount /cpuset. " +
-                    "Probably you're you're not in root mode or you've already mounted cpuset elsewhere.", str(err))
+                    "Probably you're not in root mode or you've already mounted cpuset elsewhere.", str(err))
         self._create_cpuset(NEW_ROOT_SET, self._get_av_cpus()[0: self.base_core_number])
         logging.info("Move all processes to new root cpuset")
         self._move_all_to_new_root()
