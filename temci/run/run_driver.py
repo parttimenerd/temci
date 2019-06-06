@@ -81,7 +81,7 @@ def filter_runs(blocks: t.List[t.Union['RunProgramBlock','RunData']], included: 
     return [block for block in blocks
             if ("description" in block.attributes and block.attributes["description"] in included) or
             (isinstance(block, RunProgramBlock) and str(block.id) in included) or "all" in included or
-            ("tag" in block.attributes and block.attributes["tag"] in included)]
+            ("tags" in block.attributes and any(tag in included for tag in block.attributes["tags"]))]
 
 
 class RunProgramBlock:
@@ -111,9 +111,9 @@ class RunProgramBlock:
         """ Is this program block enqueued in a run worker pool queue? """
         self.id = id  # type: int
         """ Id of this run program block """
-        self.tag = attributes["tag"] if "tag" in self.attributes else None
-        from temci.report.rundata import get_for_tag
-        self.max_runs = min(Settings()["run/max_runs"], get_for_tag("run/max_runs_per_tag", "run/max_runs", self.tag))
+        self.tags = attributes["tags"] if "tags" in self.attributes else None
+        from temci.report.rundata import get_for_tags
+        self.max_runs = get_for_tags("run/max_runs_per_tag", "run/max_runs", self.tags, min)
 
     def __getitem__(self, key: str) -> t.Any:
         """
@@ -441,7 +441,7 @@ class ExecRunDriver(AbstractRunDriver):
                                                                                    "-1 is the current revision, checks out "
                                                                                    "the revision"),
         "attributes": Dict({
-            "tag": Optional(Str()) // Default(None) // Description("Tag of this block"),
+            "tags": ListOrTuple(Str()) // Default([]) // Description("Tags of this block"),
             "description": Optional(Str()) // Default(None)
         }, all_keys=False, key_type=Str(), value_type=Any()),
         "cwd": (List(Str()) | Str()) // Default(".") // Description("Execution directories for each command"),

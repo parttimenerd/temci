@@ -3,6 +3,7 @@ Contains the RunData object for benchmarking data of specific program block
 and the RunDataStatsHelper that provides helper methods for working with
 these objects.
 """
+from functools import reduce
 
 from temci.report.testers import Tester, TesterRegistry
 from temci.run.run_driver import filter_runs
@@ -19,6 +20,12 @@ Number = t.Union[int, float]
 """ Numeric value """
 
 
+def get_for_tags(per_tag_settings_key: str, main_key: str, tags: t.List[str], combinator: t.Callable[[t.Any, t.Any], t.Any]):
+    if tags is None:
+        return Settings()[main_key]
+    return reduce(combinator, (get_for_tag(per_tag_settings_key, main_key, t) for t in tags))
+
+
 def get_for_tag(per_tag_settings_key: str, main_key: str, tag: t.Optional[str]):
     per_tag = Settings()[per_tag_settings_key]
     return per_tag[tag] if tag is not None and tag in per_tag else Settings()[main_key]
@@ -33,7 +40,7 @@ class RunData(object):
     block_type_scheme = Dict({
                     "data": Dict(key_type=Str(), value_type=List(Int()|Float()), all_keys=False) // Default({}),
                     "attributes": Dict({
-                        "tag": Optional(Str()) // Default(None) // Description("Tag of this block"),
+                        "tags": ListOrTuple(Str()) // Default([]) // Description("Tags of this block"),
                         "description": Optional(Str()) // Default(None)
                     }, key_type=Str(), all_keys=False)
                 }, all_keys=False)
@@ -60,8 +67,8 @@ class RunData(object):
             self.add_data_block(data)
         self.attributes = attributes or {}  # type: t.Dict[str, str]
         """ Dictionary of optional attributes that describe its program block """
-        self.tag = attributes["tag"] if "tag" in self.attributes else None
-        self.max_runs = min(Settings()["run/max_runs"], get_for_tag("run/max_runs_per_tag", "run/max_runs", self.tag))
+        self.tags = attributes["tags"] if "tags" in self.attributes else None
+        self.max_runs = get_for_tags("run/max_runs_per_tag", "run/max_runs", self.tags, min)
 
     def clone(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
                  external: bool = None) -> 'RunData':
@@ -296,7 +303,7 @@ class RunDataStatsHelper(object):
             }
 
             "runs": [
-                {"attributes": {"attr1": ..., ..., ["description": …], ["tag": …]},
+                {"attributes": {"attr1": ..., ..., ["description": …], ["tags": …]},
                  "data": {"__ov-time": [...], ...}
                  ["property_descriptions": {"__ov-time": "Overall time"}]},
                  ...
