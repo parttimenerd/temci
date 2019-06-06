@@ -19,6 +19,11 @@ Number = t.Union[int, float]
 """ Numeric value """
 
 
+def get_for_tag(per_tag_settings_key: str, main_key: str, tag: t.Optional[str]):
+    per_tag = Settings()[per_tag_settings_key]
+    return per_tag[tag] if tag is not None and tag in per_tag else Settings()[main_key]
+
+
 class RunData(object):
     """
     A set of benchmarking data for a specific program block.
@@ -47,6 +52,7 @@ class RunData(object):
         self.attributes = attributes or {}  # type: t.Dict[str, str]
         """ Dictionary of optional attributes that describe its program block """
         self.tag = attributes["tag"] if "tag" in self.attributes else None
+        self.max_runs = min(Settings()["run/max_runs"], get_for_tag("run/max_runs_per_tag", "run/max_runs", self.tag))
 
     def clone(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
                  external: bool = None) -> 'RunData':

@@ -111,7 +111,9 @@ class RunProgramBlock:
         """ Is this program block enqueued in a run worker pool queue? """
         self.id = id  # type: int
         """ Id of this run program block """
-        self.tag = attributes["tag"] if "tag" in attributes else None
+        self.tag = attributes["tag"] if "tag" in self.attributes else None
+        from temci.report.rundata import get_for_tag
+        self.max_runs = min(Settings()["run/max_runs"], get_for_tag("run/max_runs_per_tag", "run/max_runs", self.tag))
 
     def __getitem__(self, key: str) -> t.Any:
         """

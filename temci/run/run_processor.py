@@ -174,13 +174,15 @@ class RunProcessor:
                 with click.progressbar(range(0, self.max_runs + self.discarded_runs),
                                        label=label_format.format(start_label),
                                        file=None if self.pool.run_driver.runs_benchmarks else "-") as runs:
+                    run_count = 0
                     for run in runs:
                         if run < self.discarded_runs:
                             self._benchmarking_block_run(block_size=1, discard=True)
                         else:
-                            if self._finished():
+                            if self._finished() or all(b.max_runs < run_count for b in self.run_blocks):
                                 break
-                            self._benchmarking_block_run()
+                            self._benchmarking_block_run(run=run_count)
+                            run_count += 1
                         if run == self.discarded_runs - 1:
                             runs.label = label_format.format(label)
             else:
@@ -188,8 +190,10 @@ class RunProcessor:
                 last_round_time = time.time()
                 if time_per_run != None:
                     last_round_time -= time_per_run * self.run_block_size
+                run = 0
                 while not self._finished():
-                    self._benchmarking_block_run()
+                    self._benchmarking_block_run(run)
+                    run += 1
         except BaseException as ex:
             logging.error("Forced teardown of RunProcessor")
             self.store_and_teardown()
@@ -198,15 +202,13 @@ class RunProcessor:
                 self.print_report()
             raise
         self.store_and_teardown()
-        if self.show_report:
-            self.print_report()
 
-    def _benchmarking_block_run(self, block_size: int = None, discard: bool = False, bench_all: bool = None):
+    def _benchmarking_block_run(self, block_size: int = None, discard: bool = False, bench_all: bool = None, run: int = None):
         block_size = block_size or self.run_block_size
         if bench_all is None:
             bench_all = self.block_run_count < self.min_runs
         try:
-            to_bench = list(enumerate(self.run_blocks))
+            to_bench = list((i, b) for (i, b) in enumerate(self.run_blocks) if self._should_run(b, run))
             if not bench_all and self.block_run_count < self.max_runs and not in_standalone_mode:
                 to_bench = [(i, self.run_blocks[i]) for i in self.stats_helper.get_program_ids_to_bench()]
             to_bench = [(i, b) for (i, b) in to_bench if self.stats_helper.runs[i] is not None]
@@ -243,6 +245,9 @@ class RunProcessor:
         if not discard and self.store_often:
             self.store()
 
+    def _should_run(self, block: RunProgramBlock, run: int = None) -> bool:
+        return run <= block.max_runs if run is not None else True
+
     def _make_discarded_runs(self) -> t.Optional[int]:
         if self.discarded_runs == 0:
             return None
@@ -262,7 +267,7 @@ class RunProcessor:
         Teardown everything, store the result file, print a short report and send an email
         if configured to do so.
         """
-        if Settings().has_log_level("info") and self.show_report:
+        if self.show_report:
             self.print_report()
         self.teardown()
         self.store()

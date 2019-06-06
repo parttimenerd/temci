@@ -67,6 +67,8 @@ class Settings(metaclass=Singleton):
             "discarded_runs": NaturalNumber() // Description("First n runs that are discarded") // Default(1),
             "min_runs": NaturalNumber() // Default(20) // Description("Minimum number of benchmarking runs"),
             "max_runs": NaturalNumber() // Default(100) // Description("Maximum number of benchmarking runs"),
+            "max_runs_per_tag": Dict(all_keys=False, key_type=Str() // Description("Tag"), value_type=NaturalNumber() // Description("Max runs"))
+                                 // Default({}) // Description("Maximum runs per tag (block attribute 'tag'), min('max_runs', 'per_tag') is used"),
             "runs": Int(lambda x: x >= -1) // Default(-1) // Description("if != -1 sets max and min runs to it's value"),
             "max_time": ValidTimeSpan() // Default("-1") // Description("Maximum time the whole benchmarking should take, "
                                                                         "-1 == no timeout, supports normal time span expressions"), # in seconds
