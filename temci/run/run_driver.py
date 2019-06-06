@@ -344,13 +344,17 @@ class ExecValidator:
     """
 
     config_type_scheme = Dict({
-        "expected_output": (List(Str()) | Str()) // Default([]) // Description(
+        "expected_output": Optional(Str()) // Default(None) // Description(
+            "Program output without ignoring line breaks and spaces at the beginning and the end"),
+        "expected_output_contains": (List(Str()) | Str()) // Default([]) // Description(
             "Strings that should be present in the program output"),
-        "unexpected_output": (List(Str()) | Str()) // Default([]) // Description(
+        "unexpected_output_contains": (List(Str()) | Str()) // Default([]) // Description(
             "Strings that shouldn't be present in the program output"),
-        "expected_erroutput": (List(Str()) | Str()) // Default([]) // Description(
+        "expected_err_output": Optional(Str()) // Default(None) // Description(
+            "Program error output without ignoring line breaks and spaces at the beginning and the end"),
+        "expected_err_output_contains": (List(Str()) | Str()) // Default([]) // Description(
             "Strings that should be present in the program error output"),
-        "unexpected_erroutput": (List(Str()) | Str()) // Default([]) // Description(
+        "unexpected_err_output_contains": (List(Str()) | Str()) // Default([]) // Description(
             "Strings that shouldn't be present in the program output"),
         "expected_return_code": (List(Int()) | Int()) // Default(0) // Description("Allowed return code(s)"),
     })
@@ -375,22 +379,35 @@ class ExecValidator:
         :param return_code: passed program return code
         :raises BenchmarkingError: if the check failed
         """
+        out = out.strip()
+        err = err.strip()
         self._match(cmd, "program output", out, self.config["expected_output"], True)
-        self._match(cmd, "program output", out, self.config["unexpected_output"], False)
-        self._match(cmd, "program error output", err, self.config["expected_erroutput"], True)
-        self._match(cmd, "program error output", err, self.config["unexpected_erroutput"], False)
+        self._match(cmd, "program output", out, self.config["expected_output_contains"], True, contains=True)
+        self._match(cmd, "program output", out, self.config["unexpected_output_contains"], False, contains=True)
+        self._match(cmd, "program error output", err, self.config["expected_err_output"], True)
+        self._match(cmd, "program error output", err, self.config["expected_err_output_contains"], True, contains=True)
+        self._match(cmd, "program error output", err, self.config["unexpected_err_output_contains"], False, contains=True)
         self._match_return_code(cmd, err, self.config["expected_return_code"], return_code)
 
-    def _match(self, cmd: str, name: str, checked_str: str, checker: List(Str()) | Str(), expect_match: bool):
+    def _match(self, cmd: str, name: str, checked_str: str, checker: List(Str()) | Str(), expect_match: bool, contains: bool = False):
         if not isinstance(checker, List()):
             checker = [checker]
-        bools = [check in checked_str for check in checker]
-        if expect_match and not all(bools):
-            raise BenchmarkingError("{} for {!r} doesn't contain the string {!r}, it's: {}"
-                                    .format(name, cmd, checker[bools.index(False)], checked_str))
-        if not expect_match and any(bools):
-            raise BenchmarkingError("{} for {!r} contains the string {!r}, it's: {}"
-                                    .format(name, cmd, checker[bools.index(True)], checked_str))
+        if contains:
+            bools = [check in checked_str for check in checker]
+            if expect_match and not all(bools):
+                raise BenchmarkingError("{} for {!r} doesn't contain the string {!r}, it's: {}"
+                                        .format(name, cmd, checker[bools.index(False)], checked_str))
+            if not expect_match and any(bools):
+                raise BenchmarkingError("{} for {!r} contains the string {!r}, it's: {}"
+                                        .format(name, cmd, checker[bools.index(True)], checked_str))
+        else:
+            matches = checked_str == checker[0]
+            if expect_match and matches:
+                raise BenchmarkingError("{} for {!r} isn't the string {!r}, it's: {}"
+                                        .format(name, cmd, checker[0], checked_str))
+            if not expect_match and not matches:
+                raise BenchmarkingError("{} for {!r} isn't the string {!r}, it's: {}"
+                                        .format(name, cmd, checker[0], checked_str))
 
     def _match_return_code(self, cmd: str, err: str, exptected_codes: t.Union[t.List[int], int], return_code: int):
         if isinstance(exptected_codes, int):
