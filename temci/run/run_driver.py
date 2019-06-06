@@ -424,7 +424,7 @@ class ExecRunDriver(AbstractRunDriver):
     """
     Implements a simple run driver that just executes one of the passed run_cmds
     in each benchmarking run.
-    It meausures the time  using the perf stat tool (runner=perf_stat).
+    It measures the time  using the perf stat tool (runner=perf_stat).
 
     The constructor calls the ``setup`` method.
     """
@@ -612,7 +612,7 @@ class ExecRunDriver(AbstractRunDriver):
             klass.__doc__ = (klass.__doc__ or "") + """
 
     To use this runner with name ``{name}`` either set the ``runner`` property of a run configuration
-    or the setting under the key ``run/exec_misc/runner`` to it's name.
+    or the setting under the key ``run/exec_misc/runner`` to its name.
 
         """
             if klass.misc_options not in [Dict(), Dict({}), None]:

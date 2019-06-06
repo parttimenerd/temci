@@ -525,7 +525,7 @@ def copy_tree_actions(base: str, include_patterns: t.Union[t.List[str], str] = [
 def matched_paths(base: str, include_patterns: t.Union[t.List['str'], str] = ["**", "**/.*"],
                   exclude_patterns: t.List[str] = None) -> t.List[str]:
     """
-    All matching paths in base directory and it's child directories.
+    All matching paths in base directory and its child directories.
 
     :param base: base directory
     :param include_patterns: patterns that match the paths that should be included
@@ -551,7 +551,7 @@ def matched_paths(base: str, include_patterns: t.Union[t.List['str'], str] = ["*
 
 def actions_for_dir_path(path: str, path_acc: t.Set[str] = set()) -> t.List[Action]:
     """
-    Returns a list of actions that is needed to create a folder and it's parent folders.
+    Returns a list of actions that is needed to create a folder and its parent folders.
 
     :param path:
     :param path_acc: paths already examined
@@ -577,7 +577,7 @@ def actions_for_dir_path(path: str, path_acc: t.Set[str] = set()) -> t.List[Acti
 @register_action
 class ExecuteCmd(Action):
     """
-    Execute a command and mail it's output (optional).
+    Execute a command and mail its output (optional).
     """
 
     name = "execute_cmd"

@@ -995,7 +995,7 @@ class HTMLReporter2(AbstractReporter):
                      \\text{{max}}(\\sigma_\\text{{{first}}}, \\sigma_\\text{{{second}}}) }} \\\\
                         = &  \\frac{{{md}}}{{{std}}}  \\end{{align}}
 
-                    It's important, because as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
+                    It's important because, as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
                     Gernot Heiser</a> points out:
                     <ul>
                         <li>Don't believe any effect that is less than a standard deviation</li>

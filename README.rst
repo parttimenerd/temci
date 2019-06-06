@@ -198,7 +198,7 @@ How to go further from here
 
 -  Append ``--send_mail [your email adress]`` to get a mail after the
    benchmarking finished. This mail has the benchmarking result file in
-   it's appendix
+   its appendix
 -  Try to benchmark a failing program (e.g. "lsabc"). temci will create
    a new run config file (with the ending ".erroneous.yaml" that
    contains all failing run program blocks. Try to append the

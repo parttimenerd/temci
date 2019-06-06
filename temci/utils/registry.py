@@ -139,7 +139,7 @@ class AbstractRegistry:
         use_text = ""
         cls_use_text = ""
         if cls.use_list:
-            use_text = "To use this {plugin} add it's name (`{name}`) to the list at settings key `{key}` or " \
+            use_text = "To use this {plugin} add its name (`{name}`) to the list at settings key `{key}` or " \
                        "set `{active}` to true."\
                 .format(plugin=cls.plugin_synonym[0], name=name, key=use_key_path,
                         active="{}_active".format("/".join([cls.settings_key_path, name])))

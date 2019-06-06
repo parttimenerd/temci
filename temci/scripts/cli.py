@@ -59,7 +59,7 @@ under certain conditions.
 For details, see the LICENSE file in the source folder of temci.
 
 This program is still in an alpha stage. It may happen that
-you're system needs to be rebooted to be usable again.
+your system needs to be rebooted to be usable again.
 """.format(temci.scripts.version.version))
 def cli():
     if "TEMCI_ENV" in os.environ:
@@ -167,9 +167,9 @@ misc_commands = {
 }
 misc_commands_description = {
     "completion": {
-        "zsh": "Creates a new tab completion file for zsh and returns it's file name",
+        "zsh": "Creates a new tab completion file for zsh and returns its file name",
         #"fish": "Creates a file /tmp/temci_fish_completion for fish completion support.",
-        "bash": "Creates a new tab completion file for zsh and returns it's file name",
+        "bash": "Creates a new tab completion file for zsh and returns its file name",
     },
     "init": {
         "settings": "Create a new settings file temci.yaml in the current directory",
