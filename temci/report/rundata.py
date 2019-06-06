@@ -46,6 +46,7 @@ class RunData(object):
             self.add_data_block(data)
         self.attributes = attributes or {}  # type: t.Dict[str, str]
         """ Dictionary of optional attributes that describe its program block """
+        self.tag = attributes["tag"] if "tag" in self.attributes else None
 
     def clone(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
                  external: bool = None) -> 'RunData':

@@ -71,8 +71,8 @@ class RunDriverRegistry(AbstractRegistry):
 
 def filter_runs(blocks: t.List[t.Union['RunProgramBlock','RunData']], included: t.List[str]) -> t.List['RunProgramBlock']:
     """
-    Filter run blocks (all: include all), identified by their description or their number in the file (starting with 0)
-    and run datas (only identified by their description)
+    Filter run blocks (all: include all), identified by their description or tag or their number in the file (starting with 0)
+    and run datas (only identified by their description and tag)
 
     :param blocks: blocks or run datas to filter
     :param included: include query
@@ -80,7 +80,8 @@ def filter_runs(blocks: t.List[t.Union['RunProgramBlock','RunData']], included: 
     """
     return [block for block in blocks
             if ("description" in block.attributes and block.attributes["description"] in included) or
-            (isinstance(block, RunProgramBlock) and str(block.id) in included) or "all" in included]
+            (isinstance(block, RunProgramBlock) and str(block.id) in included) or "all" in included or
+            ("tag" in block.attributes and block.attributes["tag"] in included)]
 
 
 class RunProgramBlock:
@@ -110,6 +111,7 @@ class RunProgramBlock:
         """ Is this program block enqueued in a run worker pool queue? """
         self.id = id  # type: int
         """ Id of this run program block """
+        self.tag = attributes["tag"] if "tag" in attributes else None
 
     def __getitem__(self, key: str) -> t.Any:
         """

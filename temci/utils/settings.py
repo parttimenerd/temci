@@ -60,7 +60,8 @@ class Settings(metaclass=Singleton):
                     // Description("Produce xkcd like plots (requires the humor sans font to be installed)"),
             "number": FNumber.settings_format,
             "included_blocks": ListOrTuple(Str()) // Default(["all"])
-                               // Description("List of included run blocks (all: include all), identified by their description"),
+                               // Description("List of included run blocks (all: include all), "
+                                              "identified by their description or tag attribute"),
         }, all_keys=False),
         "run": Dict({
             "discarded_runs": NaturalNumber() // Description("First n runs that are discarded") // Default(1),
@@ -85,6 +86,7 @@ class Settings(metaclass=Singleton):
             }),
             "included_blocks" : ListOrTuple(Str()) // Default(["all"])
                               // Description("List of included run blocks (all: include all), "
+                                             "or their tag attribute "
                                              "or their number in the file (starting with 0)"),
             "cpuset": Dict({
                 "active": Bool() // Description("Use cpuset functionality?") // Default(True),
