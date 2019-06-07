@@ -44,7 +44,7 @@ class RunProcessor:
         :param show_report: show a short report after finishing the benchmarking?
         """
         if runs is None:
-            typecheck(Settings()["run/in"], ValidYamlFileName())
+            typecheck(Settings()["run/in"], ValidYamlFileName(), value_name="run/in")
             with open(Settings()["run/in"], "r") as f:
                 runs = yaml.load(f)
         typecheck(runs, List(Dict({

@@ -200,14 +200,15 @@ def benchmark_and_exit(runs: t.List[dict] = None):
 
 def create_run_driver_function(driver: str, options: CmdOptionList):
     @cli.command(name=driver, short_help=command_docs[driver])
-    @click.argument("run_file")
+    @click.argument("run_file", default="")
     @cmd_option(options)
     def _func(*args, **kwargs):
         globals()["temci__" + driver](*args, **kwargs)
 
     def _func2(run_file, **kwargs):
         Settings()["run/driver"] = driver
-        Settings()["run/in"] = run_file
+        if run_file is not "":
+            Settings()["run/in"] = run_file
         benchmark_and_exit()
     _func2.__name__ = "temci__" + driver
     document_func(command_docs[driver], options, argument="configuration YAML file")(_func2)
@@ -988,6 +989,9 @@ def cli_with_error_catching():
     try:
         cli_with_verb_arg_handling()
     except EnvironmentError as err:
+        logging.error(err)
+        exit(1)
+    except TypeError as err:
         logging.error(err)
         exit(1)
 

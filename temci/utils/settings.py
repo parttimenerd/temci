@@ -33,8 +33,9 @@ class Settings(metaclass=Singleton):
     config_file_name = "temci.yaml"  # type: str
     """ Default name of the configuration files """
     type_scheme = Dict({  # type: Dict
-        "config": Str() // Description("Additional settings file") // Default(config_file_name)
-                    // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
+        "config": Str() // Description("Additional settings file")
+                        // Default(config_file_name if os.path.exists(config_file_name) else "")
+                        // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
         "tmp_dir": Str() // Default("/tmp/temci") // Description("Used temporary directory"),
         "log_level": ExactEither("debug", "info", "warn", "error", "quiet") // Default("info")
                      // Description("Logging level"),
