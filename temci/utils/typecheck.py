@@ -157,7 +157,7 @@ class Info:
         if cond:
             return InfoMsg(True)
         else:
-            return self.errormsg(constraint, msg)
+            return self.errormsg(constraint, str(msg))
 
     def errormsg_non_existent(self, constraint: 'Type') -> 'InfoMsg':
         """
@@ -993,7 +993,7 @@ class Dict(Type):
                 res = self.data[key].__instancecheck__(value[key], info.add_to_name("[{!r}]".format(key)))
                 if not res:
                     return res
-            else:
+            elif not self.data[key].has_default():
                 is_non_existent = self.data[key].__instancecheck__(_non_existent_val,
                                                                    info.add_to_name("[{!r}]".format(key)))
                 non_existent_val_num += 1
@@ -1016,12 +1016,13 @@ class Dict(Type):
         return info.wrap(True)
 
     def __str__(self) -> str:
-        fmt = "Dict({data}, keys={key_type}, values={value_type})"
+        default = ", default = {}".format(self.get_default()) if self.has_default() else ""
+        fmt = "Dict({data}, keys={key_type}, values={value_type}{default})"
         data_str = ", ".join("{!r}: {}".format(key, self.data[key]) for key in self.data)
         if self.all_keys:
-            fmt = "Dict({{{data}}}, {all_keys}, keys={key_type}, values={value_type})"
+            fmt = "Dict({{{data}}}, {all_keys}, keys={key_type}, values={value_type}{default})"
         return fmt.format(data=data_str, all_keys=self.all_keys, key_type=self.key_type,
-                          value_type=self.value_type)
+                          value_type=self.value_type, default=default)
 
     def __repr__(self) -> str:
         return self.string_representation()
