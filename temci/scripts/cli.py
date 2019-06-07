@@ -198,13 +198,10 @@ def benchmark_and_exit(runs: t.List[dict] = None):
         sys.exit(ErrorCode.TEMCI_ERROR.value)
 
 
-# Register a command for each run driver
-for driver in run_driver.RunDriverRegistry.registry:
-    _options = CmdOptionList(common_options, run_options["common"], run_options["run_driver_specific"][driver])
-
+def create_run_driver_function(driver: str, options: CmdOptionList):
     @cli.command(name=driver, short_help=command_docs[driver])
     @click.argument("run_file")
-    @cmd_option(_options)
+    @cmd_option(options)
     def _func(*args, **kwargs):
         globals()["temci__" + driver](*args, **kwargs)
 
@@ -213,13 +210,19 @@ for driver in run_driver.RunDriverRegistry.registry:
         Settings()["run/in"] = run_file
         benchmark_and_exit()
     _func2.__name__ = "temci__" + driver
-    document_func(command_docs[driver], _options, argument="configuration YAML file")(_func2)
+    document_func(command_docs[driver], options, argument="configuration YAML file")(_func2)
     globals()["temci__" + driver] = _func2
 
+
+# Register a command for each run driver
+for driver in run_driver.RunDriverRegistry.registry:
+    create_run_driver_function(driver,
+                               CmdOptionList(common_options, run_options["common"], run_options["run_driver_specific"][driver]))
 
 
 def temci__short():
     pass
+
 
 temci__short.__doc__ = command_docs["short"]
 
