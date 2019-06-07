@@ -66,7 +66,7 @@ class RunDriverRegistry(AbstractRegistry):
 
         {yaml}
 
-    """.format(yaml="\n        ".join(klass.block_type_scheme.string_representation().split("\n")))
+    """.format(yaml="\n        ".join(klass.get_full_block_typescheme().string_representation().split("\n")))
 
 
 def filter_runs(blocks: t.List[t.Union['RunProgramBlock','RunData']], included: t.List[str]) -> t.List['RunProgramBlock']:
@@ -341,6 +341,14 @@ class AbstractRunDriver(AbstractRegistry):
     def get_used_plugins(self) -> t.List[str]:
         return self.get_used()
 
+    @classmethod
+    def get_full_block_typescheme(cls) -> Type:
+        return Dict({"attributes": Dict({
+            "tags": ListOrTuple(Str()) // Default([]) // Description("Tags of this block"),
+            "description": Optional(Str()) // Default(None)
+        }, all_keys=False, key_type=Str(), value_type=Any()) // Default({"tags": []})
+                        // Description("Optional attributes that describe the block"),
+                     "run_config": cls.block_type_scheme})
 
 @document(config_type_scheme="Configuration:")
 class ExecValidator:
@@ -462,10 +470,6 @@ class ExecRunDriver(AbstractRunDriver):
         "revision": (Int(lambda x: x >= -1) | Str()) // Default(-1) // Description("Used revision (or revision number)."
                                                                                    "-1 is the current revision, checks out "
                                                                                    "the revision"),
-        "attributes": Dict({
-            "tags": ListOrTuple(Str()) // Default([]) // Description("Tags of this block"),
-            "description": Optional(Str()) // Default(None)
-        }, all_keys=False, key_type=Str(), value_type=Any()) // Default({"tags": []}),
         "cwd": (List(Str()) | Str()) // Default(".") // Description("Execution directories for each command"),
         "runner": ExactEither().dont_typecheck_default() // Default("time") // Description("Used runner"),
         "disable_aslr": Bool() // Default(False) // Description("Disable the address space layout randomization"),
