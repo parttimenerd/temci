@@ -5,7 +5,7 @@ temci
 
 An advanced benchmarking tool written in python3 that supports binary randomization and the generation of visually appealing reports.
 
-It runs on sufficiently new Linux systems and (rudimentarily) on Apple's OS X systems.
+It runs on sufficiently new Linux systems and (rudimentary) on Apple's OS X systems.
 
 The development started as part of my bachelor thesis in October 2015. The bachelor thesis (written in German) can be found `here <https://pp.info.uni-karlsruhe.de/uploads/publikationen/bechberger16bachelorarbeit.pdf>`_.
 
@@ -67,13 +67,13 @@ Play around with temci using the provided tab completion for zsh
 generated via ``temci init settings``).
 
 A user guide is planned. Until it's finished consider reading the
-`code documentation <temci.html>`_.
+`code documentation <https://temci.readthedocs.io/en/latest/temci.html>`_.
 
 A documentation of all command line commands and options is given in
-the `documentation for the cli module <temci.scripts.html#module-temci.scripts.cli>`_.
+the `documentation for the cli module <https://temci.readthedocs.io/en/latest/temci.scripts.html#module-temci.scripts.cli>`_.
 
 A documentation for all available run drivers, runners and run
-driver plugins is given in the `documentation for the run module <temci.run.html>`_
+driver plugins is given in the `documentation for the run module <https://temci.readthedocs.io/en/latest/temci.run.html>`_
 
 The status of the documentation is given in the section `Status of the documentation`_.
 
@@ -235,7 +235,7 @@ Contributing
 ------------
 
 `Bug reports <https://github.com/parttimenerd/temci/issues>`_ and
-`code contributions <https://github.com/parttimenerd/temci>`_ are highly appreciated.
+`Code contributions <https://github.com/parttimenerd/temci>`_ are highly appreciated.
 
 
 Status of the documentation
@@ -247,6 +247,6 @@ Installation_         Finished
 Resources_            Finished
 ===================== ========================
 
-.. _Installation: installation.html
+.. _Installation: https://temci.readthedocs.io/en/latest/installation.html
 
-.. _Resources: resources.html
+.. _Resources: https://temci.readthedocs.io/en/latest/resources.html
