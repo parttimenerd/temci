@@ -164,10 +164,10 @@ class RunProgramBlock:
         :return: new RunProgramBlock
         """
         typecheck(data, Dict({
-            "attributes": Dict(all_keys=False, key_type=Str()),
+            "attributes": Dict(all_keys=False, key_type=Str()) // Default({}),
             "run_config": Dict(all_keys=False)
         }))
-        block = RunProgramBlock(id, data["run_config"], data["attributes"], run_driver)
+        block = RunProgramBlock(id, data["run_config"], data["attributes"] if "attributes" in data else {}, run_driver)
         return block
 
     def to_dict(self) -> t.Dict:
@@ -178,6 +178,11 @@ class RunProgramBlock:
             "attributes": self.attributes,
             "run_config": self.data
         }
+
+    def description(self) -> str:
+        if "description" in self.attributes and self.attributes["description"] is not None:
+            return self.attributes["description"]
+        return ", ".join("{}={}".format(key, self.attributes[key]) for key in self.attributes)
 
 
 class BenchmarkingResultBlock:
@@ -460,7 +465,7 @@ class ExecRunDriver(AbstractRunDriver):
         "attributes": Dict({
             "tags": ListOrTuple(Str()) // Default([]) // Description("Tags of this block"),
             "description": Optional(Str()) // Default(None)
-        }, all_keys=False, key_type=Str(), value_type=Any()),
+        }, all_keys=False, key_type=Str(), value_type=Any()) // Default({"tags": []}),
         "cwd": (List(Str()) | Str()) // Default(".") // Description("Execution directories for each command"),
         "runner": ExactEither().dont_typecheck_default() // Default("time") // Description("Used runner"),
         "disable_aslr": Bool() // Default(False) // Description("Disable the address space layout randomization"),
@@ -715,7 +720,7 @@ class ShellRunDriver(ExecRunDriver):
         except IOError as err:
             return BenchmarkingResultBlock(error=err)
         try:
-            self._exec_command(block["run_cmd"], block, cpuset, set_id, redirect_out=False, timeout=timeout)
+            self._exec_command([block["run_cmd"]], block, cpuset, set_id, redirect_out=False, timeout=timeout)
         except BaseException as ex:
             return BenchmarkingResultBlock(error=ex)
         finally:

@@ -284,7 +284,7 @@ class RunProcessor:
             descrs = []
             msgs = []
             for (i, result) in self.erroneous_run_blocks:
-                descr = repr(RunData(attributes=self.runs[i]["attributes"]).description())
+                descr = self.run_blocks[i].description()
                 descrs.append(descr)
                 msg = descr + ":\n\t" + "\n\t".join(str(result.error).split("\n"))
                 msgs.append(msg)

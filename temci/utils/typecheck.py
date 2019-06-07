@@ -1011,7 +1011,7 @@ class Dict(Type):
             res = self.value_type.__instancecheck__(val, ninfo)
             if not res:
                 return res
-        if self.all_keys and len(self.data) - non_existent_val_num != len(value):
+        if self.all_keys and len(self.data) - non_existent_val_num < len(value):
             return info.errormsg_too_many(self, len(value), len(self.data))
         return info.wrap(True)
 

@@ -331,7 +331,7 @@ class RunDataStatsHelper(object):
             else:
                 if "data" not in run:
                     run["data"] = {}
-                run_datas.append(RunData(run["data"], run["attributes"], external=external))
+                run_datas.append(RunData(run["data"], run["attributes"] if "attributes" in run else {}, external=external))
         return RunDataStatsHelper(run_datas, external_count=len(run_datas) if external else 0,
                                   property_descriptions=prop_descrs)
 
