@@ -30,8 +30,10 @@ class Settings(metaclass=Singleton):
     The settings keys and sub keys are combined by a slash, e.g. "report/in".
     """
 
+    config_file_name = "temci.yaml"  # type: str
+    """ Default name of the configuration files """
     type_scheme = Dict({  # type: Dict
-        "settings_file": Str() // Description("Additional settings file") // Default("")
+        "config": Str() // Description("Additional settings file") // Default(config_file_name)
                     // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
         "tmp_dir": Str() // Default("/tmp/temci") // Description("Used temporary directory"),
         "log_level": ExactEither("debug", "info", "warn", "error", "quiet") // Default("info")
@@ -163,8 +165,6 @@ class Settings(metaclass=Singleton):
                                                         "non-sudo user. Only supported on the command line.")
     }, all_keys=False)
     """ Type scheme of the settings """
-    config_file_name = "temci.yaml"  # type: str
-    """ Default name of the configuration files """
 
     def __init__(self):
         """
@@ -184,7 +184,6 @@ class Settings(metaclass=Singleton):
     def load_files(self):
         """ Loads the configuration files from the current and the config directory """
         self.load_from_config_dir()
-        self.load_from_current_dir()
         self._setup()
 
     def _setup(self):
@@ -330,7 +329,7 @@ class Settings(metaclass=Singleton):
         tmp_pref[path[-1]] = value
         if path[-1] not in tmp_type.data:
             tmp_type[path[-1]] = Any() // Default(value)
-        if path == ["settings_file"] and value is not "":
+        if path == ["config"] and value is not "":
             self.load_file(value)
 
     def set(self, key: str, value):
