@@ -436,7 +436,7 @@ PRESET_PLUGIN_MODES = {
     "none": ("", "enable none by default"),
     "all": ("cpu_governor,disable_swap,sync,stop_start,other_nice,nice,disable_aslr,disable_ht" + _intel,
             "enable all, might freeze your system"),
-    "usable": ("cpu_governor,disable_swap,sync,nice,disable_aslr,disable_ht" + _intel,
+    "usable": ("cpu_governor,disable_swap,sync,nice,disable_aslr,disable_ht,cpuset" + _intel,
                "like 'all' but doesn't affect other processes")
 }
 
@@ -447,7 +447,7 @@ PRESET_PLUGIN_MODES = {
               // Default(""),
     "random_cmd": Bool() // Default(True)
                   // Description("Pick a random command if more than one run command is passed."),
-    "preset": ExactEither(*PRESET_PLUGIN_MODES.keys()) // Default("none")
+    "preset": ExactEither(*PRESET_PLUGIN_MODES.keys()) // Default("usable" if has_root_privileges() else "none")
             // Description("Enable other plugins by default: {}".format("; ".join("{} = {} ({})".format(k, *t) for k, t in PRESET_PLUGIN_MODES.items())))
 }, all_keys=False))
 class ExecRunDriver(AbstractRunDriver):
@@ -462,7 +462,7 @@ class ExecRunDriver(AbstractRunDriver):
     settings_key_path = "run/exec_plugins"
     use_key = "exec_active"
     use_list = True
-    default = ["nice"]
+    default = []
     block_type_scheme = Dict({
         "run_cmd": (List(Str()) | Str()) // Default("") // Description("Commands to benchmark"),
         "env": Dict(all_keys=False, key_type=Str()) // Default({}) // Description("Environment variables"),

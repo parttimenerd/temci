@@ -107,7 +107,7 @@ class AbstractRegistry:
                 use_key_type = (StrList() | Exact(name))
                 use_key_type.typecheck_default = False
                 Settings().modify_setting(use_key_path,
-                                          use_key_type // Default(cls.default) if cls.default else use_key_type)
+                                          use_key_type // Default(cls.default) if cls.default is not None else use_key_type)
             else:
                 use_key_list = Settings().get_type_scheme(use_key_path)
                 assert isinstance(use_key_list, StrList)

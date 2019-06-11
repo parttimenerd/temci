@@ -94,7 +94,7 @@ class Settings(metaclass=Singleton):
                                              "or their tag attribute "
                                              "or their number in the file (starting with 0)"),
             "cpuset": Dict({
-                "active": Bool() // Description("Use cpuset functionality?") // Default(True),
+                "active": Bool() // Description("Use cpuset functionality?") // Default(False),
                 "base_core_number": ValidCPUCoreNumber()
                                     // Description("Number of cpu cores for the base (remaining part of the) system") // Default(1),
                 "parallel": Int(lambda x: x >= -1) // Description("0: benchmark sequential, "

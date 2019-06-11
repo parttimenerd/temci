@@ -3,6 +3,7 @@ This module consists of run driver plugin implementations.
 """
 from temci.run.run_worker_pool import AbstractRunWorkerPool
 from temci.utils.registry import register
+from temci.utils.settings import Settings
 from temci.utils.util import get_memory_page_size, does_program_exist, does_command_succeed, has_root_privileges
 from .run_driver import RunProgramBlock
 from .run_driver import ExecRunDriver
@@ -440,7 +441,7 @@ class CPUGovernor(AbstractRunDriverPlugin):
             try:
                 self._exec_command("echo {} >  {}".format(governor, cpu_file))
             except EnvironmentError as err:
-                logging.warn(err)
+                logging.info(err)
 
 
 @register(ExecRunDriver, "disable_aslr", Dict({}))
@@ -486,3 +487,15 @@ class DisableIntelTurbo(AbstractRunDriverPlugin):
 
     def teardown(self):
         self._exec_command("echo 0 > /sys/devices/system/cpu/intel_pstate/no_turbo")
+
+
+@register(ExecRunDriver, "cpuset", Dict({}))
+class DisableIntelTurbo(AbstractRunDriverPlugin):
+    """
+    Enable cpusets, simply sets run/cpuset/active to true
+    """
+
+    needs_root_privileges = True
+
+    def setup(self):
+        Settings()["run/cpuset/active"] = True

@@ -3,6 +3,7 @@ This module simplifies the creation of click options from settings and type sche
 """
 
 import logging
+import traceback
 import warnings
 
 import click
@@ -192,6 +193,7 @@ class CmdOption:
                         opt=option_name,
                         msg=str(err)
                     ))
+                    logging.info("".join(traceback.format_exception(None, err, err.__traceback__)))
                     exit(1)
             self.callback = callback
         else:
