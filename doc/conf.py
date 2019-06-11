@@ -13,7 +13,9 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 import datetime
-import os
+import os, sys
+
+sys.path.append(os.path.abspath("./shelltest"))
 
 exec(open(os.path.join(os.path.dirname(__file__), "../temci/scripts/version.py"), 'r').read())
 
@@ -46,6 +48,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
+    'shelltest'
 ]
 
 if not on_rtd:

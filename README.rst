@@ -89,7 +89,7 @@ The short one first: Just type:
 
 .. code:: sh
 
-        temci short exec "ls" --runs 100 --out out.yaml
+        temci short exec "ls" --runs 10 --out out.yaml
 
 Explanation:
 
@@ -148,7 +148,7 @@ Now you have a YAML result file that has the following structure:
 You can either create a report by parsing the YAML file yourself or by
 using the temci report tool. To use the latter type:
 
-::
+.. code:: sh
 
         temci report out.yaml --reporter html2 --html2_out ls_report
 
@@ -236,6 +236,12 @@ Contributing
 
 `Bug reports <https://github.com/parttimenerd/temci/issues>`_ and
 `Code contributions <https://github.com/parttimenerd/temci>`_ are highly appreciated.
+
+
+Basic Testing
+-------------
+Basic integration tests are run via `SHELLTEST=1 ./doc.sh` using a custom sphinx plugin.
+There are no tests yet.
 
 
 Status of the documentation
