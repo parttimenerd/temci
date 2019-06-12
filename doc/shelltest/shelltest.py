@@ -44,7 +44,7 @@ class CodeBlockTestCase(unittest.TestCase):
                 out, err = proc.communicate()
                 msg = "Output: {}; Error output: {}".format(out, err)
                 if self.err_code != -1:
-                    self.assertEqual(self.err_code, proc.returncode % 127, "Error code, " + msg)
+                    self.assertEqual(self.err_code, proc.returncode, "Error code, " + msg)
                 if self.output_regexp is not None:
                     self.assertRegex(str(out), self.output_regexp, "Output")
                 if self.err_regexp:

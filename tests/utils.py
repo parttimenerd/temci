@@ -56,6 +56,6 @@ def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, str
                     if f.endswith(".yaml"):
                         yaml_contents[f] = yaml.load(file_contents[f])
         if expect_success:
-            assert proc.returncode % 127 == 0
+            assert proc.returncode == 0
 
-        return Result(str(out).strip(), str(err).strip(), proc.returncode % 127, file_contents, yaml_contents)
+        return Result(str(out).strip(), str(err).strip(), proc.returncode, file_contents, yaml_contents)
