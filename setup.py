@@ -33,6 +33,7 @@ setup(
         'tablib',
         'pyyaml'
     ] + [] if os.getenv("MINIMAL_TEMCI") == "1" else non_minimal_deps,
+    tests_require=['pytest', 'pytest-clarity'],
     license='GPLv3',
     platforms='linux',
     classifiers=[

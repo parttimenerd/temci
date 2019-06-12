@@ -243,6 +243,16 @@ Basic Testing
 Basic integration tests are run via `SHELLTEST=1 ./doc.sh` using a custom sphinx plugin.
 There are no tests yet.
 
+Unit Testing
+------------
+Install temci via `pip` and run the tests via
+
+.. code:: sh
+
+    python3 setup.py test
+
+The tests can be found in the `tests` folder and use the pytest framework.
+
 
 Status of the documentation
 ---------------------------
