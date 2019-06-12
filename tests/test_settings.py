@@ -11,4 +11,4 @@ def test_config_not_ignored():
 
 
 def test_settings_set_config_option_not_to_itself():
-    assert run_temci("init settings").yaml_contents["temci.yaml"]["config"] == "temci.yaml"
+    assert run_temci("init settings").yaml_contents["temci.yaml"]["config"] != "temci.yaml"

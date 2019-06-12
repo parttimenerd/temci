@@ -16,7 +16,7 @@ from temci.utils.util import sphinx_doc
 
 
 def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = False,
-                       callback = t.Callable[[str, t.Any], t.Any], short: str = None, with_default: bool = True,
+                       callback = t.Callable[[click.Context, str, t.Any], t.Any], short: str = None, with_default: bool = True,
                        default = None) -> t.Callable[[t.Callable], t.Callable]:
     """
     Is essentially a wrapper around click.option that works with type schemes.
@@ -100,10 +100,10 @@ def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = Fals
                 option_args["type"] = raw_type(option_args["type"])
         if callback is not None:
             if option_args["callback"] is None:
-                option_args["callback"] = lambda ctx, param, value: callback(param, value)
+                option_args["callback"] = lambda ctx, param, value: callback(ctx, param, value)
             else:
                 old_callback = option_args["callback"]
-                option_args["callback"] = lambda ctx, param, value: callback(param, old_callback(ctx, param, value))
+                option_args["callback"] = lambda ctx, param, value: callback(ctx, param, old_callback(ctx, param, value))
         if is_flag:
             option_args["is_flag"] = True
 
@@ -179,14 +179,15 @@ class CmdOption:
             self.type_scheme = Settings().get_type_scheme(settings_key)
         #self.callback = lambda a, b: None
         #""" Callback that sets the setting """
-        self.callback = None  # type: t.Optional[t.Callable[[click.Option, t.Any], None]]
+        self.callback = None  # type: t.Optional[t.Callable[[click.Context, click.Option, t.Any], None]]
         """ Callback that sets the setting """
         if type_scheme is not None and not isinstance(type_scheme, click.ParamType):
             self.callback = lambda a, b: None
         if settings_key is not None and (not isinstance(self.type_scheme, click.ParamType) or isinstance(self.type_scheme, Type)):
-            def callback(param: click.Option, val):
+            def callback(context, param: click.Option, val):
                 try:
-                    Settings()[settings_key] = val
+                    if val != param.default:
+                        Settings()[settings_key] = val
                 except SettingsError as err:
                     logging.error("Error while processing the passed value ({val}) of option {opt}: {msg}".format(
                         val=repr(val),
@@ -222,7 +223,7 @@ class CmdOption:
             self.completion_hints = None
             self.short = None
 
-            def callback(param, val):
+            def callback(context, param, val):
                 if val is not None:
                     try:
                         Settings()[settings_key] = val
