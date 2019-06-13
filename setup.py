@@ -24,7 +24,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'click',
+        'click @ https://github.com/pallets/click/archive/master.zip',
         'humanfriendly', 'pytimeparse',
         'fn',
         'cpuset-py3',
@@ -32,7 +32,7 @@ setup(
         'rainbow_logging_handler',
         'tablib',
         'pyyaml'
-    ] + [] if os.getenv("MINIMAL_TEMCI") == "1" else non_minimal_deps,
+    ] + ([] if os.getenv("MINIMAL_TEMCI") == "1" else non_minimal_deps),
     tests_require=['pytest', 'pytest-clarity'],
     license='GPLv3',
     platforms='linux',

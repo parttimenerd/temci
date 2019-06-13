@@ -7,6 +7,8 @@ import traceback
 import warnings
 
 import click
+from click import Context, ParameterSource
+
 from temci.utils.typecheck import *
 from temci.utils.settings import Settings, SettingsError
 from temci.utils.registry import AbstractRegistry
@@ -184,9 +186,9 @@ class CmdOption:
         if type_scheme is not None and not isinstance(type_scheme, click.ParamType):
             self.callback = lambda a, b: None
         if settings_key is not None and (not isinstance(self.type_scheme, click.ParamType) or isinstance(self.type_scheme, Type)):
-            def callback(context, param: click.Option, val):
+            def callback(context: Context, param: click.Option, val):
                 try:
-                    if val != param.default:
+                    if context.get_parameter_source(param.name) != ParameterSource.DEFAULT:
                         Settings()[settings_key] = val
                 except SettingsError as err:
                     logging.error("Error while processing the passed value ({val}) of option {opt}: {msg}".format(
@@ -223,8 +225,8 @@ class CmdOption:
             self.completion_hints = None
             self.short = None
 
-            def callback(context, param, val):
-                if val is not None:
+            def callback(context: Context, param, val):
+                if val is not None and context.get_parameter_source(param.name) != ParameterSource.DEFAULT:
                     try:
                         Settings()[settings_key] = val
                     except SettingsError as err:
