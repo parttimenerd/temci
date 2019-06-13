@@ -3,13 +3,16 @@ with pkgs.python3Packages;
 let
   python = import ./requirements.nix { inherit pkgs; };
   pypi = python.packages;
+  click_git = click.overrideAttrs (attrs: {
+    src = builtins.fetchGit { url = https://github.com/pallets/click.git; rev = "f537a208591088499b388b06b2aca4efd5445119"; };
+  });
 in buildPythonApplication rec {
   name = "temci-${version}";
   version = "local";
   src = ./.;
   MINIMAL_TEMCI = 1;
   propagatedBuildInputs = [
-    click
+    click_git
     pypi.humanfriendly
     fn
     pytimeparse
