@@ -95,7 +95,7 @@ class AbstractReporter:
         self.stats = TestedPairsAndSingles(self.stats_helper.valid_runs())  # type: TestedPairsAndSingles
         """ This object is used to simplify the work with the data and the statistics """
         if not self.stats_helper.properties():
-            logging.error("There are no valid properties in your'e data set or you excluded all of them.")
+            logging.error("There are no valid properties in your data set or you excluded all of them.")
             raise KeyboardInterrupt()
 
     def report(self):
