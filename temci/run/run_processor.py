@@ -321,8 +321,7 @@ class RunProcessor:
             return
         """ Print a short report if possible. """
         try:
-            if len(self.stats_helper.valid_runs()) > 0 and \
-                    all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
+            if any(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
                 ReporterRegistry.get_for_name("console", self.stats_helper).report(with_tester_results=False)
         except:
             pass
