@@ -11,6 +11,7 @@ in buildPythonApplication rec {
   version = "local";
   src = ./.;
   MINIMAL_TEMCI = 1;
+  checkInputs = [ pytest pytestrunner ];
   propagatedBuildInputs = [
     click_git
     pypi.humanfriendly
@@ -27,5 +28,5 @@ in buildPythonApplication rec {
     substituteInPlace temci/run/cpuset.py --replace python3 ${pkgs.python3.withPackages (ps: [ pypi.cpuset-py3 ])}/bin/python3
     substituteInPlace temci/run/run_driver.py --replace /usr/bin/time ${pkgs.time}/bin/time
   '';
-  doCheck = false;
+  preCheck = ''export PATH=$PATH:$out/bin'';
 }
