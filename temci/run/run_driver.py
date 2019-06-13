@@ -450,7 +450,10 @@ PRESET_PLUGIN_MODES = {
     "random_cmd": Bool() // Default(True)
                   // Description("Pick a random command if more than one run command is passed."),
     "preset": ExactEither(*PRESET_PLUGIN_MODES.keys()) // Default("usable" if has_root_privileges() else "none")
-            // Description("Enable other plugins by default: {}".format("; ".join("{} = {} ({})".format(k, *t) for k, t in PRESET_PLUGIN_MODES.items())))
+            // Description("Enable other plugins by default: {}".format("; ".join("{} = {} ({})".format(k, *t) for k, t in PRESET_PLUGIN_MODES.items()))),
+    "parse_output": Bool() // Default(False) // Description("Parse the program output as a YAML dictionary of "
+                                                            "that gives for a specific property a measurement. "
+                                                             "Not all runners support it.")
 }, all_keys=False))
 class ExecRunDriver(AbstractRunDriver):
     """
@@ -478,7 +481,10 @@ class ExecRunDriver(AbstractRunDriver):
         "validator": ExecValidator.config_type_scheme // Description(
             "Configuration for the output and return code validator"),
         "max_runs": Int(lambda x: x >= -1) // Default(-1) // Description("Override all other max run"
-                                                                         "specifications if > -1")
+                                                                         "specifications if > -1"),
+        "parse_output": Bool() // Default(False) // Description("Parse the program output as a YAML dictionary of "
+                                                                "that gives for a specific property a measurement. "
+                                                                "Not all runners support it.")
     }, all_keys=False)
 
     registry = {}
@@ -514,6 +520,8 @@ class ExecRunDriver(AbstractRunDriver):
             block["working_dir"] = self._dirs[block.id]
         if self.misc_settings["runner"] != "":
             block["runner"] = self.misc_settings["runner"]
+        if self.misc_settings["parse_output"] != "":
+            block["parse_output"] = self.misc_settings["parse_output"]
         super()._setup_block(block)
 
     def benchmark(self, block: RunProgramBlock, runs: int,
@@ -552,7 +560,10 @@ class ExecRunDriver(AbstractRunDriver):
             results.append(self._exec_command(block["run_cmds"], block, cpuset, set_id, timeout=timeout))
         res = None  # type: BenchmarkingResultBlock
         for exec_res in results:
-            res = self.runner.parse_result(exec_res, res)
+            if not self.runner.supports_parsing_out and block["parse_output"]:
+                logging.warn("Runner {} does not support the `parse_output` option")
+            res = self.runner.parse_result(exec_res, res, block["parse_output"]
+                                           and self.runner.supports_parsing_out)
         return res
 
     def _exec_command(self, cmds: list, block: RunProgramBlock,
@@ -650,6 +661,10 @@ class ExecRunDriver(AbstractRunDriver):
     or the setting under the key ``run/exec_misc/runner`` to its name.
 
         """
+            if klass.supports_parsing_out:
+                klass.__doc__ += """
+    This runner supports the ``parse_output`` option.   
+             """
             if klass.misc_options not in [Dict(), Dict({}), None]:
                 klass.__doc__ += """
 
@@ -753,6 +768,8 @@ class ExecRunner:
     """ Name of the runner """
     misc_options = Dict({})  # type: Type
     """ Type scheme of the options for this type of runner """
+    supports_parsing_out = False
+    """ Is the captured output on standard out useful for parsing """
 
     def __init__(self, block: RunProgramBlock):
         """
@@ -778,6 +795,24 @@ class ExecRunner:
         pass
 
     def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+                     res: BenchmarkingResultBlock = None,
+                     parse_output: bool = False) -> BenchmarkingResultBlock:
+        """
+        Parse the output of a program and turn it into benchmarking results.
+
+        :param exec_res: program output
+        :param res: benchmarking result to which the extracted results should be added or None if they should be added
+        to an empty one
+        :param parse_output: parse standard out to get additional properties
+        :return: the modified benchmarking result block
+        """
+        ret = self.parse_result_impl(exec_res, res)
+        if parse_output:
+            OutputExecRunner.parse_result_impl(None, exec_res, ret)
+        return ret
+
+
+    def parse_result_impl(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         """
         Parse the output of a program and turn it into benchmarking results.
@@ -785,7 +820,7 @@ class ExecRunner:
         :param exec_res: program output
         :param res: benchmarking result to which the extracted results should be added or None if they should be added
         to an empty one
-        :return: the modfiied benchmarking result block
+        :return: the modified benchmarking result block
         """
         raise NotImplementedError()
 
@@ -887,6 +922,7 @@ class PerfStatExecRunner(ExecRunner):
         "limit_to_cpuset": Bool() // Default(True)
                       // Description("Limit measurements to CPU set, if cpusets are enabled")
     })
+    supports_parsing_out = True
 
     def __init__(self, block: RunProgramBlock):
         super().__init__(block)
@@ -914,7 +950,7 @@ class PerfStatExecRunner(ExecRunner):
 
         block["run_cmds"] = [modify_cmd(cmd) for cmd in block["run_cmds"]]
 
-    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+    def parse_result_impl(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         res = res or BenchmarkingResultBlock()
         m = {"__ov-time": exec_res.time}
@@ -1051,7 +1087,7 @@ class RusageExecRunner(ExecRunner):
 
         block["run_cmds"] = [modify_cmd(cmd) for cmd in block["run_cmds"]]
 
-    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+    def parse_result_impl(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         res = res or BenchmarkingResultBlock()
         m = {"__ov-time": exec_res.time}
@@ -1104,7 +1140,7 @@ class SpecExecRunner(ExecRunner):
     def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
         block["run_cmds"] = ["{} > /dev/null; cat {}".format(cmd, self.misc["file"]) for cmd in block["run_cmds"]]
 
-    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+    def parse_result_impl(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         props = {}
         for line in exec_res.stdout.split("\n"):
@@ -1176,7 +1212,7 @@ class CPUSpecExecRunner(ExecRunner):
         block["run_cmds"] = [pre + cmd + " > /dev/null; " + "; ".join(file_cmds) for cmd in block["run_cmds"]]
         # print(block["run_cmds"])
 
-    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+    def parse_result_impl(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         data = {}  # type: t.Dict[str, t.List[float]]
         pre_data = {}  # type: t.Dict[str, t.Dict[int, float]]
@@ -1240,7 +1276,7 @@ def time_file(_tmp=[]) -> str:
                 return "false && "
         else:
             _tmp.append("/usr/bin/time") # shutil.which("time") doesn't work in later versions
-    assert _tmp[0] != None
+    assert _tmp[0] is not None
     return _tmp[0]
 
 
@@ -1311,6 +1347,7 @@ class TimeExecRunner(ExecRunner):
                                                           "max_res_set", "avg_res_set"])
                       // Description("Measured properties that are included in the benchmarking results")
     })
+    supports_parsing_out = True
 
     def __init__(self, block: RunProgramBlock):
         super().__init__(block)
@@ -1326,7 +1363,7 @@ class TimeExecRunner(ExecRunner):
 
         block["run_cmds"] = [modify_cmd(cmd) for cmd in block["run_cmds"]]
 
-    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+    def parse_result_impl(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         res = res or BenchmarkingResultBlock()
         m = {"__ov-time": exec_res.time}
@@ -1364,7 +1401,7 @@ class OutputExecRunner(ExecRunner):
     def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
         pass
 
-    def parse_result(self, exec_res: ExecRunDriver.ExecResult,
+    def parse_result_impl(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         res = res or BenchmarkingResultBlock()
         dict_type = Dict(all_keys=False, key_type=Str(), value_type=Either(Int(), Float(), List(Either(Int(), Float()))))
@@ -1380,6 +1417,7 @@ class OutputExecRunner(ExecRunner):
 
     def get_property_descriptions(self) -> t.Dict[str, str]:
         return {}
+
 
 class BenchmarkingError(RuntimeError):
     """
