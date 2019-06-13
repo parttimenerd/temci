@@ -1318,7 +1318,7 @@ class TimeExecRunner(ExecRunner):
     def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
 
         def modify_cmd(cmd):
-            return "{} -f {!r} /bin/sh -c {!r}".format(time_file(), self._time_format_spec, cmd)
+            return "{} -f {} /bin/sh -c {}".format(time_file(), shlex.quote(self._time_format_spec), shlex.quote(cmd))
 
         block["run_cmds"] = [modify_cmd(cmd) for cmd in block["run_cmds"]]
 
