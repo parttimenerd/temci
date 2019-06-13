@@ -40,11 +40,13 @@ def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, lis
             with open(d + "/settings.yaml", "w") as f:
                 yaml.dump(settings, f)
             cmd += " --config settings.yaml"
+        env = os.environ.copy()
+        env["LC_ALL"] = "C";
         proc = subprocess.Popen(["/bin/sh", "-c", cmd],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 cwd=str(d),
-                                env={"LC_ALL": "C"},
+                                env=env,
                                 universal_newlines=True)
         out, err = proc.communicate(timeout=timeout)
         file_contents = {}
