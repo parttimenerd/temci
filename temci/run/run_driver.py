@@ -114,6 +114,8 @@ class RunProgramBlock:
         self.tags = attributes["tags"] if "tags" in self.attributes else None
         from temci.report.rundata import get_for_tags
         self.max_runs = get_for_tags("run/max_runs_per_tag", "run/max_runs", self.tags, min)
+        if "max_runs" in self.data and self.data["max_runs"] > -1:
+            self.max_runs = min(self.max_runs, self.data["max_runs"])
 
     def __getitem__(self, key: str) -> t.Any:
         """
@@ -474,7 +476,9 @@ class ExecRunDriver(AbstractRunDriver):
         "runner": ExactEither().dont_typecheck_default() // Default("time") // Description("Used runner"),
         "disable_aslr": Bool() // Default(False) // Description("Disable the address space layout randomization"),
         "validator": ExecValidator.config_type_scheme // Description(
-            "Configuration for the output and return code validator")
+            "Configuration for the output and return code validator"),
+        "max_runs": Int(lambda x: x >= -1) // Default(-1) // Description("Override all other max run"
+                                                                         "specifications if > -1")
     }, all_keys=False)
 
     registry = {}

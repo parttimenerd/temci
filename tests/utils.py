@@ -1,9 +1,11 @@
 import os
 import subprocess
+
 import tempfile
 from typing import Dict, Union, NamedTuple
 
 import yaml
+
 
 class Result(NamedTuple):
     out: str
@@ -13,7 +15,7 @@ class Result(NamedTuple):
     yaml_contents: Dict[str, dict]
 
 
-def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, str]] = None, timeout: int = None,
+def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, list, str]] = None, timeout: int = None,
               expect_success: bool = True) \
         -> Result:
     """
@@ -38,7 +40,6 @@ def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, str
             with open(d + "/settings.yaml", "w") as f:
                 yaml.dump(settings, f)
             cmd += " --config settings.yaml"
-
         proc = subprocess.Popen(["/bin/sh", "-c", cmd],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
@@ -57,5 +58,4 @@ def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, str
                         yaml_contents[f] = yaml.load(file_contents[f])
         if expect_success:
             assert proc.returncode == 0
-
         return Result(str(out).strip(), str(err).strip(), proc.returncode, file_contents, yaml_contents)

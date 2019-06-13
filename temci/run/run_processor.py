@@ -246,7 +246,7 @@ class RunProcessor:
             self.store()
 
     def _should_run(self, block: RunProgramBlock, run: int = None) -> bool:
-        return run <= block.max_runs if run is not None else True
+        return run < block.max_runs if run is not None else True
 
     def _make_discarded_runs(self) -> t.Optional[int]:
         if self.discarded_runs == 0:
