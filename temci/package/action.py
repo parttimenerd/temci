@@ -30,7 +30,7 @@ class Database:
     """
 
     _entry_types = {
-        "any": Dict(all_keys=False)
+        "any": Dict(unknown_keys=True)
     }  # type: t.Dict[str, Dict]
 
     def __init__(self, data: t.Dict[str, t.Dict[str, Any]] = None, tmp_dir: str = None):
@@ -249,7 +249,7 @@ class Actions:
 
         :param config: passed list of dictionaries that represent actions
         """
-        typecheck_locals(config=List(Dict({"id": Str(), "action": Str(), "config": Dict(key_type=Str(), all_keys=False)})))
+        typecheck_locals(config=List(Dict({"id": Str(), "action": Str(), "config": Dict(key_type=Str(), unknown_keys=True)})))
         for conf in config:
             self.add(ActionRegistry.action_for_config(conf["id"], conf["action"], conf["config"]))
 
@@ -406,9 +406,9 @@ class Action:
     """
 
     name = "base"
-    db_entry_type = Dict(all_keys=False)
+    db_entry_type = Dict(unknown_keys=True)
     """ Type of the database entry. """
-    config_type = Dict(all_keys=False)
+    config_type = Dict(unknown_keys=True)
     """ Type of the configuration. """
     _id_counter = 0  # type: int
 
@@ -934,7 +934,7 @@ class InstallPackage(Action):
     name = "install_package"
     config_type = Dict({  # type: Type
         "package": Str(),
-        "name_in_distros": Dict(all_keys=False, key_type=Str(), value_type=Str())
+        "name_in_distros": Dict(unknown_keys=True, key_type=Str(), value_type=Str())
     })
     supported_distributions = ["Ubuntu", "Debian"]  # type: t.List[str]
     """ Supported linux distributions """
