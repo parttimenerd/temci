@@ -13,6 +13,7 @@ import humanfriendly
 import yaml
 
 from temci.build.builder import Builder, env_variables_for_rand_conf
+from temci.build.build_processor import BuildProcessor
 from temci.setup import setup
 from temci.utils.settings import Settings
 from temci.utils.sudo_utils import get_bench_user, bench_as_different_user, get_env_setting
@@ -157,7 +158,8 @@ class RunProgramBlock:
 
              {
                 "attributes": {"attr1": ..., ...},
-                "run_config": {"prop1": ..., ...}
+                "run_config": {"prop1": ..., ...},
+                "build_config": {"prop1": ..., ...}
              }
 
         :param id: id of the block (only used to track them later)
@@ -167,7 +169,8 @@ class RunProgramBlock:
         """
         typecheck(data, Dict({
             "attributes": Dict(all_keys=False, key_type=Str()) // Default({}),
-            "run_config": Dict(all_keys=False)
+            "run_config": Dict(all_keys=False),
+            "build_config": BuildProcessor.block_scheme["build_config"],
         }))
         block = RunProgramBlock(id, data["run_config"], data["attributes"] if "attributes" in data else {}, run_driver)
         return block

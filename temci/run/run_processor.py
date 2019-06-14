@@ -49,11 +49,6 @@ class RunProcessor:
             typecheck(Settings()["run/in"], ValidYamlFileName(), value_name="run/in")
             with open(Settings()["run/in"], "r") as f:
                 runs = yaml.load(f)
-        typecheck(runs, List(Dict({
-            "attributes": Dict(all_keys=False, key_type=Str()),
-            "run_config": Dict(all_keys=False),
-            "build_config": BuildProcessor.block_scheme["build_config"]
-        })))
         self.runs = runs  # type: t.List[dict]
         """ List of dictionaries that represent run program blocks """
         self.run_blocks = []  # type: t.List[RunProgramBlock]
