@@ -521,8 +521,7 @@ class ExecRunDriver(AbstractRunDriver):
             block["working_dir"] = self._dirs[block.id]
         if self.misc_settings["runner"] != "":
             block["runner"] = self.misc_settings["runner"]
-        if self.misc_settings["parse_output"] != "":
-            block["parse_output"] = self.misc_settings["parse_output"]
+        block["parse_output"] |= self.misc_settings["parse_output"]
         super()._setup_block(block)
 
     def benchmark(self, block: RunProgramBlock, runs: int,
