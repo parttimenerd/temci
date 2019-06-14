@@ -217,7 +217,8 @@ class BuilderThread(threading.Thread):
                                     cwd=tmp_build_dir, env=env)
                 out, err = proc.communicate()
                 if proc.poll() > 0:
-                    shutil.rmtree(tmp_build_dir)
+                    if tmp_build_dir != item.tmp_dir:
+                        shutil.rmtree(tmp_build_dir)
                     #self.submit_queue.put(item)
                     raise EnvironmentError("Thread {}: Build error: {}".format(self.id, str(err)))
             #logging.info("Thread {}: Finished building… {}".format(self.id, str(out)))
