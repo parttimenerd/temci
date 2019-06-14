@@ -249,7 +249,7 @@ Install temci via `pip` and run the tests via
 
 .. code:: sh
 
-    python3 setup.py test
+    pytest tests
 
 The tests can be found in the `tests` folder and use the pytest framework.
 

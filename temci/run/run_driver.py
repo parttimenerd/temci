@@ -497,7 +497,7 @@ class ExecRunDriver(AbstractRunDriver):
 
     def _setup_block(self, block: RunProgramBlock):
         if isinstance(block["run_cmd"], List(Str())):
-            block["run_cmds"] = block["run_cmd"] + [block["cmd"]] if block["cmd"] != "" else []
+            block["run_cmds"] = block["run_cmd"] + [block["cmd"]] if block["cmd"] != "" else block["run_cmd"]
         else:
             block["run_cmds"] = [block["run_cmd"] + block["cmd"]]
         if isinstance(block["cwd"], List(Str())):
