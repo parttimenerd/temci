@@ -144,7 +144,7 @@ class Info:
         :param msg: additional message, it should give more information about why the constraint isn't met
         """
         app = ": " + (msg or "")
-        return InfoMsg("{} hasn't the expected type {}{}".format(self._str(), constraint, app))
+        return InfoMsg("{} is not of the expected type {}{}".format(self._str(), constraint, app))
 
     def errormsg_cond(self, cond: bool, constraint: 'Type', msg: str = None) -> 'InfoMsg':
         """
@@ -168,17 +168,14 @@ class Info:
         """
         return InfoMsg("{} is non existent, expected value of type {}".format(self._str(), constraint))
 
-    def errormsg_too_many(self, constraint: 'Type', value_len: int, constraint_len: int) -> 'InfoMsg':
+    def errormsg_unexpected(self, key: str) -> 'InfoMsg':
         """
         Creates an info message object with the passed expected type that contains the message that
-        currently examined part of the value has to many elements.
+        currently examined part of the value has an unexpected key.
 
-        :param constraint: passed expected type
-        :param value_len: actual number of elements
-        :param constraint_len: expected number of elements
+        :param key: the unexpected key
         """
-        return InfoMsg("{} has to many elements ({}), " \
-               "expected value of type {} with {} elements".format(self._str(), value_len, constraint, constraint_len))
+        return InfoMsg("{!r} has unexpected key {!r}".format(self.value, key))
 
     def wrap(self, result: bool) -> 'InfoMsg':
         """
@@ -224,7 +221,7 @@ class NoInfo(Info):
     def errormsg_non_existent(self, constraint: 'Type') -> 'InfoMsg':
         return InfoMsg(False)
 
-    def errormsg_too_many(self, constraint: 'Type', value_len: int, constraint_len: int) -> 'InfoMsg':
+    def errormsg_unexpected(self, key: str) -> 'InfoMsg':
         return InfoMsg(False)
 
     def wrap(self, result: bool) -> 'InfoMsg':
@@ -968,7 +965,7 @@ class Dict(Type):
         Creates a new instance.
 
         :param data: dictionary with the expected keys and the expected types of the associated values
-        :param all_keys: does the type checking fail if more keys are present in the value than in data?
+        :param all_keys: fail if value contains unknown keys
         :param key_type: expected Type of all dictionary keys
         :param value_type: expected Type of all dictionary values
         :raises: ConstraintError if one of the given types isn't a (typechecker) Types
@@ -978,7 +975,7 @@ class Dict(Type):
         self._validate_types(*self.data.values())
         self._validate_types(key_type, value_type)
         self.all_keys = all_keys  # type: bool
-        """ Does the type checking fail if more keys are present in the value than in data? """
+        """ Fail if value contains unknown keys """
         self.key_type = key_type  # type: Type
         """ Expected Type of all dictionary keys """
         self.value_type = value_type  # type: Type
@@ -1005,14 +1002,14 @@ class Dict(Type):
             res = self.key_type.__instancecheck__(key, ninfo)
             if not res:
                 return res
+            if self.all_keys and key not in self.data:
+                return ninfo.errormsg_unexpected(key)
         for key in value.keys():
             val = value[key]
             ninfo = info.add_to_name("[{!r}]".format(key))
             res = self.value_type.__instancecheck__(val, ninfo)
             if not res:
                 return res
-        if self.all_keys and len(self.data) - non_existent_val_num < len(value):
-            return info.errormsg_too_many(self, len(value), len(self.data))
         return info.wrap(True)
 
     def __str__(self) -> str:
@@ -1029,7 +1026,7 @@ class Dict(Type):
 
     def __getitem__(self, key) -> Type:
         """
-        Returns the Type of the keys value.
+        Returns the Type of the key's value.
         """
         if key in self.data:
             return self.data[key]

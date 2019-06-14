@@ -167,7 +167,7 @@ class VCSDriver:
 
     def _copy_dir(self, src_dir: str, dest_dirs: t.List[str]):
         """
-        Helper method to copy a directory to many destination directories.
+        Helper method to copy a directory too many destination directories.
         It also works if for files.
 
         :param src_dir: source directory relative to the current base directory
