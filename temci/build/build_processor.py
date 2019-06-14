@@ -21,7 +21,7 @@ class BuildProcessor:
             // Description("Attributes of the program block"),
         "run_config": Dict(all_keys=False) // Description("Run configuration for this program block"),
         "build_config": Dict({
-            "build_cmd": Str() // Default("") // Description("Command to build this program block"),
+            "cmd": Str() // Default("") // Description("Command to build this program block"),
             "number": (PositiveInt() | NonExistent()) // Default(1)
                       // Description("Number of times to build this program"),
             "randomization": Builder.rand_conf_scheme // Default({})
@@ -48,20 +48,30 @@ class BuildProcessor:
             typecheck(Settings()["build/in"], ValidYamlFileName())
             with open(Settings()["build/in"], "r") as f:
                 build_blocks = yaml.load(f)
-        typecheck(build_blocks, List(self.block_scheme))
-        self.build_blocks = [self.block_scheme.get_default() for _ in range(len(build_blocks))]
-        """
-        Build block configurations.
-        type: t.Optional[t.List[t.Dict[str, t.Any]]]
-        """
-        for i, block in enumerate(build_blocks):
-            for key in block.keys():
-                self.build_blocks[i][key].update(block[key])
-            typecheck(self.build_blocks[i], self.block_scheme, "build block {}".format(i))
+        self.build_blocks = self.preprocess_build_blocks(build_blocks)
         typecheck(Settings()["build/out"], FileName())
         typecheck_locals(build_blocks=List())
         self.out = Settings()["build/out"]  # type. str
         """ Temporary directory in which the building takes place """
+
+    @classmethod
+    def preprocess_build_blocks(cls, blocks: t.List[t.Dict[str, t.Any]]) -> t.List[t.Dict[str, t.Any]]:
+        """
+        Pre process and check build blocks
+
+        :return: pre processed copy
+        """
+        typecheck(blocks, List(cls.block_scheme))
+        build_blocks = [cls.block_scheme.get_default() for _ in range(len(blocks))]
+        """
+        Build block configurations.
+        type: t.Optional[t.List[t.Dict[str, t.Any]]]
+        """
+        for i, block in enumerate(blocks):
+            for key in block.keys():
+                build_blocks[i][key].update(block[key])
+            typecheck(build_blocks[i], cls.block_scheme, "build block {}".format(i))
+        return build_blocks
 
     def build(self):
         """
@@ -73,7 +83,7 @@ class BuildProcessor:
                 error = None
                 try:
                     block_builder = Builder(block["build_config"]["working_dir"],
-                                            block["build_config"]["build_cmd"], block["build_config"]["revision"],
+                                            block["build_config"]["cmd"], block["build_config"]["revision"],
                                             block["build_config"]["number"], block["build_config"]["randomization"],
                                             block["build_config"]["base_dir"], block["build_config"]["branch"])
                     working_dirs = block_builder.build()

@@ -470,6 +470,7 @@ class ExecRunDriver(AbstractRunDriver):
     default = []
     block_type_scheme = Dict({
         "run_cmd": (List(Str()) | Str()) // Default("") // Description("Commands to benchmark"),
+        "cmd": Str() // Default("") // Description("Command to benchmark, adds to run_cmd"),
         "env": Dict(all_keys=False, key_type=Str()) // Default({}) // Description("Environment variables"),
         "cmd_prefix": List(Str()) // Default([]) // Description("Command to append before the commands to benchmark"),
         "revision": (Int(lambda x: x >= -1) | Str()) // Default(-1) // Description("Used revision (or revision number)."
@@ -496,9 +497,9 @@ class ExecRunDriver(AbstractRunDriver):
 
     def _setup_block(self, block: RunProgramBlock):
         if isinstance(block["run_cmd"], List(Str())):
-            block["run_cmds"] = block["run_cmd"]
+            block["run_cmds"] = block["run_cmd"] + [block["cmd"]] if block["cmd"] != "" else []
         else:
-            block["run_cmds"] = [block["run_cmd"]]
+            block["run_cmds"] = [block["run_cmd"] + block["cmd"]]
         if isinstance(block["cwd"], List(Str())):
             if len(block["cwd"]) != len(block["run_cmd"]) and not isinstance(block["run_cmd"], str):
                 raise ValueError("Number of passed working directories {} "

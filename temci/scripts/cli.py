@@ -190,6 +190,7 @@ def benchmark_and_exit(runs: t.List[dict] = None):
     """
     try:
         processor = RunProcessor(runs)
+        processor.build()
         processor.benchmark()
         if processor.recorded_error():
             sys.exit(ErrorCode.PROGRAM_ERROR.value)

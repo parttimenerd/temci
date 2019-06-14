@@ -59,7 +59,7 @@ class Builder:
         _rand_conf.update(rand_conf)
         rand_conf = _rand_conf
         typecheck(rand_conf, self.rand_conf_scheme)
-        self.build_dir = os.path.join(base_dir, build_dir)  # type: str
+        self.build_dir = os.path.join(base_dir, build_dir) if base_dir != "." else build_dir # type: str
         """ Working directory in which the build command is run """
         self.build_cmd = build_cmd  # type: str
         """ Command to build this program block """
@@ -81,7 +81,7 @@ class Builder:
         :return: list of base directories for the different builds
         """
         thread_count = thread_count or Settings()["build/threads"]
-        logging.info("Create base temporary directory and copy build directory")
+
         time_tag = datetime.datetime.now().strftime("%s%f")
 
         def tmp_dirname(i: t.Union[int, str] = "base"):
@@ -89,8 +89,20 @@ class Builder:
             return tmp_dir
 
         tmp_dir = tmp_dirname()
+        if self.revision == -1 and self.number == 1:
+            tmp_dir = self.build_dir
+            os.makedirs(tmp_dir, exist_ok=True)
+            submit_queue = queue.Queue()
+            submit_queue.put(BuilderQueueItem(0, tmp_dir, tmp_dir, self.rand_conf, self.build_cmd))
+            BuilderThread(0, submit_queue).run()
+
+            logging.info("Finished building")
+            return [tmp_dir]
+
+        logging.info("Create base temporary directory and copy build directory")
         os.makedirs(tmp_dir)
         self.vcs_driver.copy_revision(self.revision, self.build_dir, tmp_dir)
+
         ret_list = []
         submit_queue = queue.Queue()
         threads = []
@@ -183,9 +195,10 @@ class BuilderThread(threading.Thread):
             except queue.Empty:
                 return
             tmp_build_dir = item.tmp_build_dir
-            if os.path.exists(tmp_build_dir):
-                shutil.rmtree(tmp_build_dir)
-            shutil.copytree(item.tmp_dir, tmp_build_dir)
+            if tmp_build_dir != item.tmp_dir:
+                if os.path.exists(tmp_build_dir):
+                    shutil.rmtree(tmp_build_dir)
+                shutil.copytree(item.tmp_dir, tmp_build_dir)
             env = os.environ.copy()
             env.update(env_variables_for_rand_conf(item.rand_conf))
             logging.info("Thread {}: Building number {}".format(self.id, item.id))

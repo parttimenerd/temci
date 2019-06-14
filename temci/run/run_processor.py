@@ -4,6 +4,8 @@ import traceback
 
 import click
 
+from temci.build.build_processor import BuildProcessor
+from temci.build.builder import Builder
 from temci.utils.sudo_utils import chown
 from temci.utils.util import join_strs, in_standalone_mode, parse_timespan
 
@@ -49,7 +51,8 @@ class RunProcessor:
                 runs = yaml.load(f)
         typecheck(runs, List(Dict({
             "attributes": Dict(all_keys=False, key_type=Str()),
-            "run_config": Dict(all_keys=False)
+            "run_config": Dict(all_keys=False),
+            "build_config": BuildProcessor.block_scheme["build_config"]
         })))
         self.runs = runs  # type: t.List[dict]
         """ List of dictionaries that represent run program blocks """
@@ -58,6 +61,7 @@ class RunProcessor:
         for (id, run) in enumerate(runs):
             self.run_blocks.append(RunProgramBlock.from_dict(id, copy.deepcopy(run)))
         self.run_blocks = filter_runs(self.run_blocks, Settings()["run/included_blocks"])
+        self.runs = [runs[block.id] for block in self.run_blocks]
         self.append = Settings().default(append, "run/append")  # type: bool
         """ Append to the old benchmarks if there are any in the result file? """
         self.show_report = Settings().default(show_report, "run/show_report")  # type: bool
@@ -153,6 +157,27 @@ class RunProcessor:
             logging.warning("Benchmarked program blocks too often and aborted therefore now.")
             return False
         return True
+
+    def build(self):
+        """
+        Build before benchmarking, essentially calls `temci build` where necessary and modifies the run configs
+        """
+        to_build = [(i, conf) for i, conf in enumerate(self.runs) if "build_config" in conf]
+        if len(to_build) is 0:
+            return
+        logging.info("Start building {} block(s)".format(len(to_build)))
+        for i, block in to_build:
+            if "working_dir" not in block["build_config"]:
+                block["build_config"]["working_dir"] = self.run_blocks[i].data["cwd"]
+            block = BuildProcessor.preprocess_build_blocks([block])[0]
+            logging.info("Build {}".format(self.run_blocks[i].description()))
+            block_builder = Builder(block["build_config"]["working_dir"],
+                                    block["build_config"]["cmd"], block["build_config"]["revision"],
+                                    block["build_config"]["number"], block["build_config"]["randomization"],
+                                    block["build_config"]["base_dir"], block["build_config"]["branch"])
+            working_dirs = block_builder.build()
+            block["cwds"] = working_dirs
+            self.run_blocks[i].data["cwds"] = working_dirs
 
     def benchmark(self):
         """
