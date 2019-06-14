@@ -48,7 +48,7 @@ class Settings(metaclass=Singleton):
                         // Description("Properties to use for reporting and null hypothesis tests"),
             "uncertainty_range": Tuple(Float(lambda x: x >= 0), Float(lambda x: x >= 0)) // Default((0.05, 0.15))
                         // Description("Range of p values that allow no conclusion.")
-        }, all_keys=False),
+        }, unknown_keys=True),
         "report": Dict({
             #  "reporter": Str() // Default("console") // Description(),
             "in": Str() // Default("run_output.yaml") // Description("File that contains the benchmarking results")
@@ -65,12 +65,12 @@ class Settings(metaclass=Singleton):
             "included_blocks": ListOrTuple(Str()) // Default(["all"])
                                // Description("List of included run blocks (all: include all), "
                                               "identified by their description or tag attribute"),
-        }, all_keys=False),
+        }, unknown_keys=True),
         "run": Dict({
             "discarded_runs": NaturalNumber() // Description("First n runs that are discarded") // Default(1),
             "min_runs": NaturalNumber() // Default(20) // Description("Minimum number of benchmarking runs"),
             "max_runs": NaturalNumber() // Default(100) // Description("Maximum number of benchmarking runs"),
-            "max_runs_per_tag": Dict(all_keys=False, key_type=Str() // Description("Tag"), value_type=NaturalNumber() // Description("Max runs"))
+            "max_runs_per_tag": Dict(unknown_keys=True, key_type=Str() // Description("Tag"), value_type=NaturalNumber() // Description("Max runs"))
                                  // Default({}) // Description("Maximum runs per tag (block attribute 'tag'), min('max_runs', 'per_tag') is used"),
             "runs": Int(lambda x: x >= -1) // Default(-1) // Description("if != -1 sets max and min runs to its value"),
             "max_time": ValidTimeSpan() // Default("-1") // Description("Maximum time the whole benchmarking should take, "
@@ -158,13 +158,13 @@ class Settings(metaclass=Singleton):
             "reverse_file": FileName() // Default("reverse.temci")
                         // Description("Name of the produced file to reverse the actions of a package.")
         }),
-        "env": Dict({"USER": Str(), "PATH": Str()}, all_keys=False)
+        "env": Dict({"USER": Str(), "PATH": Str()}, unknown_keys=True)
                // Default({"USER": "", "PATH": ""})
                // Description("Environment variables for the benchmarked programs, includes the user used for "
                               "generated files"),
         "sudo": Bool() // Default(False) // Description("Acquire sudo privileges and run benchmark programs with "
                                                         "non-sudo user. Only supported on the command line.")
-    }, all_keys=False)
+    }, unknown_keys=True)
     """ Type scheme of the settings """
 
     def __init__(self):
@@ -324,7 +324,7 @@ class Settings(metaclass=Singleton):
         for key in path[0:-1]:
             if key not in tmp_pref:
                 tmp_pref[key] = {}
-                tmp_type[key] = Dict(all_keys=False, key_type=Str())
+                tmp_type[key] = Dict(unknown_keys=True, key_type=Str())
             tmp_pref = tmp_pref[key]
             tmp_type = tmp_type[key]
         tmp_pref[path[-1]] = value

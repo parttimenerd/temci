@@ -33,7 +33,7 @@ class Builder:
                               // Description("Randomize the linking order"),
             "used_as": (Str() | NonExistent()) // Description("Used gnu assembler, default is /usr/bin/as"),
             "used_ld": (Str() | NonExistent()) // Description("Used gnu linker, default is /usr/bin/ld")
-        }, all_keys=False)
+        }, unknown_keys=True)
     """ Type scheme of the randomization configuration for a program block """
 
     def __init__(self, build_dir: str, build_cmd: str, revision: t.Union[str, int], number: int, rand_conf: dict,

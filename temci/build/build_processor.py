@@ -17,9 +17,9 @@ class BuildProcessor:
     """
 
     block_scheme = Dict({     # type: Dict
-        "attributes": Dict(all_keys=False, key_type=Str())
+        "attributes": Dict(unknown_keys=True, key_type=Str())
             // Description("Attributes of the program block"),
-        "run_config": Dict(all_keys=False) // Description("Run configuration for this program block"),
+        "run_config": Dict(unknown_keys=True) // Description("Run configuration for this program block"),
         "build_config": Dict({
             "cmd": Str() // Default("") // Description("Command to build this program block"),
             "number": (PositiveInt() | NonExistent()) // Default(1)

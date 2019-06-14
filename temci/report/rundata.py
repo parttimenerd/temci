@@ -38,12 +38,12 @@ class RunData(object):
     """
 
     block_type_scheme = Dict({
-                    "data": Dict(key_type=Str(), value_type=List(Int()|Float()), all_keys=False) // Default({}),
+                    "data": Dict(key_type=Str(), value_type=List(Int()|Float()), unknown_keys=True) // Default({}),
                     "attributes": Dict({
                         "tags": ListOrTuple(Str()) // Default([]) // Description("Tags of this block"),
                         "description": Optional(Str()) // Default(None)
-                    }, key_type=Str(), all_keys=False)
-                }, all_keys=False)
+                    }, key_type=Str(), unknown_keys=True)
+                }, unknown_keys=True)
 
     def __init__(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
                  external: bool = False):
@@ -55,8 +55,8 @@ class RunData(object):
         :param external: does the data come from a prior benchmarking?
         :param property_descriptions: dictionary containing short descriptions for some properties
         """
-        typecheck(data, E(None) | Dict(all_keys=False))
-        typecheck(attributes, Exact(None) | Dict(key_type=Str(), all_keys=False))
+        typecheck(data, E(None) | Dict(unknown_keys=True))
+        typecheck(attributes, Exact(None) | Dict(key_type=Str(), unknown_keys=True))
         self.external = external  # type: bool
         """ Does the data come from a prior benchmarking? """
         self.properties = [] # type: t.List[str]
@@ -91,7 +91,7 @@ class RunData(object):
         
         :param data_block: maps each of the run datas properties to list of actual values (from each benchmarking run).
         """
-        typecheck(data_block, Dict(key_type=Str(), value_type= List(Int() | Float()), all_keys=False))
+        typecheck(data_block, Dict(key_type=Str(), value_type= List(Int() | Float()), unknown_keys=True))
         self.properties = set(self.properties).union(set(data_block.keys()))
         for prop in data_block:
             if prop not in self.data:
@@ -315,11 +315,11 @@ class RunDataStatsHelper(object):
         :raises ValueError: if the stats of the runs parameter have not the correct structure
         """
         typecheck(runs, List(Dict({
-                    "data": Dict(key_type=Str(), value_type=List(Int()|Float()), all_keys=False) | NonExistent(),
-                }, all_keys=False) |
+                    "data": Dict(key_type=Str(), value_type=List(Int()|Float()), unknown_keys=True) | NonExistent(),
+                }, unknown_keys=True) |
                              Dict({
                                  "property_descriptions": NonExistent() |
-                                                          Dict(key_type=Str(), value_type=Str(), all_keys=False)})),
+                                                          Dict(key_type=Str(), value_type=Str(), unknown_keys=True)})),
                 value_name="runs parameter")
         run_datas = []
         runs = runs or [] # type: t.List[dict]

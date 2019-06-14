@@ -268,7 +268,7 @@ class BaseObject:
                 if impl not in means:
                     means[impl] = []
                 means[impl].extend(child_means[impl])
-        typecheck(means._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), all_keys=False))
+        typecheck(means._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), unknown_keys=True))
         return means
 
     def get_reduced_x_per_impl(self, property: StatProperty, reduce: ReduceFunc,
@@ -284,7 +284,7 @@ class BaseObject:
         rel_means = x_per_impl_func(property)
         for impl in rel_means:
             ret[impl] = reduce(rel_means[impl])
-        typecheck(ret._dict, Dict(key_type=Str(), value_type=Int()|Float(), all_keys=False))
+        typecheck(ret._dict, Dict(key_type=Str(), value_type=Int()|Float(), unknown_keys=True))
         return ret
 
     def get_gsd_for_x_per_impl(self, property: StatProperty) -> t.Dict[str, float]:
@@ -598,7 +598,7 @@ class ProgramWithInput(BaseObject):
             args = [singles[i], means, singles, i]
             ret[impl] = [property(*args[:property_arg_number])]
         #pprint(ret._dict)
-        typecheck(ret._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), all_keys=False))
+        typecheck(ret._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), unknown_keys=True))
         return ret
 
 
@@ -629,7 +629,7 @@ class Program(BaseObject):
                     "appendix": Str() | NonExistent()
                 })) | NonExistent(),
             "copied_files": List(Str()) | NonExistent(),
-            "impls": List(Dict(all_keys=False)) | NonExistent()
+            "impls": List(Dict(unknown_keys=True)) | NonExistent()
         }))
         program = cls(parent, name=config["program"], file=config["file"],
                        copied_files=config["copied_files"] if "copied_files" in config else [])
@@ -768,7 +768,7 @@ class ProgramCategory(BaseObject):
     def from_config_dict(cls, parent: 'Language', config: dict) -> 'ProgramCategory':
         typecheck(config, Dict({
             "category": Str(),
-            "programs": List(Dict(all_keys=False))
+            "programs": List(Dict(unknown_keys=True))
         }))
         cat = cls(parent, config["category"], [])
         cat.programs = InsertionTimeOrderedDict()
@@ -946,7 +946,7 @@ class ProgramCategory(BaseObject):
                 if impl not in scores_per_impl:
                     scores_per_impl[impl] = []
                 scores_per_impl[impl].extend(scores[impl])
-        typecheck(scores_per_impl._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), all_keys=False))
+        typecheck(scores_per_impl._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), unknown_keys=True))
         return scores_per_impl
 
     def get_input_strs(self) -> t.List[str]:
@@ -963,8 +963,8 @@ class Language(BaseObject):
     def from_config_dict(cls, config: dict) -> 'Language':
         typecheck(config, Dict({
             "language": Str(),
-            "categories": List(Dict(all_keys=False)),
-            "impls": List(Dict({"name": Str()}, all_keys=False)) | NonExistent()
+            "categories": List(Dict(unknown_keys=True)),
+            "impls": List(Dict({"name": Str()}, unknown_keys=True)) | NonExistent()
         }))
         lang = cls(config["language"], [])
         lang.categories = InsertionTimeOrderedDict()
@@ -1008,14 +1008,14 @@ class Language(BaseObject):
         configs = copy.deepcopy(configs)
         typecheck(configs, List(Dict({
             "language": Str(),
-            "categories": List(Dict(all_keys=False)),
-            "impls": List(Dict({"name": Str()}, all_keys=False)) | NonExistent()
+            "categories": List(Dict(unknown_keys=True)),
+            "impls": List(Dict({"name": Str()}, unknown_keys=True)) | NonExistent()
         })))
         first_config = configs[0]
         typecheck(configs, List(Dict({
             "language": E(first_config["language"]),
             "categories": E(first_config["categories"]),
-        }, all_keys=False)))
+        }, unknown_keys=True)))
         lang = cls(first_config["language"], [])
         lang.categories = InsertionTimeOrderedDict()
         for cat_conf in first_config["categories"]:
@@ -1384,7 +1384,7 @@ class Language(BaseObject):
                 if impl not in means:
                     means[impl] = []
                 means[impl].extend(child_means[impl])
-        typecheck(means._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), all_keys=False))
+        typecheck(means._dict, Dict(key_type=Str(), value_type=List(Float()|Int()), unknown_keys=True))
         return means
 
 

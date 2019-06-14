@@ -398,7 +398,7 @@ class AssemblyProcessor:
                 // Description("Randomize the rodata sub segments?"),
         "file_structure": Bool() // Default(False)
                           // Description("Randomize the file structure.")
-    }, all_keys=False)
+    }, unknown_keys=True)
     """ Configuration type scheme that also contains the default values and descriptions of its properties """
 
     def __init__(self, config: t.Dict[str, t.Union[int, bool]]):

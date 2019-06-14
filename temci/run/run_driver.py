@@ -168,8 +168,8 @@ class RunProgramBlock:
         :return: new RunProgramBlock
         """
         typecheck(data, Dict({
-            "attributes": Dict(all_keys=False, key_type=Str()) // Default({}),
-            "run_config": Dict(all_keys=False),
+            "attributes": Dict(unknown_keys=True, key_type=Str()) // Default({}),
+            "run_config": Dict(unknown_keys=True),
             "build_config": BuildProcessor.block_scheme["build_config"],
         }))
         block = RunProgramBlock(id, data["run_config"], data["attributes"] if "attributes" in data else {}, run_driver)
@@ -221,7 +221,7 @@ class BenchmarkingResultBlock:
 
         :param data: data to be added (measured data per property)
         """
-        typecheck(data, Dict(all_keys=False, key_type=Str(), value_type=Int() | Float() | List(Int() | Float())))
+        typecheck(data, Dict(unknown_keys=True, key_type=Str(), value_type=Int() | Float() | List(Int() | Float())))
         for prop in data:
             if isinstance(data[prop], list):
                 self.data[prop].extend(data[prop])
@@ -240,8 +240,8 @@ class BenchmarkingResultBlock:
                 # @classmethod
                 # def _from_dict(cls, source: dict):
                 #    typecheck(source, Dict({
-                #        "data": Dict(all_keys=False)
-                #    }, all_keys=False))
+                #        "data": Dict(unknown_keys=True)
+                #    }, unknown_keys=True))
                 #    return BenchmarkingResultBlock(source["data"])
 
 
@@ -351,7 +351,7 @@ class AbstractRunDriver(AbstractRegistry):
         return Dict({"attributes": Dict({
             "tags": ListOrTuple(Str()) // Default([]) // Description("Tags of this block"),
             "description": Optional(Str()) // Default(None)
-        }, all_keys=False, key_type=Str(), value_type=Any()) // Default({"tags": []})
+        }, unknown_keys=True, key_type=Str(), value_type=Any()) // Default({"tags": []})
                         // Description("Optional attributes that describe the block"),
                      "run_config": cls.block_type_scheme})
 
@@ -457,7 +457,7 @@ PRESET_PLUGIN_MODES = {
     "parse_output": Bool() // Default(False) // Description("Parse the program output as a YAML dictionary of "
                                                             "that gives for a specific property a measurement. "
                                                              "Not all runners support it.")
-}, all_keys=False))
+}, unknown_keys=True))
 class ExecRunDriver(AbstractRunDriver):
     """
     Implements a simple run driver that just executes one of the passed run_cmds
@@ -474,7 +474,7 @@ class ExecRunDriver(AbstractRunDriver):
     block_type_scheme = Dict({
         "run_cmd": (List(Str()) | Str()) // Default("") // Description("Commands to benchmark"),
         "cmd": Str() // Default("") // Description("Command to benchmark, adds to run_cmd"),
-        "env": Dict(all_keys=False, key_type=Str()) // Default({}) // Description("Environment variables"),
+        "env": Dict(unknown_keys=True, key_type=Str()) // Default({}) // Description("Environment variables"),
         "cmd_prefix": List(Str()) // Default([]) // Description("Command to append before the commands to benchmark"),
         "revision": (Int(lambda x: x >= -1) | Str()) // Default(-1) // Description("Used revision (or revision number)."
                                                                                    "-1 is the current revision, checks out "
@@ -489,7 +489,7 @@ class ExecRunDriver(AbstractRunDriver):
         "parse_output": Bool() // Default(False) // Description("Parse the program output as a YAML dictionary of "
                                                                 "that gives for a specific property a measurement. "
                                                                 "Not all runners support it.")
-    }, all_keys=False)
+    }, unknown_keys=True)
 
     registry = {}
 
@@ -710,7 +710,7 @@ class ExecRunDriver(AbstractRunDriver):
 @register(RunDriverRegistry, "shell", Dict({
     "preset": ExactEither(*PRESET_PLUGIN_MODES.keys()) // Default("none")
             // Description("Enable other plugins by default: {}".format("; ".join("{} = {} ({})".format(k, *t) for k, t in PRESET_PLUGIN_MODES.items())))
-}, all_keys=False))
+}, unknown_keys=True))
 class ShellRunDriver(ExecRunDriver):
     """
     Implements a run driver that runs the benched command a single time with redirected in- and output.
@@ -721,9 +721,9 @@ class ShellRunDriver(ExecRunDriver):
 
     block_type_scheme = Dict({
         "run_cmd": Str() // Default("sh") // Description("Command to run"),
-        "env": Dict(all_keys=False, key_type=Str()) // Default({}) // Description("Environment variables"),
+        "env": Dict(unknown_keys=True, key_type=Str()) // Default({}) // Description("Environment variables"),
         "cwd": (List(Str()) | Str()) // Default(".") // Description("Execution directory"),
-    }, all_keys=False)
+    }, unknown_keys=True)
     runs_benchmarks = False
 
     def __init__(self, misc_settings: dict = None):
@@ -1407,7 +1407,7 @@ class OutputExecRunner(ExecRunner):
     def parse_result_impl(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         res = res or BenchmarkingResultBlock()
-        dict_type = Dict(all_keys=False, key_type=Str(), value_type=Either(Int(), Float(), List(Either(Int(), Float()))))
+        dict_type = Dict(unknown_keys=True, key_type=Str(), value_type=Either(Int(), Float(), List(Either(Int(), Float()))))
         output = yaml.load(exec_res.stdout.strip())
         if isinstance(output, dict_type):
             res.add_run_data(dict(output))

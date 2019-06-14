@@ -959,13 +959,13 @@ class Dict(Type):
     Checks for the value to be a dictionary with expected keys and values satisfy given type constraints.
     """
 
-    def __init__(self, data: t.Dict[t.Any, Type] = None, all_keys: bool = True, key_type: Type = Any(),
+    def __init__(self, data: t.Dict[t.Any, Type] = None, unknown_keys: bool = False, key_type: Type = Any(),
                  value_type: Type = Any()):
         """
         Creates a new instance.
 
         :param data: dictionary with the expected keys and the expected types of the associated values
-        :param all_keys: fail if value contains unknown keys
+        :param unknown_keys: accept unknown keys in value
         :param key_type: expected Type of all dictionary keys
         :param value_type: expected Type of all dictionary values
         :raises: ConstraintError if one of the given types isn't a (typechecker) Types
@@ -974,7 +974,7 @@ class Dict(Type):
         self.data = data or {}  # type: t.Dict[t.Any, Type]
         self._validate_types(*self.data.values())
         self._validate_types(key_type, value_type)
-        self.all_keys = all_keys  # type: bool
+        self.unknown_keys = unknown_keys  # type: bool
         """ Fail if value contains unknown keys """
         self.key_type = key_type  # type: Type
         """ Expected Type of all dictionary keys """
@@ -1002,7 +1002,7 @@ class Dict(Type):
             res = self.key_type.__instancecheck__(key, ninfo)
             if not res:
                 return res
-            if self.all_keys and key not in self.data:
+            if not self.unknown_keys and key not in self.data:
                 return ninfo.errormsg_unexpected(key)
         for key in value.keys():
             val = value[key]
@@ -1016,9 +1016,9 @@ class Dict(Type):
         default = ", default = {}".format(self.get_default()) if self.has_default() else ""
         fmt = "Dict({data}, keys={key_type}, values={value_type}{default})"
         data_str = ", ".join("{!r}: {}".format(key, self.data[key]) for key in self.data)
-        if self.all_keys:
-            fmt = "Dict({{{data}}}, {all_keys}, keys={key_type}, values={value_type}{default})"
-        return fmt.format(data=data_str, all_keys=self.all_keys, key_type=self.key_type,
+        if not self.unknown_keys:
+            fmt = "Dict({{{data}}}, {unknown_keys}, keys={key_type}, values={value_type}{default})"
+        return fmt.format(data=data_str, unknown_keys=self.unknown_keys, key_type=self.key_type,
                           value_type=self.value_type, default=default)
 
     def __repr__(self) -> str:
@@ -1030,7 +1030,7 @@ class Dict(Type):
         """
         if key in self.data:
             return self.data[key]
-        if not self.all_keys and isinstance(key, self.key_type):
+        if self.unknown_keys and isinstance(key, self.key_type):
             return self.value_type
         return NonExistent()
 
@@ -1666,7 +1666,7 @@ def typecheck_locals(locals: t.Dict[str, t.Any] = None, **variables: t.Dict[str,
     if locals is None:
         locals = inspect.currentframe().f_back.f_locals
     else:
-        typecheck(locals, Dict(all_keys=False, key_type=Str()))
+        typecheck(locals, Dict(unknown_keys=True, key_type=Str()))
     for var in variables:
         typecheck(locals[var], variables[var], value_name=var)
 
