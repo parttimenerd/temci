@@ -197,6 +197,7 @@ class RunProcessor:
                     run_count = 0
                     for run in runs:
                         if run < self.discarded_runs:
+                            runs.label = label_format.format(discard_label)
                             self._benchmarking_block_run(block_size=1, discard=True)
                         else:
                             if self._finished() or all(b.max_runs < run_count for b in self.run_blocks):
