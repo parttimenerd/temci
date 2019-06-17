@@ -222,6 +222,8 @@ class RunProcessor:
                     and self.show_report:
                 self.print_report()
             raise
+        if self.show_report:
+            self.print_report()
         self.store_and_teardown()
 
     def _benchmarking_block_run(self, block_size: int = None, discard: bool = False, bench_all: bool = None, run: int = None):
