@@ -3,6 +3,9 @@
 temci
 =====
 
+.. image:: https://travis-ci.org/parttimenerd/temci.svg?branch=master
+    :target: https://travis-ci.org/parttimenerd/temci
+
 An advanced benchmarking tool written in python3 that supports binary randomization and the generation of visually appealing reports.
 
 It runs on sufficiently new Linux systems and (rudimentary) on Apple's OS X systems.
