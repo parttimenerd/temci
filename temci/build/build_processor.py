@@ -47,7 +47,7 @@ class BuildProcessor:
         if build_blocks is None:
             typecheck(Settings()["build/in"], ValidYamlFileName())
             with open(Settings()["build/in"], "r") as f:
-                build_blocks = yaml.load(f)
+                build_blocks = yaml.safe_load(f)
         self.build_blocks = self.preprocess_build_blocks(build_blocks)
         typecheck(Settings()["build/out"], FileName())
         typecheck_locals(build_blocks=List())

@@ -110,7 +110,7 @@ class Database:
 
     def _load_yaml(self):
         with open(self._data_yaml_file_name, "r") as f:
-            self._data = yaml.load(f)
+            self._data = yaml.safe_load(f)
 
     def store(self, filename: str, compression_level: int = None):
         """
@@ -260,7 +260,7 @@ class Actions:
         :param file: name of the passed file
         """
         with open(file, "r") as f:
-            self.load_from_config(yaml.load(f))
+            self.load_from_config(yaml.safe_load(f))
 
     def store_all(self, db: Database):
         """

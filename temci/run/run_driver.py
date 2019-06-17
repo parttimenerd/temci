@@ -1408,7 +1408,7 @@ class OutputExecRunner(ExecRunner):
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         res = res or BenchmarkingResultBlock()
         dict_type = Dict(unknown_keys=True, key_type=Str(), value_type=Either(Int(), Float(), List(Either(Int(), Float()))))
-        output = yaml.load(exec_res.stdout.strip())
+        output = yaml.safe_load(exec_res.stdout.strip())
         if isinstance(output, dict_type):
             res.add_run_data(dict(output))
         elif isinstance(output, List(dict_type)):

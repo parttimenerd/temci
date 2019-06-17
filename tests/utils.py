@@ -57,7 +57,7 @@ def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, lis
                 with open(fd) as fs:
                     file_contents[f] = fs.read()
                     if f.endswith(".yaml"):
-                        yaml_contents[f] = yaml.load(file_contents[f])
+                        yaml_contents[f] = yaml.safe_load(file_contents[f].replace("!!python/tuple", ""))
         ret = Result(str(out).strip(), str(err).strip(), proc.returncode, file_contents, yaml_contents)
         if expect_success:
             assert proc.returncode == 0, repr(ret)

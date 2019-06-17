@@ -48,7 +48,7 @@ class RunProcessor:
         if runs is None:
             typecheck(Settings()["run/in"], ValidYamlFileName(), value_name="run/in")
             with open(Settings()["run/in"], "r") as f:
-                runs = yaml.load(f)
+                runs = yaml.safe_load(f)
         self.runs = runs  # type: t.List[dict]
         """ List of dictionaries that represent run program blocks """
         self.run_blocks = []  # type: t.List[RunProgramBlock]
@@ -69,7 +69,7 @@ class RunProcessor:
             try:
                 if os.path.exists(Settings()["run/out"]):
                     with open(Settings()["run/out"], "r") as f:
-                        run_data = yaml.load(f)
+                        run_data = yaml.safe_load(f)
                 self.stats_helper = RunDataStatsHelper.init_from_dicts(run_data, external=True)
                 for run in runs:
                     self.stats_helper.runs.append(RunData(attributes=run["attributes"]))

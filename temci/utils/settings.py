@@ -46,7 +46,7 @@ class Settings(metaclass=Singleton):
                                                               "all"])
                                               + ")")
                         // Description("Properties to use for reporting and null hypothesis tests"),
-            "uncertainty_range": Tuple(Float(lambda x: x >= 0), Float(lambda x: x >= 0)) // Default((0.05, 0.15))
+            "uncertainty_range": Tuple(Float(lambda x: x >= 0), Float(lambda x: x >= 0)) // Default([0.05, 0.15])
                         // Description("Range of p values that allow no conclusion.")
         }, unknown_keys=True),
         "report": Dict({
@@ -232,7 +232,7 @@ class Settings(metaclass=Singleton):
         tmp = copy.deepcopy(self.prefs)
         try:
             with open(file, 'r') as stream:
-                map = yaml.load(stream)
+                map = yaml.safe_load(stream.read().replace("!!python/tuple", ""))
 
                 def func(key, path, value):
                     self._set_default(path, value)

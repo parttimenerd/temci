@@ -76,7 +76,7 @@ class AbstractReporter:
             runs = []
             typecheck(Settings()["report/in"], ValidYamlFileName())
             with open(Settings()["report/in"], "r") as f:
-                runs = yaml.load(f)
+                runs = yaml.safe_load(f)
             self.stats_helper = RunDataStatsHelper.init_from_dicts(runs)
         else:
             self.stats_helper = stats_helper
