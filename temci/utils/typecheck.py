@@ -435,7 +435,7 @@ class Type(object):
         else:
             typecheck(defaults, self)
         i_str = " " * indents * indentation
-        y_str = yaml.dump(defaults).strip()
+        y_str = yaml.dump(defaults, default_flow_style=None).strip()
         if y_str.endswith("\n..."):
             y_str = y_str[0:-4]
         strs = list(map(lambda x: i_str + x, y_str.split("\n")))
@@ -464,7 +464,7 @@ class Type(object):
 
         default_str = None
         if defaults:
-            default_str = yaml.dump(defaults).strip()
+            default_str = yaml.dump(defaults, default_flow_style=None).strip()
             if default_str.endswith("\n..."):
                 default_str = default_str[0:-4]
         y_str = str(self)
@@ -1102,7 +1102,7 @@ class Dict(Type):
                 comment_lines = self.data[key].description.split("\n")
                 comment_lines = map(lambda x: "# " + x, comment_lines)
                 strs.extend(comment_lines)
-            key_yaml = yaml.dump(key).split("\n")[0]
+            key_yaml = yaml.dump(key, default_flow_style=None).split("\n")[0]
             if len(self.data[key].get_default_yaml(str_list=True, defaults=defaults[key])) == 1 and \
                     (not isinstance(self.data[key], Dict) or len(self.data[key].data.keys()) == 0):
                 value_yaml = self.data[key].get_default_yaml(defaults=defaults[key])
@@ -1158,7 +1158,7 @@ class Dict(Type):
                 comment_lines = self.data[key].description.split("\n")
                 comment_lines = map(lambda x: "# " + x, comment_lines)
                 strs.extend(comment_lines)
-            key_yaml = yaml.dump(key).split("\n")[0]
+            key_yaml = yaml.dump(key, default_flow_style=None).split("\n")[0]
             default = defaults[key] if defaults and key in defaults else None
             if len(self.data[key].string_representation(str_list=True, defaults=default)) == 1 and \
                     (not isinstance(self.data[key], Dict) or len(self.data[key].data.keys()) == 0):
