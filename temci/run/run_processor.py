@@ -251,7 +251,7 @@ class RunProcessor:
                     if self.discard_all_data_for_block_on_error:
                         self.stats_helper.discard_run_data(id)
                     logging.error("Program block no. {} failed: {}".format(id, result.error))
-                    logging.info("".join(traceback.format_exception(None, result.error, result.error.__traceback__)))
+                    logging.debug("".join(traceback.format_exception(None, result.error, result.error.__traceback__)))
                     self.store_erroneous()
                     if isinstance(result.error, KeyboardInterrupt):
                         raise result.error

@@ -196,7 +196,7 @@ class CmdOption:
                         opt=option_name,
                         msg=str(err)
                     ))
-                    logging.info("".join(traceback.format_exception(None, err, err.__traceback__)))
+                    logging.debug("".join(traceback.format_exception(None, err, err.__traceback__)))
                     exit(1)
             self.callback = callback
         else:
