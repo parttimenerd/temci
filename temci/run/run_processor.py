@@ -288,8 +288,6 @@ class RunProcessor:
         Teardown everything, store the result file, print a short report and send an email
         if configured to do so.
         """
-        if self.show_report:
-            self.print_report()
         self.teardown()
         self.store()
         if len(self.stats_helper.valid_runs()) > 0 \
