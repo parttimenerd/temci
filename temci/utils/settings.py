@@ -33,9 +33,12 @@ class Settings(metaclass=Singleton):
     config_file_name = "temci.yaml"  # type: str
     """ Default name of the configuration files """
     type_scheme = Dict({  # type: Dict
-        "config": Str() // Description("Additional settings file")
+        "settings": Str() // Description("Additional settings file")
                         // Default(config_file_name if os.path.exists(config_file_name) else "")
                         // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
+        "config": Str() // Description("Alias for settings")
+                    // Default(config_file_name if os.path.exists(config_file_name) else "")
+                    // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
         "tmp_dir": Str() // Default("/tmp/temci") // Description("Used temporary directory"),
         "log_level": ExactEither("debug", "info", "warn", "error", "quiet") // Default("info")
                      // Description("Logging level"),
@@ -330,7 +333,7 @@ class Settings(metaclass=Singleton):
         tmp_pref[path[-1]] = value
         if path[-1] not in tmp_type.data:
             tmp_type[path[-1]] = Any() // Default(value)
-        if path == ["config"] and value is not "":
+        if (path == ["config"] or path == ["settings"]) and value is not "":
             self.load_file(value)
 
     def set(self, key: str, value):

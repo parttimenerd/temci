@@ -3,6 +3,7 @@ Tests related to the processing of settings
 """
 from tests.utils import run_temci
 
+
 def test_config_not_ignored():
     """
     Issue "Config now seems to be ignored completely after type checking #62"
@@ -11,4 +12,4 @@ def test_config_not_ignored():
 
 
 def test_settings_set_config_option_not_to_itself():
-    assert run_temci("init config").yaml_contents["temci.yaml"]["config"] != "temci.yaml"
+    assert run_temci("init settings").yaml_contents["temci.yaml"]["settings"] != "temci.yaml"

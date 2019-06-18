@@ -131,7 +131,7 @@ misc_commands = {
     "init": {
         "common": CmdOptionList(),
         "sub_commands": {
-            "config": CmdOptionList(),
+            "settings": CmdOptionList(),
             "build_config": CmdOptionList(),
             "run_config": CmdOptionList()
         }
@@ -172,7 +172,7 @@ misc_commands_description = {
         "bash": "Creates a new tab completion file for zsh and returns its file name",
     },
     "init": {
-        "config": "Create a new settings file temci.yaml (or the file name passed) in the current directory",
+        "settings": "Create a new settings file temci.yaml (or the file name passed) in the current directory",
         "build_config": "Interactive cli to create (or append to) a build config file",
         "run_config": "Interactive cli to create (or append to) a run config file"
     },
@@ -319,18 +319,18 @@ def temci__init():
 temci__init.__doc__ = short_help=command_docs["init"]
 
 
-@init.command(short_help=misc_commands_description["init"]["config"])
+@init.command(short_help=misc_commands_description["init"]["settings"])
 @click.argument('file', type=click.Path(exists=False), default="temci.yaml")
-@cmd_option(misc_commands["init"]["sub_commands"]["config"])
+@cmd_option(misc_commands["init"]["sub_commands"]["settings"])
 @cmd_option(common_options)
-def config(file, **kwargs):
-    temci__init__config(file, **kwargs)
+def settings(file, **kwargs):
+    temci__init__settings(file, **kwargs)
 
 
-@document_func(misc_commands_description["init"]["config"],
-               misc_commands["init"]["sub_commands"]["config"],
+@document_func(misc_commands_description["init"]["settings"],
+               misc_commands["init"]["sub_commands"]["settings"],
                common_options)
-def temci__init__config(file, **kwargs):
+def temci__init__settings(file, **kwargs):
     Settings().store_into_file(file)
 
 
