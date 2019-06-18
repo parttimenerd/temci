@@ -1,4 +1,5 @@
 import os
+import shlex
 import subprocess
 import sys
 
@@ -9,9 +10,13 @@ import yaml
 
 from click.testing import CliRunner
 
+sys.path.append(os.path.dirname(__file__) + "/..")
+import temci.utils.util
+temci.utils.util.allow_all_imports = True
+
 from temci.utils.settings import Settings
 
-sys.path.append(os.path.dirname(__file__) + "/..")
+
 from temci.scripts.cli import cli
 
 
@@ -107,10 +112,14 @@ def run_temci_click(args: str, settings: dict = None, files: Dict[str, Union[dic
         cmd += " --config settings.yaml"
         env = os.environ.copy()
         env["LC_ALL"] = "en_US.utf-8"
+        args = sys.argv.copy()
+        sys.argv = shlex.split("temci " + cmd)
         result = runner.invoke(cli, cmd, env=env, catch_exceptions=True)
+        sys.argv = args
         file_contents, yaml_contents = _load_files(files)
         ret = Result(result.output.strip(), str(result.stderr_bytes).strip(), result.exit_code, file_contents, yaml_contents)
         if result.exception:
+            print(repr(ret))
             raise result.exception
         if expect_success:
             assert result.exit_code == 0, repr(ret)
