@@ -15,8 +15,8 @@ def test_max_runs_per_block():
 
 
 def test_config_default_values():
-    assert "11 single bench" in run_temci("short exec ls --log_level debug --config temci.yaml", files={"temci.yaml": {
+    assert "11 single bench" in run_temci("short exec ls --log_level debug", settings={
         "run": {
             "runs": 11
         }
-    }}).out
+    }).out
