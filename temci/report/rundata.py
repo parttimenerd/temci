@@ -73,7 +73,9 @@ class RecordedInternalError(RecordedError):
                                      "\n".join(traceback.format_exception(None, ex, ex.__traceback__)))
 
 
-@util.document(block_type_scheme="An entry in the run output list")
+@util.document(block_type_scheme="An entry in the run output list",
+               property_descriptions_scheme="An entry in the run output list that specifies the long names "
+                                            "for the properties")
 class RunData(object):
     """
     A set of benchmarking data for a specific program block.
@@ -90,6 +92,10 @@ class RunData(object):
                     "internal_error": (Dict({"message": Str()}) | NonExistent())
                 }, unknown_keys=True) // Constraint(lambda d: [k in d for k in ["error", "internal_error"]].count(True) <= 1,
                                                     description="Either 'error' or 'internal_error' can be present")
+
+    property_descriptions_scheme = Dict({
+            "property_descriptions": NonExistent() |
+                                     Dict(key_type=Str(), value_type=Str(), unknown_keys=True)})
 
     def __init__(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
                  recorded_error: RecordedError = None,
@@ -418,12 +424,13 @@ class RunDataStatsHelper(object):
         :param external: are the passed runs not from this benchmarking session but from another?
         :raises ValueError: if the stats of the runs parameter have not the correct structure
         """
-        typecheck(runs, List(Dict({
-                    "data": Dict(key_type=Str(), value_type=List(Int()|Float()), unknown_keys=True) | NonExistent(),
-                }, unknown_keys=True) |
-                             Dict({
-                                 "property_descriptions": NonExistent() |
-                                                          Dict(key_type=Str(), value_type=Str(), unknown_keys=True)})),
+        typecheck(runs, List(
+            Dict({
+                "data": Dict(key_type=Str(), value_type=List(Int() | Float()), unknown_keys=True) | NonExistent(),
+                "run_config": Dict(unknown_keys=True)
+            }, unknown_keys=True) |
+                    RunData.block_type_scheme |
+                    RunData.property_descriptions_scheme),
                 value_name="runs parameter")
         run_datas = []
         runs = runs or [] # type: t.List[dict]

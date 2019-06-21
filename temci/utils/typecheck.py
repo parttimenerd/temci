@@ -100,7 +100,8 @@ class Info:
         if value_name is None:
             self._value_name = "value {{!r}}{}".format(self._app_str)
         else:
-            self._value_name = "{}{} of value {{!r}}".format(self.value_name, self._app_str)
+            self._value_name = "{}{} of value {{!r}}"\
+                .format(self.value_name.replace("{", "{{").replace("}", "}}"), self._app_str)
         self.value = None
         """ Main value that is type checked """
         self.has_value = False  # type: bool

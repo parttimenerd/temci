@@ -1,6 +1,8 @@
 """
 Tests for runners and related code
 """
+import pytest
+
 from tests.utils import run_temci
 
 
@@ -14,9 +16,9 @@ def test_build_before_exec():
     run_temci("exec bla.yaml --runs 1", files={
         "bla.yaml": [
             {
-                "run_config": {"cmd": "./test"},
+                "run_config": {"cmd": "./test", "tags": []},
                 "build_config": {"cmd": "echo 'echo 3' > test; chmod +x test"}
-            },
+            }
         ]
     })
 
@@ -32,3 +34,15 @@ def test_errorneous_run():
     assert "error" in d
     e = d["error"]
     assert e["return_code"] is 1
+
+
+def test_check_tag_attribute():
+    with pytest.raises(TypeError):
+        assert run_temci("exec bla.yaml --runs 1", files={
+            "bla.yaml": [
+                {
+                    "run_config": {"cmd": "echo 1"},
+                    "attributes": {"tags": "slow"}
+                }
+            ]
+        }).ret_code != 0

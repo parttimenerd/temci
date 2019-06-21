@@ -300,6 +300,8 @@ class AbstractRunDriver(AbstractRegistry):
         """
         Call the setup_block() method on all used plugins for this driver.
         """
+        typecheck(block.attributes, self.get_full_block_typescheme()["attributes"],
+                  value_name="attributes of {}".format(block))
         for plugin in self.used_plugins:
             plugin.setup_block(block)
 
