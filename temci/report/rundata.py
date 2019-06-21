@@ -264,6 +264,7 @@ class RunDataStatsHelper(object):
         """
         descr_attrs = defaultdict(lambda: 0)  # type: t.Dict[str, int]
         descr_nr_zero = {}  # type: t.Dict[str, RunData]
+
         for single in self.runs:
             if "description" in single.attributes and single.attributes["description"] is not None:
                 descr = single.attributes["description"]
@@ -275,6 +276,39 @@ class RunDataStatsHelper(object):
                         descr_nr_zero[descr].attributes["description"] += " [0]"
                 else:
                     descr_nr_zero[descr] = single
+                single.attributes["__description"] = descr
+
+    def get_description_clusters(self) -> t.Dict[str, t.List['RunData']]:
+        """
+        Set of runs per description, call RunDataStatsHelper.make_descriptions_distinct first
+
+        :return: set of runs per description
+        """
+        clusters = util.InsertionTimeOrderedDict()
+        for r in self.runs:
+            d = r.attributes["__description" if "__description" in r.attributes else "description"] \
+                if "description" in r.attributes \
+                else ""
+            if d not in clusters:
+                clusters[d] = []
+            clusters[d].append(r)
+        return clusters
+
+    def get_description_clusters_and_single(self) -> t.Tuple[t.List['RunData'], t.Dict[str, t.List['RunData']]]:
+        """
+        Set of runs per description, call RunDataStatsHelper.make_descriptions_distinct first
+
+        :return: set of runs per description
+        """
+        clusters = self.get_description_clusters()
+        new_clusters = util.InsertionTimeOrderedDict()
+        single = []
+        for n, c in clusters.items():
+            if len(c) is 1:
+                single.extend(c)
+            else:
+                new_clusters[n] = c
+        return single, new_clusters
 
     def properties(self) -> t.List[str]:
         """

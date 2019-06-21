@@ -105,7 +105,13 @@ class AbstractReporter:
 @register(ReporterRegistry, "console", Dict({
     "out": FileNameOrStdOut() // Default("-") // Description("Output file name or stdard out (-)"),
     "with_tester_results": Bool() // Default(True) // Description("Print statistical tests for every property for every"
-                                                                  " two programs")
+                                                                  " two programs"),
+    "mode": ExactEither("both", "cluster", "single", "auto") // Default("auto")
+          // Description("'auto': report clusters (runs with the same description) and "
+                         "singles (clusters with a single entry, combined) separately, "
+                         "'single': report all clusters together as one, "
+                         "'cluster': report all clusters separately, "
+                         "'both': append the output of 'cluster' to the output of 'single'")
 }))
 class ConsoleReporter(AbstractReporter):
     """
@@ -122,50 +128,77 @@ class ConsoleReporter(AbstractReporter):
         """
         output = [""]
 
+        with_tester_results = with_tester_results and self.misc["with_tester_results"]
+
         def string_printer(line: str, **args):
             output[0] += str(line) + "\n"
 
-        print_func = string_printer if to_string else print
         with click.open_file(self.misc["out"], mode='w') as f:
-            for block in self.stats_helper.valid_runs():
-                assert isinstance(block, RunData)
-                print_func("{descr:<20} ({num:>5} single benchmarks)"
-                      .format(descr=block.description(), num=len(block.data[block.properties[0]])), file=f)
-                for prop in sorted(block.properties):
-                    mean = np.mean(block[prop])
-                    std = np.std(block[prop])
-                    mean_str = str(FNumber(mean, abs_deviation=std))
-                    dev = "{:>5.5%}".format(std / mean) if mean != 0 else "{:>5.5}".format(std)
-                    print_func("\t {prop:<18} mean = {mean:>15s}, deviation = {dev}".format(
-                        prop=prop, mean=mean_str,
-                        dev=dev), file=f)
-            if with_tester_results and self.misc["with_tester_results"]:
-                self._report_list("Equal program blocks",
-                                  self.stats_helper.get_evaluation(with_equal=True,
-                                                                   with_uncertain=False,
-                                                                   with_unequal=False),
-                                  f, print_func)
-                self._report_list("Unequal program blocks",
-                                  self.stats_helper.get_evaluation(with_equal=False,
-                                                                   with_uncertain=False,
-                                                                   with_unequal=True),
-                                  f, print_func)
-                self._report_list("Uncertain program blocks",
-                                  self.stats_helper.get_evaluation(with_equal=False,
-                                                                   with_uncertain=True,
-                                                                   with_unequal=False),
-                                  f, print_func)
+            print_func = string_printer if to_string else lambda x: print(x, file=f)
+            if self.misc["mode"] == "auto":
+                single, clusters = self.stats_helper.get_description_clusters_and_single()
+                self._report_cluster("single runs", single, print_func, with_tester_results)
+                self._report_clusters(clusters, print_func, with_tester_results)
+            if self.misc["mode"] in ["both", "single"]:
+                self._report_cluster("all runs",
+                                     self.stats_helper.runs,
+                                     print_func,
+                                     with_tester_results)
+            if self.misc["mode"] in ["both", "cluster"]:
+                self._report_clusters(self.stats_helper.get_description_clusters(), print_func, with_tester_results)
             chown(f)
         if to_string:
             return output[0]
 
-    def _report_list(self, title: str, list, file, print_func: t.Callable[[str, Any], None]):
-        if len(list) != 0:
-            print_func(title, file=file)
-            print_func("####################", file=file)
-        for item in list:
+    def _report_clusters(self, clusters: t.Dict[str, t.List[RunData]], print_func: t.Callable[[str], None],
+                         with_tester_results: bool):
+        for n, c in clusters.items():
+            self._report_cluster(n,
+                                 c,
+                                 print_func,
+                                 with_tester_results)
+
+    def _report_cluster(self, description: str, items: t.List[RunData], print_func: t.Callable[[str], None],
+                        with_tester_results: bool):
+        print_func("Report for {}".format(description))
+        for block in items:
+            assert isinstance(block, RunData)
+            print_func("{descr:<20} ({num:>5} single benchmarks)"
+                       .format(descr=block.description(), num=len(block.data[block.properties[0]])))
+            for prop in sorted(block.properties):
+                mean = np.mean(block[prop])
+                std = np.std(block[prop])
+                mean_str = str(FNumber(mean, abs_deviation=std))
+                dev = "{:>5.5%}".format(std / mean) if mean != 0 else "{:>5.5}".format(std)
+                print_func("\t {prop:<18} mean = {mean:>15s}, deviation = {dev}".format(
+                    prop=prop, mean=mean_str,
+                    dev=dev))
+        if with_tester_results:
+            stats_helper = RunDataStatsHelper(items, self.stats_helper.tester,
+                                              property_descriptions=self.stats_helper.property_descriptions)
+            self._report_list("Equal program blocks",
+                              stats_helper.get_evaluation(with_equal=True,
+                                                          with_uncertain=False,
+                                                          with_unequal=False),
+                              print_func)
+            self._report_list("Unequal program blocks",
+                              stats_helper.get_evaluation(with_equal=False,
+                                                          with_uncertain=False,
+                                                          with_unequal=True),
+                              print_func)
+            self._report_list("Uncertain program blocks",
+                              stats_helper.get_evaluation(with_equal=False,
+                                                          with_uncertain=True,
+                                                          with_unequal=False),
+                              print_func)
+
+    def _report_list(self, title: str, items: t.List[dict], print_func: t.Callable[[str], None]):
+        if len(items) != 0:
+            print_func(title)
+            print_func("####################")
+        for item in items:
             print_func("\t {}  ⟷  {}".format(item["data"][0].description(),
-                                       item["data"][1].description()), file=file)
+                                       item["data"][1].description()))
             for prop in sorted(item["properties"]):
                 prop_data = item["properties"][prop]
                 perc = prop_data["p_val"]
@@ -173,7 +206,7 @@ class ConsoleReporter(AbstractReporter):
                     perc = 1 - perc
                 print_func("\t\t {descr:<18} probability = {perc:>10.0%}, speed up = {speed_up:>10.2%}"
                       .format(descr=prop_data["description"], perc=perc,
-                              speed_up=prop_data["speed_up"]), file=file)
+                              speed_up=prop_data["speed_up"]))
 
 
 @register(ReporterRegistry, "html", Dict({

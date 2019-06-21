@@ -252,6 +252,9 @@ class InsertionTimeOrderedDict:
         """ Returns the number of items in this dictionary """
         return len(self._keys)
 
+    def items(self) -> t.List[t.Tuple[t.Any, t.Any]]:
+        return [(k, self[k]) for k in self.keys()]
+
     @classmethod
     def from_list(cls, items: t.Optional[list], key_func: t.Callable[[t.Any], t.Any]) -> 'InsertionTimeOrderedDict':
         """
@@ -267,6 +270,7 @@ class InsertionTimeOrderedDict:
         for item in items:
             ret[key_func(item)] = item
         return ret
+
 
 #formatter = logging.Formatter("[%(asctime)s] %(name)s %(levelname)s \t%(message)s")
 # setup `RainbowLoggingHandler`
