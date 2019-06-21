@@ -294,7 +294,7 @@ def temci__short__shell(command: str, **kwargs):
 
 
 @cli.command(short_help=command_docs["report"])
-@click.argument('report_file', type=click.Path(exists=True))
+@click.argument('report_file', type=click.Path(exists=True), nargs=-1)
 @cmd_option(common_options)
 @cmd_option(report_options)
 def report(*args, **kwargs):
@@ -302,7 +302,7 @@ def report(*args, **kwargs):
 
 
 @document_func(command_docs["report"], common_options, report_options)
-def temci__report(report_file: str, **kwargs):
+def temci__report(report_file: t.List[str], **kwargs):
     Settings()["report/in"] = report_file
     ReportProcessor().report()
 

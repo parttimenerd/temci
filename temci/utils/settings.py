@@ -54,8 +54,9 @@ class Settings(metaclass=Singleton):
         }, unknown_keys=True),
         "report": Dict({
             #  "reporter": Str() // Default("console") // Description(),
-            "in": Str() // Default("run_output.yaml") // Description("File that contains the benchmarking results")
-                    // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
+            "in": Either(Str(), ListOrTuple(Str())) // Default("run_output.yaml")
+                  // Description("Files that contain the benchmarking results")
+                  // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
             "excluded_properties": ListOrTuple(Str()) // Default(["__ov-time"])
                     // Description("Properties that aren't shown in the report."),
             "exclude_invalid": BoolOrNone() // Default(True)
