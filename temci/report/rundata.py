@@ -3,6 +3,7 @@ Contains the RunData object for benchmarking data of specific program block
 and the RunDataStatsHelper that provides helper methods for working with
 these objects.
 """
+import traceback
 from functools import reduce
 
 from temci.report.testers import Tester, TesterRegistry
@@ -31,6 +32,47 @@ def get_for_tag(per_tag_settings_key: str, main_key: str, tag: t.Optional[str]):
     return per_tag[tag] if tag is not None and tag in per_tag else Settings()[main_key]
 
 
+class RecordedError:
+
+    def __init__(self, message: str):
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
+
+class RecordedProgramError(RecordedError):
+
+    def __init__(self, message: str, out: str, err: str, ret_code: int):
+        super().__init__("""
+{}
+        
+Output:
+------
+    {}
+        
+Error output:
+------------
+    {}
+
+Return code: {}""".format(message, "\n\t".join(out.split("\n")), "\n\t".join(err.split("\n")), ret_code))
+        self.message = message
+        self.out = out
+        self.err = err
+        self.ret_code = ret_code
+
+
+class RecordedInternalError(RecordedError):
+
+    def __init__(self, message: str):
+        self.message = message
+
+    @classmethod
+    def for_exception(cls, ex: BaseException) -> 'RecordedInternalError':
+        return RecordedInternalError(str(ex) + "\n" +
+                                     "\n".join(traceback.format_exception(None, ex, ex.__traceback__)))
+
+
 @util.document(block_type_scheme="An entry in the run output list")
 class RunData(object):
     """
@@ -41,19 +83,24 @@ class RunData(object):
                     "data": Dict(key_type=Str(), value_type=List(Int()|Float()), unknown_keys=True) // Default({}),
                     "attributes": Dict({
                         "tags": ListOrTuple(Str()) // Default([]) // Description("Tags of this block"),
-                        "description": Optional(Str()) // Default(None)
-                    }, key_type=Str(), unknown_keys=True)
-                }, unknown_keys=True)
+                        "description": (Str() | NonExistent())
+                    }, key_type=Str(), unknown_keys=True),
+                    "error": (Dict({"message": Str(), "return_code": Int(), "output": Str(),
+                                    "error_output": Str()}) | NonExistent()),
+                    "internal_error": (Dict({"message": Str()}) | NonExistent())
+                }, unknown_keys=True) // Constraint(lambda d: [k in d for k in ["error", "internal_error"]].count(True) <= 1,
+                                                    description="Either 'error' or 'internal_error' can be present")
 
     def __init__(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
+                 recorded_error: RecordedError = None,
                  external: bool = False):
         """
         Initializes a new run data object.
         
         :param data: optional dictionary mapping each property to a list of actual values
         :param attributes: dictionary of optional attributes that describe its program block
+        :param recorded_error: either program error or internal error
         :param external: does the data come from a prior benchmarking?
-        :param property_descriptions: dictionary containing short descriptions for some properties
         """
         typecheck(data, E(None) | Dict(unknown_keys=True))
         typecheck(attributes, Exact(None) | Dict(key_type=Str(), unknown_keys=True))
@@ -69,9 +116,10 @@ class RunData(object):
         """ Dictionary of optional attributes that describe its program block """
         self.tags = attributes["tags"] if "tags" in self.attributes else None
         self.max_runs = get_for_tags("run/max_runs_per_tag", "run/max_runs", self.tags, min)
+        self.recorded_error = recorded_error
 
     def clone(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
-                 external: bool = None) -> 'RunData':
+              recorded_error: RecordedError = None, external: bool = None) -> 'RunData':
         """
         Clone this instance and replaces thereby some instance properties.
 
@@ -82,7 +130,8 @@ class RunData(object):
         """
         def alt(new, old):
             return new if new is not None else old
-        return RunData(data=alt(data,self.data), attributes=alt(attributes, self.attributes),
+        return RunData(data=alt(data, self.data), attributes=alt(attributes, self.attributes),
+                       recorded_error=alt(recorded_error, self.recorded_error),
                        external=alt(external, self.external))
 
     def add_data_block(self, data_block: t.Dict[str, t.List[Number]]):
@@ -120,8 +169,7 @@ class RunData(object):
         """
         return max(map(len, self.data.values())) if len(self) > 0 else 0
 
-
-    def __getitem__(self, property: str):
+    def __getitem__(self, property: str) -> list:
         """
         Returns the benchmarking values associated with the passed property.
         """
@@ -135,6 +183,18 @@ class RunData(object):
             "attributes": self.attributes,
             "data": self.data
         }
+        if self.has_error():
+            if isinstance(self.recorded_error, RecordedInternalError):
+                d["internal_error"] = {
+                    "message": self.recorded_error.message
+                }
+            if isinstance(self.recorded_error, RecordedProgramError):
+                d["error"] = {
+                    "message": self.recorded_error.message,
+                    "return_code": self.recorded_error.ret_code,
+                    "output": self.recorded_error.out,
+                    "error_output": self.recorded_error.err
+                }
         return d
 
     def __str__(self) -> str:
@@ -211,6 +271,9 @@ class RunData(object):
             data[longer_prop] = self.data[prop]
         return self.clone(data=data)
 
+    def has_error(self) -> bool:
+        return self.recorded_error is not None
+
 
 class RunDataStatsHelper(object):
     """
@@ -218,7 +281,8 @@ class RunDataStatsHelper(object):
     """
 
     def __init__(self, runs: t.List[RunData], tester: Tester = None, external_count: int = 0,
-                 property_descriptions: t.Dict[str, str] = None):
+                 property_descriptions: t.Dict[str, str] = None,
+                 errorneous_runs: t.List[RunData] = None):
         """
         Don't use the constructor use init_from_dicts if possible.
 
@@ -227,12 +291,15 @@ class RunDataStatsHelper(object):
         :param external_count: Number of external program blocks (blocks for which the data was obtained in a
         different benchmarking session)
         :param property_descriptions: mapping of some properties to their descriptions or longer versions
+        :param errorneous_runs: runs that resulted in errors
         """
         self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),  # type: Tester
                                                             Settings()["stats/uncertainty_range"])
         """ Used statistical tester """
         typecheck(runs, List(T(RunData)))
         self.runs = filter_runs(runs, Settings()["report/included_blocks"])  # type: t.List[RunData]
+        self.errorneous_runs = errorneous_runs or [r for r in self.runs if r.has_error()]
+        self.runs = [r for r in self.runs if not r.has_error() or (any(len(v) > 0 for v,p in r.data.items()))]
         """ Data of serveral runs from several measured program blocks """
         self.external_count = external_count  # type: int
         """
@@ -256,7 +323,8 @@ class RunDataStatsHelper(object):
             return new if new is not None else old
         return RunDataStatsHelper(runs=alt(runs, self.runs), tester=alt(tester, self.tester),
                                   external_count=alt(external_count, self.external_count),
-                                  property_descriptions=alt(property_descriptions, self.property_descriptions))
+                                  property_descriptions=alt(property_descriptions, self.property_descriptions),
+                                  errorneous_runs=self.errorneous_runs)
 
     def make_descriptions_distinct(self):
         """
@@ -338,7 +406,9 @@ class RunDataStatsHelper(object):
 
             "runs": [
                 {"attributes": {"attr1": ..., ..., ["description": …], ["tags": …]},
-                 "data": {"__ov-time": [...], ...}
+                 "data": {"__ov-time": [...], ...},
+                 "error": {"return_code": …, "output": "…", "error_output": "…"},
+                 "internal_error": {"message": "…"} (either "error" or "internal_error" might be present)
                  ["property_descriptions": {"__ov-time": "Overall time"}]},
                  ...
             ]
@@ -365,7 +435,14 @@ class RunDataStatsHelper(object):
             else:
                 if "data" not in run:
                     run["data"] = {}
-                run_datas.append(RunData(run["data"], run["attributes"] if "attributes" in run else {}, external=external))
+                error = None
+                if "error" in run:
+                    error = RecordedProgramError(run["error"]["message"], run["error"]["output"],
+                                                 run["error"]["error_output"], run["error"]["return_code"])
+                elif "internal_error" in run:
+                    error = RecordedInternalError(run["internal_error"]["message"])
+                run_datas.append(RunData(run["data"], run["attributes"] if "attributes" in run else {}, recorded_error=error,
+                                         external=external))
         return RunDataStatsHelper(run_datas, external_count=len(run_datas) if external else 0,
                                   property_descriptions=prop_descrs)
 
@@ -422,10 +499,10 @@ class RunDataStatsHelper(object):
         """
         to_bench = set()
         for (i, run) in enumerate(self.runs):
-            if i in to_bench or run is None:
+            if i in to_bench or run is None or run.has_error():
                 continue
             for j in range(i):
-                if j in to_bench or self.runs[j] is None:
+                if j in to_bench or self.runs[j] is None or self.runs[j].has_error():
                     continue
                 run2 = self.runs[j]
                 if run2.min_values() == 0 or run.min_values() == 0 or \
@@ -509,6 +586,19 @@ class RunDataStatsHelper(object):
             raise ValueError("Program block with id {} doesn't exist".format(program_id - self.external_count))
         self.runs[program_id].add_data_block(data_block)
 
+    def add_error(self, program_id: id, error: RecordedError):
+        """
+        Set the error for a program
+        """
+        program_id += self.external_count
+        assert program_id >= self.external_count
+        self.runs[program_id].recorded_error = error
+        self.errorneous_runs.append(self.runs[program_id])
+
+    def has_error(self, program_id: int) -> bool:
+        """ Is there an error recorded for the program with the given id? """
+        return self.runs[program_id + self.external_count].has_error()
+
     def get_evaluation(self, with_equal: bool, with_unequal: bool, with_uncertain: bool) -> dict:
         """
 
@@ -556,7 +646,7 @@ class RunDataStatsHelper(object):
         """
         Serialize this instance into a data structure that is accepted by the ``init_from_dicts`` method.
         """
-        ret = [x.to_dict() for x in self.runs if x]
+        ret = [x.to_dict() for x in self.runs if x is not None]
         if self.property_descriptions:
             ps = {}  # type: t.Dict[str, str]
             props = self.properties()
@@ -648,7 +738,7 @@ class RunDataStatsHelper(object):
 
 class ExcludedInvalidData:
     """
-    Info object that contains informations about the excluded invalid data.
+    Info object that contains information about the excluded invalid data.
     """
 
     def __init__(self):

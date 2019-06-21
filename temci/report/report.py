@@ -73,7 +73,6 @@ class AbstractReporter:
         self.stats_helper = None  # type: RunDataStatsHelper
         """ Used starts helper """
         if stats_helper is None:
-            runs = []
             report_in = Settings()["report/in"]
             typecheck(report_in, Either(ValidYamlFileName(), ListOrTuple(ValidYamlFileName())))
             if isinstance(report_in, str):
@@ -116,7 +115,8 @@ class AbstractReporter:
                          "singles (clusters with a single entry, combined) separately, "
                          "'single': report all clusters together as one, "
                          "'cluster': report all clusters separately, "
-                         "'both': append the output of 'cluster' to the output of 'single'")
+                         "'both': append the output of 'cluster' to the output of 'single'"),
+    "report_errors": Bool() // Default(True) // Description("Report on the failing blocks")
 }))
 class ConsoleReporter(AbstractReporter):
     """
@@ -151,6 +151,8 @@ class ConsoleReporter(AbstractReporter):
                                      with_tester_results)
             if self.misc["mode"] in ["both", "cluster"]:
                 self._report_clusters(self.stats_helper.get_description_clusters(), print_func, with_tester_results)
+            if self.misc["report_errors"] and len(self.stats_helper.errorneous_runs) > 0:
+                self._report_errors(self.stats_helper.errorneous_runs, print_func)
             chown(f)
         if to_string:
             return output[0]
@@ -165,6 +167,8 @@ class ConsoleReporter(AbstractReporter):
 
     def _report_cluster(self, description: str, items: t.List[RunData], print_func: t.Callable[[str], None],
                         with_tester_results: bool):
+        if not items:
+            return
         print_func("Report for {}".format(description))
         for block in items:
             assert isinstance(block, RunData)
@@ -197,6 +201,7 @@ class ConsoleReporter(AbstractReporter):
                                                           with_unequal=False),
                               print_func)
 
+
     def _report_list(self, title: str, items: t.List[dict], print_func: t.Callable[[str], None]):
         if len(items) != 0:
             print_func(title)
@@ -212,6 +217,12 @@ class ConsoleReporter(AbstractReporter):
                 print_func("\t\t {descr:<18} probability = {perc:>10.0%}, speed up = {speed_up:>10.2%}"
                       .format(descr=prop_data["description"], perc=perc,
                               speed_up=prop_data["speed_up"]))
+
+    def _report_errors(self, errorneous_runs: t.List[RunData], print_func: t.Callable[[str], None]):
+        print_func("Errorneous runs")
+        print_func("####################")
+        for run in errorneous_runs:
+            print_func("""{d}:\n\t{m}""".format(d=run.description(), m="\n\t".join(str(run.recorded_error).split("\n"))))
 
 
 @register(ReporterRegistry, "html", Dict({

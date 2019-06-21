@@ -118,7 +118,7 @@ def run_temci_click(args: str, settings: dict = None, files: Dict[str, Union[dic
         sys.argv = args
         file_contents, yaml_contents = _load_files(files)
         ret = Result(result.output.strip(), str(result.stderr_bytes).strip(), result.exit_code, file_contents, yaml_contents)
-        if result.exception:
+        if result.exception and not isinstance(result.exception, SystemExit):
             print(repr(ret))
             raise result.exception
         if expect_success:

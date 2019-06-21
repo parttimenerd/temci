@@ -118,7 +118,9 @@ class Settings(metaclass=Singleton):
             "send_mail": Str() // Default("")
                          // Description("If not empty, recipient of a mail after the benchmarking finished."),
             "discard_all_data_for_block_on_error": Bool() // Default(False)
-                         // Description("Discard all run data for the failing program on error")
+                         // Description("Discard all run data for the failing program on error"),
+            "record_errors_in_file": Bool() // Default(True)
+                         // Description("Record the caught errors in the run_output file")
         }),
         "build": Dict({
             "rand": Dict({

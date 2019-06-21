@@ -19,3 +19,16 @@ def test_build_before_exec():
             },
         ]
     })
+
+
+def test_successful_run_errors():
+    d = run_temci("short exec true").yaml_contents["run_output.yaml"][0]
+    assert "internal_error" not in d
+    assert "error" not in d
+
+
+def test_errorneous_run():
+    d = run_temci("short exec 'exit 1'", expect_success=False).yaml_contents["run_output.yaml"][0]
+    assert "error" in d
+    e = d["error"]
+    assert e["return_code"] is 1

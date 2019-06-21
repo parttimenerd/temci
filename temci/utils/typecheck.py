@@ -373,7 +373,7 @@ class Type(object):
             return other
         return Either(self, other)
 
-    def __floordiv__(self, other: t.Union[str, Description, Default, CompletionHint,
+    def __floordiv__(self, other: t.Union[str, Description, Default, CompletionHint, 'Constraint',
                                           t.Callable[[t.Any], bool]]) -> 'Type':
         """
         Alias for Constraint(other, self). Self mustn't be a Type.
@@ -392,6 +392,8 @@ class Type(object):
             for shell in other.hints:
                 self.completion_hints[shell] = other.hints[shell]
             return self
+        if isinstance(other, Constraint):
+            return Constraint(other.constraint, self, other.description)
         if isinstance(other, Type):
             raise ConstraintError("{} mustn't be an instance of a Type subclass".format(other))
         return Constraint(other, self)

@@ -34,13 +34,6 @@ Number = t.Union[int, float]
 """ Numeric value """
 
 
-class TimeoutException(BaseException):
-
-    def __init__(self, cmd: str, timeout: float):
-        super().__init__("The following run command hit a timeout after {}: {}"
-                            .format(humanfriendly.format_timespan(timeout), cmd))
-
-
 class RunDriverRegistry(AbstractRegistry):
     """
     The registry for run drivers.
@@ -196,7 +189,8 @@ class BenchmarkingResultBlock:
     It includes the error object if an error occurred.
     """
 
-    def __init__(self, data: t.Dict[str, t.List[Number]] = None, error: BaseException = None):
+    def __init__(self, data: t.Dict[str, t.List[Number]] = None, error: BaseException = None,
+                 recorded_error: 'RecordedError' = None):
         """
         Creates an instance.
 
@@ -210,6 +204,7 @@ class BenchmarkingResultBlock:
             self.add_run_data(data)
         self.error = error  # type: t.Optional[BaseException]
         """ Exception object if something went wrong during benchmarking """
+        self.recorded_error = recorded_error
 
     def properties(self) -> t.List[str]:
         """ Get a list of the measured properties """
@@ -355,6 +350,24 @@ class AbstractRunDriver(AbstractRegistry):
                         // Description("Optional attributes that describe the block"),
                      "run_config": cls.block_type_scheme})
 
+
+class _Err:
+
+    def __init__(self, cmd: str, out: str, err: str, return_code: int):
+        self.messages = []
+        self.cmd = cmd
+        self.out = out
+        self.err = err
+        self.return_code = return_code
+
+    def append(self, message: str):
+        self.messages.append(message)
+
+    def error(self) -> 'BenchmarkingProgramError':
+        from temci.report.rundata import RecordedProgramError
+        return BenchmarkingProgramError(RecordedProgramError("\n".join(self.messages), self.out, self.err, self.return_code))
+
+
 @document(config_type_scheme="Configuration:")
 class ExecValidator:
     """
@@ -384,7 +397,7 @@ class ExecValidator:
 
         :param config: validator configuration
         """
-        self.config = config  # type: t.Dict[str, t.Union[t.List[int], t.List[str], int, str]
+        self.config = config  # type: t.Dict[str, t.Union[t.List[int], t.List[str], int, str]]
         """ Validator configuration """
 
     def validate(self, cmd: str, out: str, err: str, return_code: int):
@@ -397,42 +410,51 @@ class ExecValidator:
         :param return_code: passed program return code
         :raises BenchmarkingError: if the check failed
         """
+        error_messages = _Err(cmd, out, err, return_code)
         out = out.strip()
         err = err.strip()
-        self._match(cmd, "program output", out, self.config["expected_output"], True)
-        self._match(cmd, "program output", out, self.config["expected_output_contains"], True, contains=True)
-        self._match(cmd, "program output", out, self.config["unexpected_output_contains"], False, contains=True)
-        self._match(cmd, "program error output", err, self.config["expected_err_output"], True)
-        self._match(cmd, "program error output", err, self.config["expected_err_output_contains"], True, contains=True)
-        self._match(cmd, "program error output", err, self.config["unexpected_err_output_contains"], False, contains=True)
-        self._match_return_code(cmd, err, self.config["expected_return_code"], return_code)
+        self._match(error_messages, cmd, "program output", out, self.config["expected_output"], True)
+        self._match(error_messages, cmd, "program output", out, self.config["expected_output_contains"], True,
+                    contains=True)
+        self._match(error_messages, cmd, "program output", out, self.config["unexpected_output_contains"], False,
+                    contains=True)
+        self._match(error_messages, cmd, "program error output", err, self.config["expected_err_output"], True)
+        self._match(error_messages, cmd, "program error output", err, self.config["expected_err_output_contains"], True,
+                    contains=True)
+        self._match(error_messages, cmd, "program error output", err, self.config["unexpected_err_output_contains"], False,
+                    contains=True)
+        self._match_return_code(error_messages, cmd, err, self.config["expected_return_code"], return_code)
+        if error_messages.messages:
+            raise error_messages.error()
 
-    def _match(self, cmd: str, name: str, checked_str: str, checker: List(Str()) | Str(), expect_match: bool, contains: bool = False):
+    def _match(self, error_messages: _Err, cmd: str, name: str, checked_str: str, checker: List(Str()) | Str(),
+               expect_match: bool, contains: bool = False):
         if not isinstance(checker, List()):
             checker = [checker]
         if contains:
             bools = [check in checked_str for check in checker]
             if expect_match and not all(bools):
-                raise BenchmarkingError("{} for {!r} doesn't contain the string {!r}, it's: {}"
-                                        .format(name, cmd, checker[bools.index(False)], checked_str))
+                raise error_messages.append("{} doesn't contain the string {!r}, it's: {}"
+                                            .format(name, checker[bools.index(False)], checked_str))
             if not expect_match and any(bools):
-                raise BenchmarkingError("{} for {!r} contains the string {!r}, it's: {}"
-                                        .format(name, cmd, checker[bools.index(True)], checked_str))
+                raise error_messages.append("{} contains the string {!r}, it's: {}"
+                                            .format(name, checker[bools.index(True)], checked_str))
         else:
             matches = checked_str == checker[0]
             if expect_match and matches:
-                raise BenchmarkingError("{} for {!r} isn't the string {!r}, it's: {}"
-                                        .format(name, cmd, checker[0], checked_str))
+                raise error_messages.append("{} isn't the string {!r}, it's: {}"
+                                            .format(name, checker[0], checked_str))
             if not expect_match and not matches:
-                raise BenchmarkingError("{} for {!r} isn't the string {!r}, it's: {}"
-                                        .format(name, cmd, checker[0], checked_str))
+                raise error_messages.append("{} isn't the string {!r}, it's: {}"
+                                            .format(name, checker[0], checked_str))
 
-    def _match_return_code(self, cmd: str, err: str, exptected_codes: t.Union[t.List[int], int], return_code: int):
+    def _match_return_code(self, error_messages: _Err, cmd: str, err: str, exptected_codes: t.Union[t.List[int], int],
+                           return_code: int):
         if isinstance(exptected_codes, int):
             exptected_codes = [exptected_codes]
         if return_code not in exptected_codes:
-            raise BenchmarkingError("Unexpected return code {} of {!r}, expected {}\nstderr:\n{}"
-                                    .format(str(return_code), cmd, join_strs(list(map(str, exptected_codes)), "or"), err))
+            error_messages.append("Unexpected return code {}, expected {}"
+                                   .format(str(return_code), join_strs(list(map(str, exptected_codes)), "or"), err))
 
 
 _intel = ",disable_intel_turbo" if does_command_succeed("ls /sys/devices/system/cpu/intel_pstate/no_turbo") else ""
@@ -530,23 +552,26 @@ class ExecRunDriver(AbstractRunDriver):
     def benchmark(self, block: RunProgramBlock, runs: int,
                   cpuset: CPUSet = None, set_id: int = 0,
                   timeout: float = -1) -> BenchmarkingResultBlock:
+        from temci.report.rundata import RecordedInternalError
         block = block.copy()
         try:
             self._setup_block(block)
             gc.collect()
             gc.disable()
         except IOError as err:
-            return BenchmarkingResultBlock(error=err)
+            return BenchmarkingResultBlock(error=err, recorded_error=RecordedInternalError.for_exception(err))
         try:
             res = self._benchmark(block, runs, cpuset, set_id, timeout=timeout)
+        except BenchmarkingProgramError as ex:
+            return BenchmarkingResultBlock(error=ex, recorded_error=ex.recorded_error)
         except BaseException as ex:
-            return BenchmarkingResultBlock(error=ex)
+            return BenchmarkingResultBlock(error=ex, recorded_error=RecordedInternalError.for_exception(ex))
         finally:
             gc.enable()
         try:
             self._teardown_block(block)
         except BaseException as err:
-            return BenchmarkingResultBlock(error=err)
+            return BenchmarkingResultBlock(error=err, recorded_error=RecordedInternalError.for_exception(err))
         return res
 
     ExecResult = namedtuple("ExecResult", ['time', 'stderr', 'stdout'])
@@ -627,7 +652,7 @@ class ExecRunDriver(AbstractRunDriver):
                 except BaseException as err:
                     pass
             if isinstance(ex, subprocess.TimeoutExpired):
-                raise TimeoutException(executed_cmd, timeout)
+                raise TimeoutException(executed_cmd, timeout, str(out), str(err), proc.returncode)
             raise
 
     def teardown(self):
@@ -1426,3 +1451,22 @@ class BenchmarkingError(RuntimeError):
     """
     Thrown when the benchmarking of a program block fails.
     """
+
+
+class BenchmarkingProgramError(BenchmarkingError):
+    """
+    Thrown when the benchmarked program fails
+    """
+
+    def __init__(self, recorded_error: 'RecordedProgramError'):
+        super().__init__(recorded_error.message)
+        self.recorded_error = recorded_error
+
+
+class TimeoutException(BenchmarkingProgramError):
+
+    def __init__(self, cmd: str, timeout: float, out: str, err: str, ret_code: int):
+        from temci.report.rundata import RecordedProgramError
+        super().__init__(RecordedProgramError("The following run command hit a timeout after {}: {}"
+                                              .format(humanfriendly.format_timespan(timeout), cmd), out, err,
+                                              ret_code))

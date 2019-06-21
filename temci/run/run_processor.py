@@ -234,7 +234,7 @@ class RunProcessor:
             to_bench = list((i, b) for (i, b) in enumerate(self.run_blocks) if self._should_run(b, run))
             if not bench_all and self.block_run_count < self.max_runs and not in_standalone_mode:
                 to_bench = [(i, self.run_blocks[i]) for i in self.stats_helper.get_program_ids_to_bench()]
-            to_bench = [(i, b) for (i, b) in to_bench if self.stats_helper.runs[i] is not None]
+            to_bench = [(i, b) for (i, b) in to_bench if self.stats_helper.runs[i] is not None and not self.stats_helper.has_error(i)]
             if self.shuffle:
                 random.shuffle(to_bench)
             if len(to_bench) == 0:
@@ -252,6 +252,9 @@ class RunProcessor:
                     self.erroneous_run_blocks.append((id, result))
                     if self.discard_all_data_for_block_on_error:
                         self.stats_helper.discard_run_data(id)
+                    if result.recorded_error:
+                        self.stats_helper.add_data_block(id, result.data)
+                        self.stats_helper.add_error(id, result.recorded_error)
                     logging.error("Program block no. {} failed: {}".format(id, result.error))
                     logging.debug("".join(traceback.format_exception(None, result.error, result.error.__traceback__)))
                     self.store_erroneous()
@@ -269,7 +272,7 @@ class RunProcessor:
             self.store()
 
     def _should_run(self, block: RunProgramBlock, run: int = None) -> bool:
-        return run < block.max_runs if run is not None else True
+        return run < block.max_runs if run is not None else not self.stats_helper.has_error(block.id)
 
     def _make_discarded_runs(self) -> t.Optional[int]:
         if self.discarded_runs == 0:
@@ -318,8 +321,8 @@ class RunProcessor:
             self.stats_helper.add_property_descriptions(self.pool.run_driver.get_property_descriptions())
         except (IOError, OSError) as ex:
             logging.error(ex)
-        if len(self.stats_helper.valid_runs()) > 0 \
-            and all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
+        if (len(self.stats_helper.valid_runs()) > 0 and all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs())) \
+            or Settings()["run/record_errors_in_file"]:
             with open(Settings()["run/out"], "w") as f:
                 f.write(yaml.dump(self.stats_helper.serialize()))
                 chown(f)
@@ -342,7 +345,6 @@ class RunProcessor:
             return
         """ Print a short report if possible. """
         try:
-            if any(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):
-                ReporterRegistry.get_for_name("console", self.stats_helper).report(with_tester_results=False)
+            ReporterRegistry.get_for_name("console", self.stats_helper).report(with_tester_results=False)
         except:
             pass
