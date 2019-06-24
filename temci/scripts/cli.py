@@ -2,6 +2,7 @@ import locale
 from enum import Enum
 
 from temci.utils.number import FNumber
+from temci.utils.plugin import load_plugins
 from temci.utils.util import sphinx_doc, get_doc_for_type_scheme
 
 import warnings
@@ -50,8 +51,11 @@ class ErrorCode(Enum):
     TEMCI_ERROR = 255
 
 
+load_plugins()
+
+
 @click.group(epilog="""
-temci (version {})  Copyright (C) 2016 Johannes Bechberger
+temci (version {})  Copyright (C) 2019 Johannes Bechberger
 
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
@@ -60,6 +64,9 @@ For details, see the LICENSE file in the source folder of temci.
 
 This program is still in an alpha stage. It may happen that
 your system needs to be rebooted to be usable again.
+
+Plugins are loaded from `~/.temci` and from the environment
+variable `TEMCI_PLUGIN_PATH` (colon separated paths).
 """.format(temci.scripts.version.version))
 def cli():
     if "TEMCI_ENV" in os.environ:

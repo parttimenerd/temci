@@ -29,7 +29,7 @@ class Result(NamedTuple):
 
 
 def run_temci_proc(args: str, settings: dict = None, files: Dict[str, Union[dict, list, str]] = None,
-                   expect_success: bool = True) \
+                   expect_success: bool = True, misc_env: Dict[str, str] = None) \
         -> Result:
     """
     Run temci with the passed arguments
@@ -37,6 +37,7 @@ def run_temci_proc(args: str, settings: dict = None, files: Dict[str, Union[dict
     :param settings: settings dictionary, stored in a file called `settings.yaml` and appended to the arguments
     :param files: {file name: content as string or dictionary that is converted into YAML first}c at
     :param expect_success: expect a zero return code
+
     :return: result of the call
     """
     with tempfile.TemporaryDirectory() as d:
@@ -48,6 +49,7 @@ def run_temci_proc(args: str, settings: dict = None, files: Dict[str, Union[dict
             cmd += " --config settings.yaml"
         env = os.environ.copy()
         env["LC_ALL"] = "en_US.utf-8"
+        env.update(misc_env or {})
         proc = subprocess.Popen(["/bin/sh", "-c", cmd],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
@@ -89,7 +91,7 @@ def _load_files(files: Dict[str, Any], d: str = ".") -> Tuple[Dict[str, str], Di
 
 
 def run_temci_click(args: str, settings: dict = None, files: Dict[str, Union[dict, list, str]] = None,
-                    expect_success: bool = True) \
+                    expect_success: bool = True, misc_env: Dict[str, str] = None) \
         -> Result:
     """
     Run temci with the passed arguments
@@ -98,6 +100,7 @@ def run_temci_click(args: str, settings: dict = None, files: Dict[str, Union[dic
     :param settings: settings dictionary, stored in a file called `settings.yaml` and appended to the arguments
     :param files: {file name: content as string or dictionary that is converted into YAML first}
     :param expect_success: expect a zero return code
+    :param misc_env: additional environment variables
     :return: result of the call
     """
 
@@ -109,9 +112,10 @@ def run_temci_click(args: str, settings: dict = None, files: Dict[str, Union[dic
         _store_files(files)
         with open("settings.yaml", "w") as f:
             yaml.dump(set, f)
-        cmd += " --config settings.yaml"
+        cmd += " --settings settings.yaml"
         env = os.environ.copy()
         env["LC_ALL"] = "en_US.utf-8"
+        env.update(misc_env or {})
         args = sys.argv.copy()
         sys.argv = shlex.split("temci " + cmd)
         result = runner.invoke(cli, cmd, env=env, catch_exceptions=True)
@@ -127,7 +131,7 @@ def run_temci_click(args: str, settings: dict = None, files: Dict[str, Union[dic
 
 
 def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, list, str]] = None,
-              expect_success: bool = True) \
+              expect_success: bool = True, misc_env: Dict[str, str] = None) \
         -> Result:
     """
     Run temci with the passed arguments
@@ -136,9 +140,10 @@ def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, lis
     :param settings: settings dictionary, stored in a file called `settings.yaml` and appended to the arguments
     :param files: {file name: content as string or dictionary that is converted into YAML first}
     :param expect_success: expect a zero return code
+    :param misc_env: additional environment variables
     :return: result of the call
     """
     if os.getenv("TEMCI_TEST_CMD"):
-        return run_temci_proc(args, settings, files, expect_success)
-    return run_temci_click(args, settings, files, expect_success)
+        return run_temci_proc(args, settings, files, expect_success, misc_env=misc_env)
+    return run_temci_click(args, settings, files, expect_success, misc_env=misc_env)
 
