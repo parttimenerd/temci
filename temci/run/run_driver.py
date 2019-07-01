@@ -1008,13 +1008,15 @@ class PerfStatExecRunner(ExecRunner):
                 try:
                     line = line.strip()
                     assert prop in line or prop == "wall-clock"
+                    if prop == "wall-clock" and "time elapsed" not in line:
+                        continue
                     val = ""  # type: str
                     if ";" in line:  # csv output with separator ';'
                         val = line.split(";")[0]
                     else:
                         val = line.split(" ")[0]
                     val = val.replace(",", "")
-                    divisor = 1000.0 if "(msec)" in line else 1
+                    divisor = 1000.0 if "msec" in line else 1
                     m[prop] = (float(val) / divisor) if "." in val else (int(val) // divisor)
                     missing_props -= 1
                 except BaseException as ex:
