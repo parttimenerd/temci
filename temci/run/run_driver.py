@@ -527,6 +527,7 @@ class ExecRunDriver(AbstractRunDriver):
             block["run_cmds"] = block["run_cmd"] + [block["cmd"]] if block["cmd"] != "" else block["run_cmd"]
         else:
             block["run_cmds"] = [block["run_cmd"] + block["cmd"]]
+        block["run_cmds"] = [cmd.replace("&", "&&").replace("$SUDO$", "&SUDO&") for cmd in block["run_cmds"]]
         if isinstance(block["cwd"], List(Str())):
             if len(block["cwd"]) != len(block["run_cmd"]) and not isinstance(block["run_cmd"], str):
                 raise ValueError("Number of passed working directories {} "
@@ -610,10 +611,18 @@ class ExecRunDriver(AbstractRunDriver):
         typecheck(cmds, List(Str()))
         rand_index = random.randrange(0, len(cmds)) if self.misc_settings["random_cmd"] else 0
         cmd = cmds[rand_index]
+        if "$SUDO$" not in cmd:
+            cmd = "$SUDO$ " + cmd
+        if cmd.count("$SUDO$") == 1:
+            cmd += " $SUDO$"
+        pre, center, post = cmd.split("$SUDO$")
         if bench_as_different_user():
-            cmd = "sudo -u {} -E  PATH={} sh -c {}".format(get_bench_user(),
+            cmd = pre + " sudo -u {} -E  PATH={} sh -c {}".format(get_bench_user(),
                                                            shlex.quote(Settings()["env"]["PATH"]),
-                                                           shlex.quote(cmd))
+                                                           shlex.quote(center)) + post
+        else:
+            cmd = pre + " " + center + " " + post
+        cmd = cmd.replace("&SUDO&", "$SUDO$") .replace("&&", "&")
         cwd = block["cwds"][rand_index]
         executed_cmd = block["cmd_prefix"] + [cmd]
         if cpuset is not None and has_root_privileges():
@@ -968,7 +977,7 @@ class PerfStatExecRunner(ExecRunner):
         do_repeat = self.misc["repeat"] > 1
 
         def modify_cmd(cmd):
-            return "perf stat --sync {cpus} {repeat} {x} -e {props} -- {cmd}".format(
+            return "perf stat --sync {cpus} {repeat} {x} -e {props} -- $SUDO$ {cmd}".format(
                 props=",".join(x for x in self.misc["properties"] if x != "wall-clock"),
                 cmd=cmd,
                 repeat="--repeat {}".format(self.misc["repeat"]) if do_repeat else "",
