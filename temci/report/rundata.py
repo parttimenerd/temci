@@ -288,7 +288,8 @@ class RunDataStatsHelper(object):
 
     def __init__(self, runs: t.List[RunData], tester: Tester = None, external_count: int = 0,
                  property_descriptions: t.Dict[str, str] = None,
-                 errorneous_runs: t.List[RunData] = None):
+                 errorneous_runs: t.List[RunData] = None,
+                 included_blocks: str = None):
         """
         Don't use the constructor use init_from_dicts if possible.
 
@@ -298,12 +299,13 @@ class RunDataStatsHelper(object):
         different benchmarking session)
         :param property_descriptions: mapping of some properties to their descriptions or longer versions
         :param errorneous_runs: runs that resulted in errors
+        :param included_blocks: include query
         """
         self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),  # type: Tester
                                                             Settings()["stats/uncertainty_range"])
         """ Used statistical tester """
         typecheck(runs, List(T(RunData)))
-        self.runs = filter_runs(runs, Settings()["report/included_blocks"])  # type: t.List[RunData]
+        self.runs = filter_runs(runs, included_blocks or Settings()["report/included_blocks"])  # type: t.List[RunData]
         self.errorneous_runs = errorneous_runs or [r for r in self.runs if r.has_error()]
         self.runs = [r for r in self.runs if not r.has_error() or (any(len(v) > 0 for v,p in r.data.items()))]
         """ Data of serveral runs from several measured program blocks """
@@ -398,7 +400,8 @@ class RunDataStatsHelper(object):
 
     @classmethod
     def init_from_dicts(cls, runs: t.List[t.Union[t.Dict[str, str], t.Dict[str, t.List[Number]]]] = None,
-                        external: bool = False) -> 'RunDataStatsHelper':
+                        external: bool = False,
+                        included_blocks: str = None) -> 'RunDataStatsHelper':
         """
         Expected structure of the stats settings and the runs parameter::
 
@@ -422,6 +425,7 @@ class RunDataStatsHelper(object):
 
         :param runs: list of dictionaries representing the benchmarking runs for each program block
         :param external: are the passed runs not from this benchmarking session but from another?
+        :param included_blocks: include query
         :raises ValueError: if the stats of the runs parameter have not the correct structure
         """
         typecheck(runs, List(
@@ -451,7 +455,7 @@ class RunDataStatsHelper(object):
                 run_datas.append(RunData(run["data"], run["attributes"] if "attributes" in run else {}, recorded_error=error,
                                          external=external))
         return RunDataStatsHelper(run_datas, external_count=len(run_datas) if external else 0,
-                                  property_descriptions=prop_descrs)
+                                  property_descriptions=prop_descrs, included_blocks=included_blocks)
 
     def _is_uncertain(self, property: str, data1: RunData, data2: RunData) -> bool:
         return self.tester.is_uncertain(data1[property], data2[property])

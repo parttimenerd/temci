@@ -77,7 +77,8 @@ class RunProcessor:
                 self.teardown()
                 raise
         else:
-            self.stats_helper = RunDataStatsHelper.init_from_dicts(copy.deepcopy(runs))
+            self.stats_helper = RunDataStatsHelper.init_from_dicts(copy.deepcopy(runs),
+                                                                   included_blocks=Settings()["run/included_blocks"])
         #if Settings()["run/remote"]:
         #    self.pool = RemoteRunWorkerPool(Settings()["run/remote"], Settings()["run/remote_port"])
             if os.path.exists(Settings()["run/out"]):
@@ -301,8 +302,7 @@ class RunProcessor:
             report = ""
             if not in_standalone_mode:
                 report = ReporterRegistry.get_for_name("console", self.stats_helper)\
-                         .report(with_tester_results=False, to_string = True)
-            self.stats_helper.valid_runs()[0].description()
+                         .report(with_tester_results=False, to_string=True)
             subject = "Finished " + join_strs([repr(run.description()) for run in self.stats_helper.valid_runs()])
             send_mail(Settings()["run/send_mail"], subject, report, [Settings()["run/out"]])
         if self.recorded_error():

@@ -3,7 +3,7 @@ Tests for runners and related code
 """
 import pytest
 
-from tests.utils import run_temci
+from tests.utils import run_temci, run_temci_proc
 
 
 def test_parse_output_option():
@@ -46,3 +46,8 @@ def test_check_tag_attribute():
                 }
             ]
         }).ret_code != 0
+
+
+def test_included_blocks():
+    out = run_temci("short exec echo ls --included_blocks ls --runs 1").out
+    assert "ls" in out and "echo" not in out

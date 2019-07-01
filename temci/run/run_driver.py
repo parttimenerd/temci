@@ -72,10 +72,14 @@ def filter_runs(blocks: t.List[t.Union['RunProgramBlock','RunData']], included: 
     :param included: include query
     :return: filtered list
     """
-    return [block for block in blocks
+    list = [block for block in blocks
             if ("description" in block.attributes and block.attributes["description"] in included) or
             (isinstance(block, RunProgramBlock) and str(block.id) in included) or "all" in included or
             ("tags" in block.attributes and any(tag in included for tag in block.attributes["tags"]))]
+    for i, x in enumerate(list):
+        if isinstance(x, RunProgramBlock):
+            x.id = i
+    return list
 
 
 class RunProgramBlock:
