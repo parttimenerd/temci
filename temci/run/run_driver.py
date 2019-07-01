@@ -1261,7 +1261,7 @@ class CPUSpecExecRunner(ExecRunner):
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         data = {}  # type: t.Dict[str, t.List[float]]
         pre_data = {}  # type: t.Dict[str, t.Dict[int, float]]
-        prop_pattern = re.compile("spec\.cpu[0-9]{4}\.results\.")
+        prop_pattern = re.compile(r"spec\.cpu[0-9]{4}\.results\.")
         lines = exec_res.stdout.strip().split("\n")
         file_lines = []
         n = len(self.misc["files"])

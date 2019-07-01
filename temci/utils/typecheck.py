@@ -285,7 +285,7 @@ class Default:
         """ Default value of the annotated type """
 
 
-YAML_FILE_COMPLETION_HINT = "_files -g '*\.yaml'"  # type: str
+YAML_FILE_COMPLETION_HINT = r"_files -g '*\.yaml'"  # type: str
 """ YAML file name completion hint for ZSH """
 
 class CompletionHint(object):

@@ -591,7 +591,7 @@ _temci(){{
         """.format(misc_cmd=misc_cmd,
                    sub_cmds="\n\t".join("\"{}:{}\"".format(x, misc_commands_description[misc_cmd][x])
                                         for x in misc_commands_description[misc_cmd]))
-    ret_str += """
+    ret_str += r"""
             (build|report|{drivers})
                 _arguments "2: :_files -g '*\.yaml' "\
             ;;
