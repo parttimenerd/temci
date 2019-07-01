@@ -253,7 +253,8 @@ class RunProcessor:
                     if self.discard_all_data_for_block_on_error:
                         self.stats_helper.discard_run_data(id)
                     if result.recorded_error:
-                        self.stats_helper.add_data_block(id, result.data)
+                        if not self.discard_all_data_for_block_on_error:
+                            self.stats_helper.add_data_block(id, result.data)
                         self.stats_helper.add_error(id, result.recorded_error)
                     logging.error("Program block no. {} failed: {}".format(id, result.error))
                     logging.debug("".join(traceback.format_exception(None, result.error, result.error.__traceback__)))
