@@ -3,6 +3,7 @@ Tests for runners and related code
 """
 import pytest
 
+from temci.scripts.cli import ErrorCode
 from tests.utils import run_temci, run_temci_proc
 
 
@@ -51,3 +52,7 @@ def test_check_tag_attribute():
 def test_included_blocks():
     out = run_temci("short exec echo ls --included_blocks ls --runs 1").out
     assert "ls" in out and "echo" not in out
+
+
+def test_discard_blocks_on_error():
+    assert run_temci("short exec 'exit 1' --discard_all_data_for_block_on_error", expect_success=False).ret_code == ErrorCode.PROGRAM_ERROR.value
