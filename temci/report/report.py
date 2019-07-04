@@ -2274,6 +2274,8 @@ class CSVReporter(AbstractReporter):
     "project": Str() // Default("") // Description("Project name reported to codespeed."),
     "executable": Str() // Default("") // Description("Executable name reported to codespeed. Defaults to the project name."),
     "environment": Str() // Default("") // Description("Environment name reported to codespeed. Defaults to current host name."),
+    "branch": Str() // Default("") // Description("Branch name reported to codespeed. Defaults to current branch or else 'master'."),
+    "commit_id": Str() // Default("") // Description("Commit ID reported to codespeed. Defaults to current commit."),
 }))
 class CodespeedReporter(AbstractReporter):
     """
@@ -2297,8 +2299,8 @@ class CodespeedReporter(AbstractReporter):
             "project": self.misc["project"],
             "executable": self.misc["executable"] or self.misc["project"],
             "environment": self.misc["environment"] or platform.node(),
-            "branch": branch,
-            "commitid": branch and vcs_driver.get_info_for_revision(branch)["commit_id"],
+            "branch": self.misc["branch"] or branch or "master",
+            "commitid": self.misc["commit_id"] or (branch and vcs_driver.get_info_for_revision(branch)["commit_id"]),
         }
         data = [self._report_prop(run, prop)
                 for run in self.stats_helper.runs
