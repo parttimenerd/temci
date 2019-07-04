@@ -114,6 +114,12 @@ class RunProgramBlock:
         self.max_runs = get_for_tags("run/max_runs_per_tag", "run/max_runs", self.tags, min)
         if "max_runs" in self.data and self.data["max_runs"] > -1:
             self.max_runs = min(self.max_runs, self.data["max_runs"])
+        self.min_runs = get_for_tags("run/min_runs_per_tag", "run/min_runs", self.tags, max)
+        if "min_runs" in self.data and self.data["min_runs"] > -1:
+            self.min_runs = max(self.min_runs, self.data["min_runs"])
+        self.runs = get_for_tags("run/runs_per_tag", "run/runs", self.tags, max)
+        if "runs" in self.data and self.data["min_runs"] > -1:
+            self.runs = max(self.runs, self.data["runs"])
 
     def __getitem__(self, key: str) -> t.Any:
         """
@@ -514,6 +520,10 @@ class ExecRunDriver(AbstractRunDriver):
             "Configuration for the output and return code validator"),
         "max_runs": Int(lambda x: x >= -1) // Default(-1) // Description("Override all other max run"
                                                                          "specifications if > -1"),
+        "min_runs": Int(lambda x: x >= -1) // Default(-1) // Description("Override all other min run"
+                                                                         "specifications if > -1"),
+        "runs": Int(lambda x: x >= -1) // Default(-1) // Description("Override min run and max run"
+                                                                     "specifications if > -1"),
         "parse_output": Bool() // Default(False) // Description("Parse the program output as a YAML dictionary of "
                                                                 "that gives for a specific property a measurement. "
                                                                 "Not all runners support it.")

@@ -76,6 +76,14 @@ class Settings(metaclass=Singleton):
             "max_runs": NaturalNumber() // Default(100) // Description("Maximum number of benchmarking runs"),
             "max_runs_per_tag": Dict(unknown_keys=True, key_type=Str() // Description("Tag"), value_type=NaturalNumber() // Description("Max runs"))
                                  // Default({}) // Description("Maximum runs per tag (block attribute 'tag'), min('max_runs', 'per_tag') is used"),
+            "min_runs_per_tag": Dict(unknown_keys=True, key_type=Str() // Description("Tag"),
+                                     value_type=NaturalNumber() // Description("Min runs"))
+                                // Default({}) // Description(
+                                "Minimum runs per tag (block attribute 'tag'), max('min_runs', 'per_tag') is used"),
+            "runs_per_tag": Dict(unknown_keys=True, key_type=Str() // Description("Tag"),
+                                     value_type=NaturalNumber() // Description("Runs"))
+                                // Default({}) // Description(
+                                 "Runs per tag (block attribute 'tag'), max('runs', 'per_tag') is used"),
             "runs": Int(lambda x: x >= -1) // Default(-1) // Description("if != -1 sets max and min runs to its value"),
             "max_time": ValidTimeSpan() // Default("-1") // Description("Maximum time the whole benchmarking should take, "
                                                                         "-1 == no timeout, supports normal time span expressions"), # in seconds

@@ -135,7 +135,13 @@ class RunProcessor:
         if self.fixed_runs:
             return self.block_run_count >= self.max_runs
         return (len(self.stats_helper.get_program_ids_to_bench()) == 0 \
-               or not self._can_run_next_block()) and self.min_runs <= self.block_run_count
+               or not self._can_run_next_block()) and self.maximum_of_min_runs() <= self.block_run_count
+
+    def maximum_of_min_runs(self) -> int:
+        return max(list(block.min_runs for block in self.run_blocks) + [self.min_runs])
+
+    def maximum_of_max_runs(self) -> int:
+        return max(list(block.max_runs for block in self.run_blocks) + [self.max_runs])
 
     def _can_run_next_block(self) -> bool:
         if not in_standalone_mode:
@@ -148,7 +154,7 @@ class RunProcessor:
                                 .format(humanfriendly.format_timespan(time.time() + estimated_time - self.start_time),
                                         to_bench_count))
                 return False
-        if self.block_run_count >= self.max_runs and self.block_run_count >= self.min_runs:
+        if self.block_run_count >= self.maximum_of_max_runs() and self.block_run_count >= self.maximum_of_min_runs():
             #print("benchmarked too often, block run count ", self.block_run_count, self.block_run_count + self.run_block_size > self.min_runs)
             logging.warning("Benchmarked program blocks too often and aborted therefore now.")
             return False
@@ -230,11 +236,11 @@ class RunProcessor:
     def _benchmarking_block_run(self, block_size: int = None, discard: bool = False, bench_all: bool = None, run: int = None):
         block_size = block_size or self.run_block_size
         if bench_all is None:
-            bench_all = self.block_run_count < self.min_runs
+            bench_all = self.block_run_count < self.maximum_of_min_runs()
         try:
             to_bench = list((i, b) for (i, b) in enumerate(self.run_blocks) if self._should_run(b, run))
             if not bench_all and self.block_run_count < self.max_runs and not in_standalone_mode:
-                to_bench = [(i, self.run_blocks[i]) for i in self.stats_helper.get_program_ids_to_bench()]
+                to_bench = [(i, self.run_blocks[i]) for i in self.stats_helper.get_program_ids_to_bench() if self._should_run(self.run_blocks[i], run)]
             to_bench = [(i, b) for (i, b) in to_bench if self.stats_helper.runs[i] is not None and not self.stats_helper.has_error(i)]
             if self.shuffle:
                 random.shuffle(to_bench)

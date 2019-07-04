@@ -5,13 +5,25 @@ from tests.utils import run_temci
 
 
 def test_max_runs_per_block():
-    assert "3 single bench" in run_temci("exec bla.yaml", files={"bla.yaml": [{
-        "run_config":
-            {
-                "cmd": "ls",
-                "max_runs": 3
+    assert " 1 single bench" in run_temci("exec bla.yaml", settings={
+            "run": {
+                "max_runs": 4,
+                "min_runs": 2
             }
-    }]}).out
+        },
+        files={"bla.yaml": [{
+          "run_config":
+              {
+                  "cmd": "ls",
+                  "max_runs": 1
+              }
+          }, {
+          "run_config":
+              {
+                  "cmd": "ls .",
+                  "max_runs": 3
+              }
+          }]}).out
 
 
 def test_config_default_values():

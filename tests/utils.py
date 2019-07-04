@@ -107,6 +107,7 @@ def run_temci_click(args: str, settings: dict = None, files: Dict[str, Union[dic
 
     runner = CliRunner()
     set = Settings().type_scheme.get_default().copy()
+    prior = set.copy()
     set.update(settings or {})
     with runner.isolated_filesystem():
         cmd = args
@@ -122,6 +123,7 @@ def run_temci_click(args: str, settings: dict = None, files: Dict[str, Union[dic
         sys.argv = args
         file_contents, yaml_contents = _load_files(files)
         ret = Result(result.output.strip(), str(result.stderr_bytes).strip(), result.exit_code, file_contents, yaml_contents)
+        Settings().load_from_dict(prior)
         if result.exception and not isinstance(result.exception, SystemExit):
             print(repr(ret))
             raise result.exception
