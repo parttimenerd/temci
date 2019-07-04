@@ -123,6 +123,7 @@ class RunData(object):
         self.tags = attributes["tags"] if "tags" in self.attributes else None
         self.max_runs = get_for_tags("run/max_runs_per_tag", "run/max_runs", self.tags, min)
         self.recorded_error = recorded_error
+        self.discarded = False
 
     def clone(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
               recorded_error: RecordedError = None, external: bool = None) -> 'RunData':
@@ -581,7 +582,7 @@ class RunDataStatsHelper(object):
         """
         Disable that run data object with the given id.
         """
-        self.runs[id] = None
+        self.runs[id].discarded = True
 
     def add_data_block(self, program_id: int, data_block: t.Dict[str, t.List[Number]]):
         """
@@ -632,7 +633,7 @@ class RunDataStatsHelper(object):
         arr = []
         for i in range(0, len(self.runs) - 1):
             for j in range(i + 1, len(self.runs)):
-                if not self.runs[i] or not self.runs[j]:
+                if self.runs[i].discarded or self.runs[j].discarded:
                     continue
                 data = (self.runs[i], self.runs[j])
                 props = {}
@@ -657,7 +658,7 @@ class RunDataStatsHelper(object):
         """
         Serialize this instance into a data structure that is accepted by the ``init_from_dicts`` method.
         """
-        ret = [x.to_dict() for x in self.runs if x is not None]
+        ret = [x.to_dict() for x in self.runs if not x.discarded]
         if self.property_descriptions:
             ps = {}  # type: t.Dict[str, str]
             props = self.properties()
@@ -669,7 +670,7 @@ class RunDataStatsHelper(object):
 
     def valid_runs(self) -> t.List[RunData]:
         """ Number of valid (with measured data) runs """
-        res = [x for x in self.runs if x is not None]
+        res = [x for x in self.runs if not x.discarded]
         return res
 
     def exclude_properties(self, properties: t.List[str]) -> 'RunDataStatsHelper':
@@ -681,7 +682,7 @@ class RunDataStatsHelper(object):
         """
         runs = []
         for run in self.runs:
-            if run is not None:
+            if not run.discarded:
                 runs.append(run.exclude_properties(properties))
         return self.clone(runs=runs)
 
@@ -694,7 +695,7 @@ class RunDataStatsHelper(object):
         """
         runs = []
         for run in self.runs:
-            if run is not None:
+            if not run.discarded:
                 runs.append(run.include_properties(properties))
         return self.clone(runs=runs)
 
@@ -741,7 +742,7 @@ class RunDataStatsHelper(object):
         for p in self.property_descriptions:
             formatted_properties[p] = property_format.format(self.property_descriptions[p])
         for run in self.runs:
-            if run is not None:
+            if not run.discarded:
                 runs.append(run.long_properties(formatted_properties))
 
         return self.clone(runs=runs), formatted_properties

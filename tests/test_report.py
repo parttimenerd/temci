@@ -32,6 +32,7 @@ def test_support_multiple_inputs():
                     }).out
     assert any("XYZ [1]" in l and "XYZ [2]" in l for l in out.split("\n"))
 
+    
 def test_codespeed_reporter():
     d = lambda: {
         "attributes": {"description": "XYZ"},
@@ -51,6 +52,7 @@ def test_codespeed_reporter():
     assert len(j) == 1
     assert j[0]["benchmark"] == "XYZ: p"
 
+    
 def test_codespeed_reporter_failed():
     d = lambda: {
         "attributes": {"description": "XYZ"},
@@ -73,3 +75,14 @@ def test_codespeed_reporter_failed():
                     }).out
     j = json.loads(out)
     assert len(j) == 1
+
+    
+def test_html2_with_single():
+    assert "report.html" in run_temci("report --reporter html2 in.yaml", files={
+        "in.yaml": [
+            {
+                "attributes": {"description": "XYZ"},
+                "data": {"p": [1]}
+            }
+        ]
+    }).file_contents

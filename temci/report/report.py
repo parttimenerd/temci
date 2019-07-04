@@ -151,6 +151,7 @@ class ConsoleReporter(AbstractReporter):
                                      with_tester_results)
             if self.misc["mode"] in ["both", "cluster"]:
                 self._report_clusters(self.stats_helper.get_description_clusters(), print_func, with_tester_results)
+                print_func("")
             if self.misc["report_errors"] and len(self.stats_helper.errorneous_runs) > 0:
                 self._report_errors(self.stats_helper.errorneous_runs, print_func)
             chown(f)
@@ -170,6 +171,7 @@ class ConsoleReporter(AbstractReporter):
         if not items:
             return
         print_func("Report for {}".format(description))
+        descr_size = max(len(prop) for block in items for prop in block.properties)
         for block in items:
             assert isinstance(block, RunData)
             print_func("{descr:<20} ({num:>5} single benchmarks)"
@@ -179,9 +181,11 @@ class ConsoleReporter(AbstractReporter):
                 std = np.std(block[prop])
                 mean_str = str(FNumber(mean, abs_deviation=std))
                 dev = "{:>5.5%}".format(std / mean) if mean != 0 else "{:>5.5}".format(std)
-                print_func("\t {prop:<18} mean = {mean:>15s}, deviation = {dev}".format(
+                print_func("\t {{prop:<{}}} mean = {{mean:>15s}}, deviation = {{dev}}".format(descr_size)
+                    .format(
                     prop=prop, mean=mean_str,
                     dev=dev))
+            print_func("")
         if with_tester_results:
             stats_helper = RunDataStatsHelper(items, self.stats_helper.tester,
                                               property_descriptions=self.stats_helper.property_descriptions)
@@ -189,23 +193,22 @@ class ConsoleReporter(AbstractReporter):
                               stats_helper.get_evaluation(with_equal=True,
                                                           with_uncertain=False,
                                                           with_unequal=False),
-                              print_func)
+                              print_func, descr_size)
             self._report_list("Unequal program blocks",
                               stats_helper.get_evaluation(with_equal=False,
                                                           with_uncertain=False,
                                                           with_unequal=True),
-                              print_func)
+                              print_func, descr_size)
             self._report_list("Uncertain program blocks",
                               stats_helper.get_evaluation(with_equal=False,
                                                           with_uncertain=True,
                                                           with_unequal=False),
-                              print_func)
+                              print_func, descr_size)
 
 
-    def _report_list(self, title: str, items: t.List[dict], print_func: t.Callable[[str], None]):
+    def _report_list(self, title: str, items: t.List[dict], print_func: t.Callable[[str], None], descr_size: int):
         if len(items) != 0:
             print_func(title)
-            print_func("####################")
         for item in items:
             print_func("\t {}  ⟷  {}".format(item["data"][0].description(),
                                        item["data"][1].description()))
@@ -214,15 +217,15 @@ class ConsoleReporter(AbstractReporter):
                 perc = prop_data["p_val"]
                 if prop_data["unequal"]:
                     perc = 1 - perc
-                print_func("\t\t {descr:<18} probability = {perc:>10.0%}, speed up = {speed_up:>10.2%}"
-                      .format(descr=prop_data["description"], perc=perc,
+                print_func("\t\t {{descr:<{}}} confidence = {{perc:>10.0%}}, speed up = {{speed_up:>10.2%}}"
+                      .format(descr_size).format(descr=prop_data["description"], perc=perc,
                               speed_up=prop_data["speed_up"]))
+            print_func("")
 
     def _report_errors(self, errorneous_runs: t.List[RunData], print_func: t.Callable[[str], None]):
         print_func("Errorneous runs")
-        print_func("####################")
         for run in errorneous_runs:
-            print_func("""{d}:\n\t{m}""".format(d=run.description(), m="\n\t".join(str(run.recorded_error).split("\n"))))
+            print_func("""\t{d}:\n\t\t{m}""".format(d=run.description(), m="\n\t\t".join(str(run.recorded_error).split("\n"))))
 
 
 @register(ReporterRegistry, "html", Dict({

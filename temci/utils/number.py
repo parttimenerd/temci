@@ -98,7 +98,7 @@ class FNumber:
             return str(self.number)
         dev = self.deviation
         parentheses = self.parentheses
-        if dev is None:
+        if dev is None or dev is 0:
             dev = 0
             parentheses = False
         num = self.number
@@ -160,7 +160,7 @@ def format_number(number: Number, deviation: float = 0.0,
     :param scientific_notation_decimal_places: number of decimal places that are shown in the scientic notation
     :param scientific_notation_si_prefixes: use si prefixes instead of "e…"
     :param force_min_decimal_places: don't omit the minimum number of decimal places if insignificant?
-    :param relative_to_deviation: format the number relative to its deviation, i.e. "10\sigma"
+    :param relative_to_deviation: format the number relative to its deviation, i.e. "10 sigma"
     :param sigmas: number of standard deviations for significance
     :param parentheses_mode: mode for selecting the significant digits
     :return: the number formatted as a string
@@ -240,7 +240,9 @@ def _format_number(number: Number, deviation: float,
                             scientific_notation_si_prefixes=scientific_notation_si_prefixes,
                             sigmas=sigmas)
         return num + "±" + dev
-    last_sig = _last_significant_digit(number, deviation, sigmas, parentheses_mode)
+    last_sig = -10000
+    if not math.isnan(deviation):
+        last_sig = _last_significant_digit(number, deviation, sigmas, parentheses_mode)
 
     num = ""
 

@@ -591,17 +591,54 @@ _temci(){{
         """.format(misc_cmd=misc_cmd,
                    sub_cmds="\n\t".join("\"{}:{}\"".format(x, misc_commands_description[misc_cmd][x])
                                         for x in misc_commands_description[misc_cmd]))
-    ret_str += r"""
-            (build|report|{drivers})
-                _arguments "2: :_files -g '*\.yaml' "\
+    cmds = {
+        "report": {
+            "pattern": r"*\.yaml",
+            "type": "files",
+            "options": report_options,
+        },
+        "build": {
+            "pattern": r"*\.yaml",
+            "type": "files",
+            "options": build_options
+        },
+        "exec_package|run_package": {
+            "pattern": r"*\.temci",
+            "type": "files",
+            "options": package_options
+        },
+        "format": {
+            "pattern": "*",
+            "type": "any",
+            "options": format_options
+        }
+    }
+    for cmd, conf in cmds.items():
+        ret_str += r"""
+                ({cmd})
+                               args=(
+                            $common_opts
+                            {options}
+                            )
+                    _arguments "2: :{completion} " $args \
+                    ;;
+    
+            """.format(drivers="|".join(sorted(run_driver.RunDriverRegistry.registry.keys())), options=process_options(conf["options"]),
+                       completion={"files": "_files -g '{}'".format(conf["pattern"]), "any": conf["pattern"]}[conf["type"]],
+                       cmd=cmd)
+    for name in run_driver.RunDriverRegistry.registry.keys():
+        ret_str += r"""
+                       ({driver})
+                       args=(
+                            $common_opts
+                            {options}
+                            )
+                           _arguments "2: :_files -g '*\.yaml' " $args \
+                       ;;
+        """.format(driver=name, options=process_options(run_options["run_driver_specific"][name]))
+    ret_str += """
+                    esac
             ;;
-            (exec_package|run_package)
-                _arguments "2: :_files -g '*\.temci' "\
-            ;;
-        esac
-        ;;
-        """.format(drivers="|".join(sorted(run_driver.RunDriverRegistry.registry.keys())))
-    ret_str +="""
     (options)
         local -a args
         args=(
@@ -631,40 +668,21 @@ _temci(){{
         ;;
         """.format(driver=driver, opts=process_options(run_options["run_driver_specific"][driver]))
 
-    cmds = {
-        "report": {
-            "pattern": "*.yaml",
-            "options": report_options,
-        },
-        "build": {
-            "pattern": "*.yaml",
-            "options": build_options
-        },
-        "exec_package|run_package": {
-            "pattern": "*.temci",
-            "options": package_options
-        },
-        "format": {
-            "pattern": "*",
-            "options": format_options
-        }
-    }
-
     for name in cmds:
         ret_str += """
             ({name})
                 #echo "({name})" $words[2]
-                case $words[2] in
-                    {pattern})
+                #case $words[2] in
+                 #   {pattern})
                         args=(
                         $common_opts
                         {options}
                         )
                         _arguments "1:: :echo 3" $args && ret=0
-                    ;;
-                    *)
-                        _arguments "1:: :echo 3" && ret=0
-                esac
+                 #   ;;
+                 #   *)
+                 #       _arguments "1:: :echo 3" && ret=0
+                #esac
             ;;
         """.format(name=name, pattern=cmds[name]["pattern"], options=process_options(cmds[name]["options"]))
 
@@ -885,7 +903,7 @@ def temci__completion__bash():
                         $common_opts
                         $build_common_opts
                     )
-                    COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
+                    COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 01
                 ;;
                 esac
                 ;;
