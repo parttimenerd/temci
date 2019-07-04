@@ -1,6 +1,8 @@
 """
 Tests for reporters
 """
+import json
+
 from tests.utils import run_temci
 
 
@@ -29,3 +31,45 @@ def test_support_multiple_inputs():
                         "in2.yaml": [d(), d()]
                     }).out
     assert any("XYZ [1]" in l and "XYZ [2]" in l for l in out.split("\n"))
+
+def test_codespeed_reporter():
+    d = lambda: {
+        "attributes": {"description": "XYZ"},
+        "data": {"p": [1]}
+    }
+    out = run_temci("report in.yaml",
+                    settings={
+                        "report": {
+                            "reporter": "codespeed",
+                            "codespeed_misc": {"project": "test"}
+                        }
+                    },
+                    files={
+                        "in.yaml": [d()],
+                    }).out
+    j = json.loads(out)
+    assert len(j) == 1
+    assert j[0]["benchmark"] == "XYZ: p"
+
+def test_codespeed_reporter_failed():
+    d = lambda: {
+        "attributes": {"description": "XYZ"},
+        "data": {"p": [1]}
+    }
+    e = lambda: {
+        "attributes": {"description": "ZYX"},
+        "data": {},
+        "error": {"message": "no", "error_output": "", "output": "", "return_code": 1}
+    }
+    out = run_temci("report in.yaml",
+                    settings={
+                        "report": {
+                            "reporter": "codespeed",
+                            "codespeed_misc": {"project": "test"}
+                        }
+                    },
+                    files={
+                        "in.yaml": [d(), e()],
+                    }).out
+    j = json.loads(out)
+    assert len(j) == 1
