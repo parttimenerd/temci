@@ -335,7 +335,7 @@ class GitDriver(VCSDriver):
         if hasattr(self, "branch") and self.branch is not None:
             return self.branch
         return self._exec_command("git rev-parse --abbrev-ref HEAD",
-                                  error="Can't get current branch. Somethings wrong with the repository: {err}").strip()
+                                  error="Can't get current branch. Something's wrong with the repository: {err}").strip()
 
     def set_branch(self, new_branch: str):
         typecheck_locals(new_branch=Str())

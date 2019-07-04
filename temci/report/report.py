@@ -107,7 +107,7 @@ class AbstractReporter:
 
 
 @register(ReporterRegistry, "console", Dict({
-    "out": FileNameOrStdOut() // Default("-") // Description("Output file name or stdard out (-)"),
+    "out": FileNameOrStdOut() // Default("-") // Description("Output file name or `-` (stdout)"),
     "with_tester_results": Bool() // Default(True) // Description("Print statistical tests for every property for every"
                                                                   " two programs"),
     "mode": ExactEither("both", "cluster", "single", "auto") // Default("auto")
@@ -2268,3 +2268,49 @@ class CSVReporter(AbstractReporter):
                        parentheses=("o" in opts or "p" in opts),
                        parentheses_mode=ParenthesesMode.DIGIT_CHANGE if "p" in opts else \
                                         (ParenthesesMode.ORDER_OF_MAGNITUDE if "o" in opts else None)).format()
+
+
+@register(ReporterRegistry, "codespeed", Dict({
+    "project": Str() // Default("") // Description("Project name reported to codespeed."),
+    "executable": Str() // Default("") // Description("Executable name reported to codespeed. Defaults to the project name."),
+    "environment": Str() // Default("") // Description("Environment name reported to codespeed. Defaults to current host name."),
+}))
+class CodespeedReporter(AbstractReporter):
+    """
+    Reporter that outputs JSON as expected by [codespeed](https://github.com/tobami/codespeed).
+    Branch name and commit ID are taken from the current directory.
+    Use it like this:
+    ```
+    temci report --reporter codespeed ... | curl --data-urlencode json@- http://localhost:8000/result/add/json/
+    ```
+    """
+
+    def report(self):
+        """
+        Create a report and output it as configured.
+        """
+        import json, platform
+        from temci.utils.vcs import VCSDriver
+        vcs_driver = VCSDriver.get_suited_vcs()
+        branch = vcs_driver.get_branch()
+        self.meta = {
+            "project": self.misc["project"],
+            "executable": self.misc["executable"] or self.misc["project"],
+            "environment": self.misc["environment"] or platform.node(),
+            "branch": branch,
+            "commitid": branch and vcs_driver.get_info_for_revision(branch)["commit_id"],
+        }
+        data = [self._report_prop(run, prop)
+                for run in self.stats_helper.runs
+                for prop in sorted(run.properties)]
+        json.dump(data, sys.stdout)
+
+    def _report_prop(self, run: RunData, prop: str) -> dict:
+        return {
+            **self.meta,
+            "benchmark": "{}: {}".format(run.description(), prop),
+            "result_value": np.mean(run[prop]),
+            "std_dev": np.std(run[prop]),
+            "min": min(run[prop]),
+            "max": max(run[prop]),
+        }
