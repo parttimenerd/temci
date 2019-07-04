@@ -903,7 +903,7 @@ def temci__completion__bash():
                         $common_opts
                         $build_common_opts
                     )
-                    COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
+                    COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 01
                 ;;
                 esac
                 ;;

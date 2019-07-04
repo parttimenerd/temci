@@ -217,7 +217,7 @@ class Settings(metaclass=Singleton):
         """
         self.prefs = copy.deepcopy(self.type_scheme.get_default())
 
-    def _validate_settings_dict(self, data: t.Dict[str, t.Any], description: str):
+    def _validate_settings_dict(self, data: t.Dict[str, t.Any], description: str = None):
         """
         Check whether the passed dictionary matches the settings type scheme.
 
@@ -225,7 +225,7 @@ class Settings(metaclass=Singleton):
         :param description: short description of the passed dictionary
         :return: True like object if valid, else string like object which is the error message
         """
-        return verbose_isinstance(data, self.type_scheme, description)
+        return verbose_isinstance(data, self.type_scheme, description or "Settings")
 
     def load_file(self, file: str):
         """
@@ -339,28 +339,36 @@ class Settings(metaclass=Singleton):
         if (path == ["config"] or path == ["settings"]) and value is not "":
             self.load_file(value)
 
-    def set(self, key: str, value):
+    def validate(self):
+        """
+        Validate this settings object
+
+        :raises: SettingsError if the setting isn't valid
+        """
+        self._validate_settings_dict(self.prefs)
+
+    def set(self, key: str, value, validate: bool = True):
         """
         Sets the setting key to the passed new value
 
         :param key: settings key
         :param value: new value
+        :param validate: validate after the setting operation
         :raises: SettingsError if the setting isn't valid
         """
         tmp = copy.deepcopy(self.prefs)
         path = key.split("/")
         self._set(path, value)
-        res = self._validate_settings_dict(self.prefs, "settings with new setting ({}={!r})".format(key, value))
-        if not res:
-            self.prefs = tmp
-            raise SettingsError(str(res))
+        if validate:
+            res = self._validate_settings_dict(self.prefs, "settings with new setting ({}={!r})".format(key, value))
+            if not res:
+                self.prefs = tmp
+                raise SettingsError(str(res))
         self._setup()
 
     def __setitem__(self, key: str, value):
         """
         Alias for self.set(key, value).
-
-        :raises: SettingsError if the setting isn't valid
         """
         self.set(key, value)
 

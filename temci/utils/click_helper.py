@@ -19,7 +19,7 @@ from temci.utils.util import sphinx_doc
 
 def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = False,
                        callback = t.Callable[[click.Context, str, t.Any], t.Any], short: str = None, with_default: bool = True,
-                       default = None) -> t.Callable[[t.Callable], t.Callable]:
+                       default = None, validate_settings: bool = False) -> t.Callable[[t.Callable], t.Callable]:
     """
     Is essentially a wrapper around click.option that works with type schemes.
 
@@ -30,6 +30,7 @@ def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = Fals
     :param short: short name of the option (ignored if flag=True)
     :param with_default: set a default value for the option if possible?
     :param default: default value (if with_default is true), default: default value of the type scheme
+    :param validate_settings: call Settings().validate() in the callback
     """
     __type_scheme = type_scheme
     __short = short
@@ -106,6 +107,8 @@ def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = Fals
             else:
                 old_callback = option_args["callback"]
                 option_args["callback"] = lambda ctx, param, value: callback(ctx, param, old_callback(ctx, param, value))
+            without_check = option_args["callback"]
+            option_args["callback"] = lambda ctx, param, value: Settings().validate() or without_check(ctx, param, value)
         if is_flag:
             option_args["is_flag"] = True
 
@@ -189,7 +192,7 @@ class CmdOption:
             def callback(context: Context, param: click.Option, val):
                 try:
                     if context.get_parameter_source(param.name) != ParameterSource.DEFAULT:
-                        Settings()[settings_key] = val
+                        Settings().set(settings_key, val, validate=False)
                 except SettingsError as err:
                     logging.error("Error while processing the passed value ({val}) of option {opt}: {msg}".format(
                         val=repr(val),
@@ -228,7 +231,7 @@ class CmdOption:
             def callback(context: Context, param, val):
                 if val is not None and context.get_parameter_source(param.name) != ParameterSource.DEFAULT:
                     try:
-                        Settings()[settings_key] = val
+                        Settings().set(settings_key, val, validate=False)
                     except SettingsError as err:
                         logging.error("Error while processing the passed value ({val}) of option {opt}: {msg}".format(
                             val=val,
@@ -418,7 +421,8 @@ class CmdOptionList:
         return "\n".join([format_option(x) for x in self.options])
 
 
-def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = None) \
+def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = None,
+               validate: bool = None) \
         -> t.Callable[[t.Callable], t.Callable]:
     """
     Wrapper around click.option that works with CmdOption objects.
@@ -427,6 +431,7 @@ def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = Non
 
     :param option: CmdOption or (possibly nested) list of CmdOptions
     :param name_prefix: prefix of all options
+    :param validate: validate setting or validate only for outer most if None
     :return: click.option(...) like decorator
     """
     typecheck(option, T(CmdOption) | T(CmdOptionList))
@@ -439,9 +444,9 @@ def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = Non
                                   is_flag=option.is_flag,
                                   callback=option.callback,
                                   with_default=option.has_default,
-                                  default=option.default
+                                  default=option.default,
+                                  validate_settings=validate
                                   )
-
     def func(f: t.Callable):
         name = f.__name__
         #args = f.__arguments__
@@ -449,8 +454,11 @@ def cmd_option(option: t.Union[CmdOption, CmdOptionList], name_prefix: str = Non
         module = f.__module__
         doc = f.__doc__
         qname = f.__qualname__
-        for opt in sorted(option.options):
-            f = cmd_option(opt, name_prefix)(f)
+        for i, opt in enumerate(sorted(option.options)):
+            validate = None
+            if isinstance(opt, CmdOption) and i == 0:
+                validate = True
+            f = cmd_option(opt, name_prefix, validate=validate)(f)
         f.__name__ = name[0:-2] if name.endswith("_") else name
         f.__qualname__ = qname[0:-2] if qname.endswith("_") else qname
         #f.__args__ = args
