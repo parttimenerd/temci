@@ -889,7 +889,7 @@ def is_perf_available() -> bool:
     Is the ``perf`` tool available?
     """
     try:
-        subprocess.check_call(["perf", "stat", "/bin/echo"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.check_call(["perf"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except BaseException:
         return False
     return True
@@ -925,13 +925,7 @@ class ValidPerfStatPropertyList(Type):
     """
 
     def __init__(self):
-        av = get_av_perf_stat_properties()
-        super().__init__(completion_hints={
-            "zsh": "({})".format(" ".join(av)),
-            "fish": {
-                "hint": list(av)
-            }
-        })
+        super().__init__()
 
     def _instancecheck_impl(self, value, info: Info = NoInfo()):
         if not isinstance(value, List(Str())):
@@ -968,7 +962,7 @@ class PerfStatExecRunner(ExecRunner):
         "repeat": NaturalNumber() // Default(1) // Description("If runner=perf_stat make measurements of the program "
                                                                "repeated n times. Therefore scale the number of times "
                                                                "a program is benchmarked."),
-        "properties": ValidPerfStatPropertyList() // Default(["wall-clock", "cycles", "cpu-clock", "task-clock",
+        "properties": List(Str()) // Default(["wall-clock", "cycles", "cpu-clock", "task-clock",
                                                               "instructions", "branch-misses", "cache-references"])
                       // Description("Measured properties. The number of properties that can be measured at once "
                                      "is limited."),
@@ -979,6 +973,7 @@ class PerfStatExecRunner(ExecRunner):
 
     def __init__(self, block: RunProgramBlock):
         super().__init__(block)
+        typecheck(self.misc["properties"], ValidPerfStatPropertyList(), "Properties setting of perf stat runner")
         if not is_perf_available():
             raise KeyboardInterrupt("The perf tool needed for the perf stat runner isn't installed. You can install it "
                                     "via the linux-tools (or so) package of your distribution. If it's installed, "
