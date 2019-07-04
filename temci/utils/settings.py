@@ -191,6 +191,7 @@ class Settings(metaclass=Singleton):
     def load_files(self):
         """ Loads the configuration files from the current and the config directory """
         self.load_from_config_dir()
+        self.load_from_current_dir()
         self._setup()
 
     def _setup(self):

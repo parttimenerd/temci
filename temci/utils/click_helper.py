@@ -107,8 +107,9 @@ def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = Fals
             else:
                 old_callback = option_args["callback"]
                 option_args["callback"] = lambda ctx, param, value: callback(ctx, param, old_callback(ctx, param, value))
-            without_check = option_args["callback"]
-            option_args["callback"] = lambda ctx, param, value: Settings().validate() or without_check(ctx, param, value)
+            if validate_settings:
+                without_check = option_args["callback"]
+                option_args["callback"] = lambda ctx, param, value: Settings().validate() or without_check(ctx, param, value)
         if is_flag:
             option_args["is_flag"] = True
 
