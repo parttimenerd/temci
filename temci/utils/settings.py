@@ -280,13 +280,13 @@ class Settings(metaclass=Singleton):
 
         :param dir: path of the directory
         """
-        self.load_file(os.path.join(dir, "config.yaml"))
+        self.load_file(os.path.join(dir, "temci.yaml"))
 
     def load_from_config_dir(self):
         """
         Load the config file from the application directory (e.g. in the users home folder) if it exists.
         """
-        conf = os.path.join(click.get_app_dir("temci"), "config.yaml")
+        conf = os.path.join(click.get_app_dir("temci"), "temci.yaml")
         if os.path.exists(conf) and os.path.isfile(conf):
             self.load_file(conf)
 

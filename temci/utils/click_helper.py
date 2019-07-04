@@ -194,6 +194,8 @@ class CmdOption:
                 try:
                     if context.get_parameter_source(param.name) != ParameterSource.DEFAULT:
                         Settings().set(settings_key, val, validate=False)
+                    #elif settings_key == "settings":
+                    #    Settings().set(settings_key, "temci.yaml", validate=False)
                 except SettingsError as err:
                     logging.error("Error while processing the passed value ({val}) of option {opt}: {msg}".format(
                         val=repr(val),
@@ -233,6 +235,8 @@ class CmdOption:
                 if val is not None and context.get_parameter_source(param.name) != ParameterSource.DEFAULT:
                     try:
                         Settings().set(settings_key, val, validate=False)
+                        if settings_key == "settings":
+                            Settings().set(settings_key, "temci.yaml", validate=False)
                     except SettingsError as err:
                         logging.error("Error while processing the passed value ({val}) of option {opt}: {msg}".format(
                             val=val,

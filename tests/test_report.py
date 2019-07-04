@@ -29,3 +29,14 @@ def test_support_multiple_inputs():
                         "in2.yaml": [d(), d()]
                     }).out
     assert any("XYZ [1]" in l and "XYZ [2]" in l for l in out.split("\n"))
+
+
+def test_html2_with_single():
+    assert "report.html" in run_temci("report --reporter html2 in.yaml", files={
+        "in.yaml": [
+            {
+                "attributes": {"description": "XYZ"},
+                "data": {"p": [1]}
+            }
+        ]
+    }).file_contents

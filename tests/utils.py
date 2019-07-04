@@ -77,16 +77,17 @@ def _store_files(files: Dict[str, Union[dict, list, str]] = None, d: str = "."):
 def _load_files(files: Dict[str, Any], d: str = ".") -> Tuple[Dict[str, str], Dict[str, Union[dict, str, list]]]:
     file_contents = {}
     yaml_contents = {}
-    for f in os.listdir(d):
-        fd = d + "/" + f
-        if os.path.isfile(fd) and f != "settings.yaml" and (files is None or f not in files):
-            with open(fd) as fs:
-                try:
-                    file_contents[f] = fs.read()
-                    if f.endswith(".yaml"):
-                        yaml_contents[f] = yaml.safe_load(file_contents[f].replace("!!python/tuple", ""))
-                except UnicodeDecodeError:
-                    pass
+    for root, directory, fs in os.walk(d):
+        for f in fs:
+            fd = root + "/" + f
+            if os.path.isfile(fd) and f != "settings.yaml" and (files is None or f not in files):
+                with open(fd) as fs:
+                    try:
+                        file_contents[f] = fs.read()
+                        if f.endswith(".yaml"):
+                            yaml_contents[f] = yaml.safe_load(file_contents[f].replace("!!python/tuple", ""))
+                    except UnicodeDecodeError:
+                        pass
     return file_contents, yaml_contents
 
 
@@ -112,13 +113,12 @@ def run_temci_click(args: str, settings: dict = None, files: Dict[str, Union[dic
         _store_files(files)
         with open("settings.yaml", "w") as f:
             yaml.dump(set, f)
-        cmd += " --settings settings.yaml"
         env = os.environ.copy()
         env["LC_ALL"] = "en_US.utf-8"
         env.update(misc_env or {})
         args = sys.argv.copy()
         sys.argv = shlex.split("temci " + cmd)
-        result = runner.invoke(cli, cmd, env=env, catch_exceptions=True)
+        result = runner.invoke(cli, cmd.replace(" ", " --settings settings.yaml ", 1), env=env, catch_exceptions=True)
         sys.argv = args
         file_contents, yaml_contents = _load_files(files)
         ret = Result(result.output.strip(), str(result.stderr_bytes).strip(), result.exit_code, file_contents, yaml_contents)
