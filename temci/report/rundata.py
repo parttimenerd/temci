@@ -15,6 +15,10 @@ from collections import defaultdict
 if util.can_import("scipy"):
     import scipy
 import typing as t
+try:
+    import yaml
+except ImportError:
+    import pureyaml as yaml
 
 
 Number = t.Union[int, float]
@@ -281,6 +285,16 @@ class RunData(object):
     def has_error(self) -> bool:
         return self.recorded_error is not None
 
+    def get_single_properties(self) -> t.Dict[str, 'SingleProperty']:
+        """
+        Returns single property stat objects per property that support statistical analysis
+        (e.g. mean, standard deviation, …)
+
+        :return: stat object per property
+        """
+        from temci.report.stats import Single
+        return Single(self).properties
+
 
 class RunDataStatsHelper(object):
     """
@@ -400,6 +414,19 @@ class RunDataStatsHelper(object):
         return list(sorted(props))
 
     @classmethod
+    def init_from_file(cls, filename: str) -> 'RunDataStatsHelper':
+        """
+        Load the runs from the passed file. This file has to encode the runs using YAML in the format stated in
+        :func:`RunDataStatsHelper.init_from_dicts`
+
+        :param filename: name of the file
+        :raises ValueError: if the file has an incorrect structure
+        :return: created stats helper
+        """
+        with open(filename) as f:
+            return cls.init_from_dicts(yaml.safe_load(f))
+
+    @classmethod
     def init_from_dicts(cls, runs: t.List[t.Union[t.Dict[str, str], t.Dict[str, t.List[Number]]]] = None,
                         external: bool = False,
                         included_blocks: str = None) -> 'RunDataStatsHelper':
@@ -427,7 +454,8 @@ class RunDataStatsHelper(object):
         :param runs: list of dictionaries representing the benchmarking runs for each program block
         :param external: are the passed runs not from this benchmarking session but from another?
         :param included_blocks: include query
-        :raises ValueError: if the stats of the runs parameter have not the correct structure
+        :raises ValueError: if runs parameter has an incorrect structure
+        :return: created stats helper
         """
         typecheck(runs, List(
             Dict({

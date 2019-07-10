@@ -700,6 +700,10 @@ class Single(BaseStatObject):
     def __eq__(self, other):
         return self.eq_except_property(other)
 
+    def __getitem__(self, property: str) -> 'SingleProperty':
+        return self.properties[property]
+
+
 class SingleProperty(BaseStatObject):
     """
     A statistical wrapper around a single run data block for a specific measured property.
