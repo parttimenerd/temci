@@ -134,37 +134,39 @@ class Info:
     def _str(self):
         return self._value_name.format(self.get_value())
 
-    def errormsg(self, constraint: 'Type', msg: str = None) -> 'InfoMsg':
+    def errormsg(self, constraint: 'Type', value, msg: str = None) -> 'InfoMsg':
         """
         Creates an info message object with the passed expected type and the optional message.
 
         :param constraint: passed expected type
+        :param value: value that violates th constraint
         :param msg: additional message, it should give more information about why the constraint isn't met
         """
         app = ": " + (msg or "")
-        return InfoMsg("{} is not of the expected type {}{}".format(self._str(), constraint, app))
+        return InfoMsg("{!r} is not of the expected type {} ({}){}".format(value, constraint, self.value, app))
 
-    def errormsg_cond(self, cond: bool, constraint: 'Type', msg: str = None) -> 'InfoMsg':
+    def errormsg_cond(self, cond: bool, constraint: 'Type', value, msg: str = None) -> 'InfoMsg':
         """
         Creates an info message object with the passed expected type and the optional message.
 
         :param cond: if this is false `InfoMsg(True)` is returned.
         :param constraint: passed expected type
+        :param value: value that violates th constraint
         :param msg: additional message, it should give more information about why the constraint isn't met
         """
         if cond:
             return InfoMsg(True)
         else:
-            return self.errormsg(constraint, str(msg))
+            return self.errormsg(constraint, value, str(msg))
 
-    def errormsg_non_existent(self, constraint: 'Type') -> 'InfoMsg':
+    def errormsg_key_non_existent(self, constraint: 'Type', key: str) -> 'InfoMsg':
         """
         Creates an info message object with the passed expected type that contains the message that
         currently examined part of the value is unexpected.
 
         :param constraint: passed expected type
         """
-        return InfoMsg("{} is non existent, expected value of type {}".format(self._str(), constraint))
+        return InfoMsg("Key {!r} does non exist in {!r}".format(key, self.value))
 
     def errormsg_unexpected(self, key: str) -> 'InfoMsg':
         """
@@ -210,13 +212,13 @@ class NoInfo(Info):
     def add_to_name(self, app_str: str) -> 'NoInfo':
         return self
 
-    def errormsg(self, constraint: 'Type', msg: str = None) -> 'InfoMsg':
+    def errormsg(self, constraint: 'Type', *args) -> 'InfoMsg':
         return InfoMsg(False)
 
-    def errormsg_cond(self, cond: bool, constraint: 'Type', msg: str = None) -> 'InfoMsg':
+    def errormsg_cond(self, cond: bool, *args) -> 'InfoMsg':
         return InfoMsg(cond)
 
-    def errormsg_non_existent(self, constraint: 'Type') -> 'InfoMsg':
+    def errormsg_key_non_existent(self, constraint: 'Type', key: str) -> 'InfoMsg':
         return InfoMsg(False)
 
     def errormsg_unexpected(self, key: str) -> 'InfoMsg':
@@ -553,7 +555,7 @@ class Either(Type):
             res = type.__instancecheck__(value, info)
             if res:
                 return info.wrap(True)
-        return info.errormsg(self)
+        return info.errormsg(self, value)
 
     def __str__(self):
         return "Either({})".format("|".join(str(type) for type in self.types))
@@ -592,7 +594,7 @@ class ExactEither(Type):
         """
         if value in self.exp_values:
             return info.wrap(True)
-        return info.errormsg(self)
+        return info.errormsg(self, value)
 
     def __str__(self) -> str:
         return "ExactEither({})".format("|".join(repr(val) for val in self.exp_values))
@@ -697,7 +699,7 @@ class T(Type):
         """
         Does the passed value be an instance of the wrapped native type?
         """
-        return info.errormsg_cond(isinstance(value, self.native_type), self)
+        return info.errormsg_cond(isinstance(value, self.native_type), self, value)
 
     def __str__(self) -> str:
         return "T({})".format(self.native_type)
@@ -757,7 +759,7 @@ class Constraint(Type):
         if not res:
             return res
         if not self.constraint(value):
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         return info.wrap(True)
 
     def __str__(self) -> str:
@@ -809,7 +811,7 @@ class NonErrorConstraint(Type):
         try:
             self.constraint(value)
         except self.error_cls as err:
-            return info.errormsg(self, msg=str(err))
+            return info.errormsg(self, value, msg=str(err))
         return info.wrap(True)
 
     def __str__(self) -> str:
@@ -838,7 +840,7 @@ class List(Type):
 
     def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         if not isinstance(value, list):
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         for (i, elem) in enumerate(value):
             new_info = info.add_to_name("[{}]".format(i))
             res = self.elem_type.__instancecheck__(elem, new_info)
@@ -887,7 +889,7 @@ class ListOrTuple(Type):
 
     def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         if not isinstance(value, T(list) | T(tuple)):
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         for (i, elem) in enumerate(list(value)):
             new_info = info.add_to_name("[{}]".format(i))
             res = self.elem_type.__instancecheck__(elem, new_info)
@@ -922,7 +924,7 @@ class Tuple(Type):
 
     def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         if not (isinstance(value, list) or isinstance(value, tuple)) or len(self.elem_types) != len(value):
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         if len(self.elem_types) == 0:
             return info.wrap(True)
         for (i, elem) in enumerate(value):
@@ -998,7 +1000,7 @@ class Dict(Type):
 
     def _instancecheck_impl(self, value, info: Info = NoInfo()) -> InfoMsg:
         if not isinstance(value, dict):
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         non_existent_val_num = 0
         for key in self.data.keys():
             if key in value:
@@ -1010,8 +1012,7 @@ class Dict(Type):
                                                                    info.add_to_name("[{!r}]".format(key)))
                 non_existent_val_num += 1
                 if key not in value and not is_non_existent:
-                    info = info.add_to_name("[{!r}]".format(key))
-                    return info.errormsg_non_existent(self)
+                    return info.errormsg_key_non_existent(self, key)
         for key in value.keys():
             ninfo = info.add_to_name("(key={!r})".format(key))
             res = self.key_type.__instancecheck__(key, ninfo)
@@ -1220,7 +1221,7 @@ class Int(Type):
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         if not isinstance(value, int) or (self.constraint is not None and not self.constraint(value)) \
                 or (self.range is not None and value not in self.range):
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         return info.wrap(True)
 
     def __str__(self) -> str:
@@ -1261,10 +1262,10 @@ class StrList(Type, click.ParamType):
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         res = List(Str()).__instancecheck__(value, info)
         if not res:
-            return info.errormsg(self, "Not a list of strings")
+            return info.errormsg(self, "Not a list of strings", value)
         if self.allowed_values is None or all(val in self.allowed_values for val in value):
             return info.wrap(True)
-        return info.errormsg(self, "Does contain invalid elements")
+        return info.errormsg(self, "Does contain invalid elements", value)
 
     def convert(self, value, param, ctx: click.Context) -> t.List[str]:
         """
@@ -1313,9 +1314,9 @@ class Str(Type):
 
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         if not isinstance(value, str):
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         if self.constraint is not None and not self.constraint(value):
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         return info.wrap(True)
 
     def __str__(self) -> str:
@@ -1360,7 +1361,7 @@ class FileName(Str):
 
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         if not isinstance(value, str) or value == "":
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         value = os.path.expanduser(value)
         if self.allow_std and value == "-" and (self.constraint is None or self.constraint(value)):
             return info.wrap(True)
@@ -1369,7 +1370,7 @@ class FileName(Str):
             if os.path.isfile(value) and os.access(os.path.abspath(value), os.W_OK)\
                     and (self.constraint is None or self.constraint(value)):
                 return info.wrap(True)
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         if not self.allow_non_existent:
             return info.errormsg(self, "File doesn't exist")
         abs_name = os.path.abspath(value)
@@ -1377,7 +1378,7 @@ class FileName(Str):
         if os.path.exists(dir_name) and os.access(dir_name, os.EX_OK) and os.access(dir_name, os.W_OK) \
             and (self.constraint is None or self.constraint(value)):
             return info.wrap(True)
-        return info.errormsg(self)
+        return info.errormsg(self, value)
 
     def __str__(self) -> str:
         if self.constraint is not None:
@@ -1459,19 +1460,19 @@ class DirName(Str):
 
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         if not isinstance(value, str):
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         is_valid = True
         if os.path.exists(value):
             if os.path.isdir(value) and os.access(os.path.abspath(value), os.W_OK)\
                     and (self.constraint is None or self.constraint(value)):
                 return info.wrap(True)
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         abs_name = os.path.abspath(value)
         dir_name = os.path.dirname(abs_name)
         if os.path.exists(dir_name) and os.access(dir_name, os.EX_OK) and os.access(dir_name, os.W_OK) \
             and (self.constraint is None or self.constraint(value)):
             return info.wrap(True)
-        return info.errormsg(self)
+        return info.errormsg(self, value)
 
     def __str__(self) -> str:
         if self.constraint is not None:
