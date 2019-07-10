@@ -10,9 +10,6 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
-non_minimal_deps = ['seaborn', 'cairocffi', 'matplotlib', 'prompt_toolkit', 'ptpython',
-        'docopt', 'Pygments', 'typing', 'glob2', 'globster']
-
 setup(
     name='temci',
     author="Johannes Bechberger",
@@ -31,13 +28,13 @@ setup(
         'wcwidth',
         'rainbow_logging_handler',
         'tablib',
-        'pyyaml'
-    ] + ([] if os.getenv("MINIMAL_TEMCI") == "1" else non_minimal_deps),
-    tests_require=['pytest'] + ([] if os.getenv("MINIMAL_TEMCI") == "1" else ['pytest-clarity']),
+        'pyyaml',
+        'seaborn', 'matplotlib'
+    ],
+    tests_require=['pytest'],
     license='GPLv3',
     platforms='linux',
     classifiers=[
-        "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",

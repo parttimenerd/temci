@@ -136,7 +136,7 @@ allow_all_imports = False  # type: bool
 
 def can_import(module: str) -> bool:
     """
-    Can a module (like scipy, numpy or init/prompt_toolkit) be imported without a severe and avoidable
+    Can a module (like scipy or numpy) be imported without a severe and avoidable
     performance penalty?
     The rational behind this is that some parts of temci don't need scipy or numpy.
 
@@ -146,7 +146,7 @@ def can_import(module: str) -> bool:
         return False
     if allow_all_imports:
         return True
-    if module not in ["scipy", "numpy", "init", "prompt_toolkit"]:
+    if module not in ["scipy", "numpy", "init"]:
         return True
     if in_standalone_mode:
         return False

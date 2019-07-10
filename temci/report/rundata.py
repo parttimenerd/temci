@@ -8,6 +8,7 @@ from functools import reduce
 
 from temci.report.testers import Tester, TesterRegistry
 from temci.run.run_driver import filter_runs
+from temci.utils.config_utils import ATTRIBUTES_TYPE
 from temci.utils.typecheck import *
 from temci.utils.settings import Settings
 import temci.utils.util as util
@@ -23,7 +24,7 @@ Number = t.Union[int, float]
 
 
 def get_for_tags(per_tag_settings_key: str, main_key: str, tags: t.List[str], combinator: t.Callable[[t.Any, t.Any], t.Any]):
-    if tags is None:
+    if not tags:
         return Settings()[main_key]
     return reduce(combinator, (get_for_tag(per_tag_settings_key, main_key, t) for t in tags))
 
@@ -84,10 +85,7 @@ class RunData(object):
 
     block_type_scheme = Dict({
                     "data": Dict(key_type=Str(), value_type=List(Int()|Float()), unknown_keys=True) // Default({}),
-                    "attributes": Dict({
-                        "tags": ListOrTuple(Str()) // Default([]) // Description("Tags of this block"),
-                        "description": (Str() | NonExistent())
-                    }, key_type=Str(), unknown_keys=True),
+                    "attributes": ATTRIBUTES_TYPE,
                     "error": (Dict({"message": Str(), "return_code": Int(), "output": Str(),
                                     "error_output": Str()}) | NonExistent()),
                     "internal_error": (Dict({"message": Str()}) | NonExistent())

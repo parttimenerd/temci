@@ -32,14 +32,13 @@ Nix, execute
 
           nix-env -f https://github.com/parttimenerd/temci/archive/master.tar.gz -i
 
-Alternatively, installing temci on Linux systems should be possible by just installing it via ``pip3``::
+Alternatively, installing temci on Linux systems should be possible by just installing it via ``pip3``,
+requiring at least python3.5::
 
     pip3 install temci
 
 If this results in any problems or you're on an Apple system, visit the
 Installation_ page.
-
-Installing a version with minimal dependencies and without support for `temci init` and the HTML report generation is possible by setting the enviroment variable `MINIMAL_TEMCI` to `1` prior to the installation. This is currently done by the Nix installation and requires at least python 3.6.
 
 Open an issue in the `issue tracker <https://github.com/parttimenerd/temci/issues>`_
 if you experience any weird errors.

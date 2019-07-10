@@ -14,11 +14,6 @@ if __name__ == "__main__":
 
 warnings.simplefilter("ignore")
 import shutil
-import subprocess
-
-import time
-
-import humanfriendly
 
 from temci.utils.typecheck import *
 
@@ -33,7 +28,7 @@ from temci.report.report_processor import ReportProcessor
 import temci.report.report
 import temci.report.testers
 import click, sys, logging, json, os
-import yaml
+
 from temci.utils.click_helper import type_scheme_option, cmd_option, CmdOption, CmdOptionList, document_func
 import temci.scripts.version
 import typing as t
@@ -80,8 +75,6 @@ command_docs = {
     "clean": "Clean up the temporary files",
     "setup": "Compile all needed binaries in the temci scripts folder",
     "version": "Print the current version ({})".format(temci.scripts.version.version),
-    "run_package": "Execute a package and create a package that can be executed afterwards to reverse most changes",
-    "exec_package": "Execute a package",
     "format": "Format a number"
 }
 for driver in run_driver.RunDriverRegistry.registry:
@@ -129,8 +122,6 @@ build_options = CmdOptionList(
     CmdOption.from_non_plugin_settings("build")
 )
 
-package_options = CmdOption.from_non_plugin_settings("package")
-
 misc_commands = {
     "init": {
         "common": CmdOptionList(),
@@ -177,8 +168,10 @@ misc_commands_description = {
     },
     "init": {
         "settings": "Create a new settings file temci.yaml (or the file name passed) in the current directory",
-        "build_config": "Interactive cli to create (or append to) a build config file",
-        "run_config": "Interactive cli to create (or append to) a run config file"
+        "build_config":
+            "Creates a sample build config file build_config.yaml (or the file name passed) in the current directory",
+        "run_config":
+            "Creates a sample exec run config file run_config.yaml (or the file name passed) in the current directory"
     },
     "short": {
         "exec": "Execute commands directly with the exec run driver",
@@ -338,35 +331,34 @@ def temci__init__settings(file, **kwargs):
     Settings().store_into_file(file)
 
 
-@init.command(short_help=misc_commands_description["init"]["build_config"])
+@init.command(short_help=misc_commands_description["init"]["build_config"], name="build_config")
 @cmd_option(misc_commands["init"]["sub_commands"]["build_config"])
 @cmd_option(common_options)
-def build_config(**kwargs):
-    temci__init__build_config(**kwargs)
+@click.argument('file', type=click.Path(exists=False), default="build_config.yaml")
+def build_config(file, **kwargs):
+    temci__init__build_config(file, **kwargs)
 
 
 @document_func(misc_commands_description["init"]["build_config"],
                misc_commands["init"]["sub_commands"]["build_config"],
                common_options)
-def temci__init__build_config(**kwargs):
-    from temci.scripts.init import prompt_build_config
-    prompt_build_config()
+def temci__init__build_config(file, **kwargs):
+    BuildProcessor.store_example_config(file)
 
 
-@init.command(short_help=misc_commands_description["init"]["run_config"])
+@init.command(short_help=misc_commands_description["init"]["run_config"], name="run_config")
 @cmd_option(misc_commands["init"]["sub_commands"]["run_config"])
 @cmd_option(common_options)
-def run_config(**kwargs):
-    from temci.scripts.init import prompt_run_config
-    prompt_run_config()
+@click.argument('file', type=click.Path(exists=False), default="run_config.yaml")
+def run_config(file, **kwargs):
+    temci__init__run_config(file, **kwargs)
 
 
 @document_func(misc_commands_description["init"]["run_config"],
                misc_commands["init"]["sub_commands"]["run_config"],
                common_options)
-def temci__init__run_config(**kwargs):
-    from temci.scripts.init import prompt_run_config
-    prompt_run_config()
+def temci__init__run_config(file, **kwargs):
+    run_driver.ExecRunDriver.store_example_config(file)
 
 
 @cli.command(short_help=command_docs["build"])
@@ -426,36 +418,6 @@ def format(number, abs_deviation, **kwargs):
                format_options)
 def temci__format(number, abs_deviation, **kwargs):
     print(FNumber(number, abs_deviation=abs_deviation).format())
-
-
-@cli.command(short_help=command_docs["run_package"])
-@click.argument('package', type=click.Path(exists=True))
-@cmd_option(common_options)
-@cmd_option(package_options)
-def run_package(package: str, **kwargs):
-    temci__run_package(package)
-
-
-@document_func(command_docs["run_package"], common_options, package_options,
-               argument="Used temci package")
-def temci__run_package(package: str):
-    from temci.package.dsl import run
-    run(package)
-
-
-@cli.command(short_help=command_docs["exec_package"])
-@click.argument('package', type=click.Path(exists=True))
-@cmd_option(common_options)
-@cmd_option(package_options)
-def run_package(package: str, **kwargs):
-    temci__exec_package(package)
-
-
-@document_func(command_docs["exec_package"], common_options, package_options,
-               argument="Used temci package")
-def temci__exec_package(package: str):
-    from temci.package.dsl import execute
-    execute(package)
 
 
 @cli.group(short_help=command_docs["completion"])
@@ -598,11 +560,6 @@ _temci(){{
             "pattern": r"*\.yaml",
             "type": "files",
             "options": build_options
-        },
-        "exec_package|run_package": {
-            "pattern": r"*\.temci",
-            "type": "files",
-            "options": package_options
         },
         "format": {
             "pattern": "*",
@@ -904,17 +861,6 @@ def temci__completion__bash():
                 ;;
                 esac
                 ;;
-            run_package|exec_package)
-                case ${{COMP_WORDS[2]}} in
-                *.temci)
-                    args=(
-                        $common_opts
-                        {package_opts}
-                    )
-                    COMPREPLY=( $(compgen -W "${{args[*]}}" -- $cur) ) && return 0
-                ;;
-                esac
-                ;;
             {run_cmd_file_code}
             *)
             ;;
@@ -925,21 +871,6 @@ def temci__completion__bash():
                 local IFS=$'\n'
                 local LASTCHAR=' '
                 COMPREPLY=($(compgen -o plusdirs -o nospace -f -X '!*.yaml' -- "${{COMP_WORDS[COMP_CWORD]}}"))
-
-                if [ ${{#COMPREPLY[@]}} = 1 ]; then
-                    [ -d "$COMPREPLY" ] && LASTCHAR=/
-                    COMPREPLY=$(printf %q%s "$COMPREPLY" "$LASTCHAR")
-                else
-                    for ((i=0; i < ${{#COMPREPLY[@]}}; i++)); do
-                        [ -d "${{COMPREPLY[$i]}}" ] && COMPREPLY[$i]=${{COMPREPLY[$i]}}/
-                    done
-                fi
-                return 0
-                ;;
-            (run_package|exec_package)
-                local IFS=$'\n'
-                local LASTCHAR=' '
-                COMPREPLY=($(compgen -o plusdirs -o nospace -f -X '!*.temci' -- "${{COMP_WORDS[COMP_CWORD]}}"))
 
                 if [ ${{#COMPREPLY[@]}} = 1 ]; then
                     [ -d "$COMPREPLY" ] && LASTCHAR=/
@@ -969,8 +900,7 @@ def temci__completion__bash():
                misc_commands_code=process_misc_commands(),
                build_common_opts=process_options(build_options),
                run_cmd_file_code=run_cmd_file_code,
-               version=temci.scripts.version.version,
-               package_opts=process_options(package_options))
+               version=temci.scripts.version.version)
     create_completion_dir()
     file_name = completion_file_name("bash")
     with open(file_name, "w") as f:
@@ -1017,6 +947,8 @@ def cli_with_error_catching():
         exit(1)
     except TypeError as err:
         logging.error(err)
+        import traceback
+        logging.debug("".join(traceback.format_exception(None, err, err.__traceback__)))
         exit(1)
 
 

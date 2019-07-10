@@ -15,6 +15,7 @@ import yaml
 from temci.build.builder import Builder, env_variables_for_rand_conf
 from temci.build.build_processor import BuildProcessor
 from temci.setup import setup
+from temci.utils.config_utils import ATTRIBUTES_TYPE
 from temci.utils.settings import Settings
 from temci.utils.sudo_utils import get_bench_user, bench_as_different_user, get_env_setting
 from temci.utils.typecheck import NoInfo
@@ -173,7 +174,7 @@ class RunProgramBlock:
         typecheck(data, Dict({
             "attributes": Dict(unknown_keys=True, key_type=Str()) // Default({}),
             "run_config": Dict(unknown_keys=True),
-            "build_config": BuildProcessor.block_scheme["build_config"],
+            "build_config": Optional(BuildProcessor.block_scheme["build_config"]) // Default({}),
         }))
         block = RunProgramBlock(id, data["run_config"], data["attributes"] if "attributes" in data else {}, run_driver)
         return block
@@ -355,12 +356,16 @@ class AbstractRunDriver(AbstractRegistry):
 
     @classmethod
     def get_full_block_typescheme(cls) -> Type:
-        return Dict({"attributes": Dict({
-            "tags": ListOrTuple(Str()) // Default([]) // Description("Tags of this block"),
-            "description": Optional(Str()) // Default(None)
-        }, unknown_keys=True, key_type=Str(), value_type=Any()) // Default({"tags": []})
-                        // Description("Optional attributes that describe the block"),
-                     "run_config": cls.block_type_scheme})
+        return Dict({"attributes": ATTRIBUTES_TYPE,
+                     "run_config": cls.block_type_scheme,
+                     "build_config": (Dict(unknown_keys=True)|NonExistent()) // Default({})
+                        // Description("Optional build config to integrate the build step into the run step")})
+
+    @classmethod
+    def store_example_config(cls, file: str):
+        import click
+        with click.open_file(file, "w") as f:
+            print(List(cls.get_full_block_typescheme()).get_default_yaml(), file=f)
 
 
 class _Err:

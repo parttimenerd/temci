@@ -2,7 +2,7 @@
 # See more at: https://github.com/garbas/pypi2nix
 #
 # COMMAND:
-#   pypi2nix -V 3 -e https://github.com/parttimenerd/cpuset/archive/master.tar.gz#egg=cpuset-py3 -e rainbow-logging-handler==2.2.2 -e humanfriendly==4.18
+#   pypi2nix -V 3 -e 'https://github.com/parttimenerd/cpuset/archive/master.tar.gz#egg=cpuset-py3' -e rainbow-logging-handler==2.2.2 -e humanfriendly==4.18
 #
 
 { pkgs ? import <nixpkgs> {},
@@ -75,7 +75,9 @@ let
       __old = pythonPackages;
       inherit interpreter;
       inherit interpreterWithPackages;
-      mkDerivation = args: pythonPackages.buildPythonPackage (args // { nativeBuildInputs = args.buildInputs; });
+      mkDerivation = args: pythonPackages.buildPythonPackage (args // {
+        nativeBuildInputs = (args.nativeBuildInputs or []) ++ args.buildInputs;
+      });
       packages = pkgs;
       overrideDerivation = drv: f:
         pythonPackages.buildPythonPackage (
@@ -93,7 +95,7 @@ let
       src = pkgs.fetchurl {
         url = "https://files.pythonhosted.org/packages/76/53/e785891dce0e2f2b9f4b4ff5bc6062a53332ed28833c7afede841f46a5db/colorama-0.4.1.tar.gz";
         sha256 = "05eed71e2e327246ad6b38c540c4a3117230b19679b875190486ddd2d721422d";
-      };
+};
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
@@ -108,8 +110,8 @@ let
       name = "cpuset-py3-1.0";
       src = pkgs.fetchurl {
         url = "https://github.com/parttimenerd/cpuset/archive/master.tar.gz";
-        sha256 = "7f3eb0533588099df7e6ab4db055e6740d2ce8d8f3b7676acd0a4b1f8fcf05b4";
-      };
+        sha256 = "1d05ry7iyjqarmm6gdzkv3l2q3blwrav0kdbwvvrs2c86m9v0gkz";
+};
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
@@ -125,7 +127,7 @@ let
       src = pkgs.fetchurl {
         url = "https://files.pythonhosted.org/packages/26/71/e7daf57e819a70228568ff5395fdbc4de81b63067b93167e07825fcf0bcf/humanfriendly-4.18.tar.gz";
         sha256 = "33ee8ceb63f1db61cce8b5c800c531e1a61023ac5488ccde2ba574a85be00a85";
-      };
+};
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
@@ -141,7 +143,7 @@ let
       src = pkgs.fetchurl {
         url = "https://files.pythonhosted.org/packages/49/b2/b57450889bf73da26027f8b995fd5fbfab258ec24ef967e4c1892f7cb121/logutils-0.3.5.tar.gz";
         sha256 = "bc058a25d5c209461f134e1f03cab637d66a7a5ccc12e593db56fbb279899a82";
-      };
+};
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
@@ -157,7 +159,7 @@ let
       src = pkgs.fetchurl {
         url = "https://files.pythonhosted.org/packages/3d/15/aa3cd5c46c709b2bc45e3f8612b6484bbc869d43f92dfc4a86b65e6a240a/rainbow_logging_handler-2.2.2.zip";
         sha256 = "a504c20f1e074cc7f5a5b986c08eb6fb495c9153cffb36b5fa0a587de3a8db63";
-      };
+};
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [

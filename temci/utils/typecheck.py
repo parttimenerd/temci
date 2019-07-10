@@ -315,7 +315,7 @@ class Type(object):
         """ Default value of this type instance """
         self.typecheck_default = True  # type: bool
         """ Type check the default value """
-        self.completion_hints = {}  # type: t.Dict[str, t.Any]
+        self.completion_hints = completion_hints or {}  # type: t.Dict[str, t.Any]
         """ Completion hints for supported shells for this type instance """
 
     def __instancecheck__(self, value, info: Info = NoInfo()) -> InfoMsg:
@@ -435,7 +435,7 @@ class Type(object):
         else:
             typecheck(defaults, self)
         i_str = " " * indents * indentation
-        y_str = yaml.dump(defaults, default_flow_style=None).strip()
+        y_str = yaml.dump(defaults, default_flow_style=None).strip().replace("!!map {}", "{}")
         if y_str.endswith("\n..."):
             y_str = y_str[0:-4]
         strs = list(map(lambda x: i_str + x, y_str.split("\n")))
@@ -464,7 +464,7 @@ class Type(object):
 
         default_str = None
         if defaults:
-            default_str = yaml.dump(defaults, default_flow_style=None).strip()
+            default_str = yaml.dump(defaults, default_flow_style=None).strip().replace("!!map {}", "{}")
             if default_str.endswith("\n..."):
                 default_str = default_str[0:-4]
         y_str = str(self)
@@ -852,6 +852,21 @@ class List(Type):
     def _eq_impl(self, other: 'List') -> bool:
         return other.elem_type == self.elem_type
 
+    def get_default(self) -> t.Any:
+        return self.default.default if super().has_default() else [self.elem_type.get_default()]
+
+    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> t.Union[str, t.List[str]]:
+        if defaults is None:
+            defaults = self.get_default()
+        else:
+            typecheck(defaults, self)
+        ind = " " * indents * indentation
+        ret_strs = [" " * indents * indentation + "[]"]
+        if len(defaults) > 0:
+            l = self.elem_type.get_default_yaml(str_list=True, indentation=indentation, defaults=defaults[0])
+            ret_strs = [ind + " " * (indentation - 3) + " - " + l[0]] + [ind + (" " * indentation) + s for s in l]
+        return ret_strs if str_list else "\n".join(ret_strs)
+
 
 class ListOrTuple(Type):
     """
@@ -1075,7 +1090,7 @@ class Dict(Type):
 
     def get_default_yaml(self, indent: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> str:
         if len(self.data.keys()) == 0:
-            ret = "!!map {}"
+            ret = "{}"
             return [ret] if str_list else ret
         if defaults is None:
             defaults = self.get_default()

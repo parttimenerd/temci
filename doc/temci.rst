@@ -8,7 +8,6 @@ Subpackages
 
     temci.build
     temci.misc
-    temci.package
     temci.run
     temci.scripts
     temci.setup

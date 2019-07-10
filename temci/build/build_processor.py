@@ -1,3 +1,4 @@
+from temci.utils.config_utils import ATTRIBUTES_TYPE
 from temci.utils.util import get_doc_for_type_scheme, sphinx_doc, document
 
 import yaml
@@ -14,8 +15,7 @@ class BuildProcessor:
     """
 
     block_scheme = Dict({     # type: Dict
-        "attributes": Dict(unknown_keys=True, key_type=Str())
-            // Description("Attributes of the program block"),
+        "attributes": ATTRIBUTES_TYPE,
         "run_config": Dict(unknown_keys=True) // Description("Run configuration for this program block"),
         "build_config": Dict({
             "cmd": Str() // Default("") // Description("Command to build this program block"),
@@ -101,3 +101,9 @@ class BuildProcessor:
             raise err
         with open(self.out, "w") as f:
             yaml.dump(run_blocks, f)
+
+    @classmethod
+    def store_example_config(cls, file: str):
+        import click
+        with click.open_file(file, "w") as f:
+            print(List(cls.block_scheme).get_default_yaml(), file=f)

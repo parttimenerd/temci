@@ -10,7 +10,6 @@ in buildPythonApplication rec {
   name = "temci-${version}";
   version = "local";
   src = pkgs.lib.sourceFilesBySuffices ./. [ "py" "setup.cfg" "README.rst" ];
-  MINIMAL_TEMCI = 1;
   checkInputs = [ pytest pytestrunner ];
   propagatedBuildInputs = [
     click_git
