@@ -802,11 +802,11 @@ class SingleProperty(BaseStatObject):
     
     def sem(self) -> float:
         """ Standard error of the mean (standard deviation / sqrt(observations)) """
-        return st.sem(self.array)
+        return st.sem(self.array) if len(self.array) > 1 else 0
     
     def std_error_mean(self) -> float:
         """ Standard error of the mean (standard deviation / sqrt(observations)) """
-        return st.sem(self.array)
+        return self.sem()
 
     def mean_ci(self, alpha: float) -> t.Tuple[float, float]:
         """
