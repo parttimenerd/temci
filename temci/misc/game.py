@@ -46,10 +46,7 @@ itod_from_list = InsertionTimeOrderedDict.from_list
 if util.can_import("scipy"):
     import scipy.stats as stats
     #import ruamel.yaml as yaml
-try:
-    import yaml
-except ImportError:
-    import pureyaml as yaml
+import yaml
 
 from temci.report.report import HTMLReporter2, html_escape_property
 from temci.utils.settings import Settings

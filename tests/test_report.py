@@ -5,7 +5,6 @@ import json
 
 from tests.utils import run_temci
 
-
 def test_console_reporter_auto_mode():
     d = lambda d: {
         "attributes": {"description": "XYZ" + d},

@@ -10,10 +10,7 @@ import io
 
 from temci.utils.sudo_utils import chown
 
-try:
-    import yaml
-except ImportError:
-    import pureyaml as yaml
+import yaml
 from prompt_toolkit.document import Document
 from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit import prompt

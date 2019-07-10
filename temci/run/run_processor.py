@@ -20,11 +20,7 @@ from temci.utils.settings import Settings
 from temci.report.report_processor import ReporterRegistry
 import time, logging, humanfriendly, sys, math, os
 import typing as t
-try:
-    import yaml
-except ImportError:
-    import pureyaml as yaml
-#from temci.run.remote import RemoteRunWorkerPool
+import yaml
 
 
 class RunProcessor:

@@ -1,9 +1,6 @@
 from temci.utils.number import FNumber
 
-try:
-    import yaml
-except ImportError:
-    import pureyaml as yaml
+import yaml
 import copy
 import os, logging
 import click

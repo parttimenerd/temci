@@ -23,10 +23,7 @@ from temci.utils.typecheck import *
 from temci.utils.registry import AbstractRegistry, register
 import temci.utils.util as util
 import click, os
-try:
-    import yaml
-except ImportError:
-    import pureyaml as yaml
+import yaml
 if util.can_import("numpy"):
     import numpy as np
     import pandas as pd

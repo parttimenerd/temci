@@ -15,10 +15,7 @@ from collections import defaultdict
 if util.can_import("scipy"):
     import scipy
 import typing as t
-try:
-    import yaml
-except ImportError:
-    import pureyaml as yaml
+import yaml
 
 
 Number = t.Union[int, float]

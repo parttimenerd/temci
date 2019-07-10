@@ -7,10 +7,7 @@ import shutil
 import subprocess
 
 import time
-try:
-    import yaml
-except ImportError:
-    import pureyaml as yaml
+import yaml
 import logging
 
 from temci.package.util import abspath, normalize_path, hashed_name_of_file

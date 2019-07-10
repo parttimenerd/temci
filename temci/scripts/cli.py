@@ -33,10 +33,7 @@ from temci.report.report_processor import ReportProcessor
 import temci.report.report
 import temci.report.testers
 import click, sys, logging, json, os
-try:
-    import yaml
-except ImportError:
-    import pureyaml as yaml
+import yaml
 from temci.utils.click_helper import type_scheme_option, cmd_option, CmdOption, CmdOptionList, document_func
 import temci.scripts.version
 import typing as t

@@ -1,9 +1,6 @@
 from temci.utils.util import get_doc_for_type_scheme, sphinx_doc, document
 
-try:
-    import yaml
-except ImportError:
-    import pureyaml as yaml
+import yaml
 from ..utils.typecheck import *
 from ..utils.settings import Settings
 from .builder import Builder, BuilderKeyboardInterrupt

@@ -70,10 +70,7 @@ __all__ = [
 ]
 
 import itertools, os, click, inspect
-try:
-    import yaml
-except ImportError:
-    import pureyaml as yaml
+import yaml
 
 class ConstraintError(ValueError):
     """
