@@ -225,7 +225,8 @@ class ConsoleReporter(AbstractReporter):
             print_func("""\t{d}:\n\t\t{m}""".format(d=run.description(), m="\n\t\t".join(str(run.recorded_error).split("\n"))))
 
 
-@register(ReporterRegistry, "html", Dict(unknown_keys=True) // Default({}) // Description("Deprecated setting"), deprecated=True)
+@register(ReporterRegistry, "html", Dict(unknown_keys=True) // Default({}) // Description("Deprecated setting"),
+          deprecated=True)
 class HTMLReporter(AbstractReporter):
     """
     Deprecated reporter that just lives as a hull.
