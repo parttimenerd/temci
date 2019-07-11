@@ -5,7 +5,7 @@ This page covers the installation and updating of temci.
 System Requirements
 -------------------
 
-* Linux or Apples OS X (see `Supported Operating Systems <temci.run.html>`_)
+* Linux or OS X (see `Supported Operating Systems <temci.run.html>`_)
 * Processor with an x86 or AMD64 architecture (although most features should work on ARM too)
 
 Using Nix

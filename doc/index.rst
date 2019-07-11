@@ -15,6 +15,7 @@ Contents of this documentation
    temci_build
    temci_run
    temci_report
+   os_support
    resources
    changelog
    development

@@ -1,9 +1,50 @@
-temci run
-=========
+temci exec
+==========
+
+This page explains ``temci exec`` and ``temci short exec`` that allow you to do the actual benchmarks.
+
+temci short exec
+----------------
+Make basic benchmarks, without creating a configuration file. It supports the same command line options
+as ``temci exec``:
+
+.. code:: sh
+
+    Usage: temci short exec [OPTIONS] COMMANDS
+
+    -wd, --without_description COMMAND
+        Benchmark the command and use itself as its description.
+    -d, --with_description DESCRIPTION COMMAND...
+        Benchmark the command and set its description attribute.
+    …
+    (options of temci exec)
+
+Options
+-------
+For a whole list of command line options run ``temci exec --help``.
+
+Number of runs
+~~~~~~~~~~~~~~
+
+Configuration File
+------------------
+
+Runners
+-------
+The runners are selected on the command line using the ``--runner`` option and the configuration file
+via ``run/exec_misc/runner``.
 
 
-Fancy Plugins
--------------
+Plugins
+-------
+
+The plugins are enabled via the command line option ``--NAME_active`` and in the configuration file
+via ``run/exec_plugins/NAME_active``.
+
+Presets
+-------
+
+The following explains the different plugins.
 
 DisableCaches
 ~~~~~~~~~~~~~
@@ -46,8 +87,10 @@ interaction is disabled (by stopping X11)
 Stopping a process here means to send a process a SIGSTOP signal and
 resume it by sending a SIGCONT signal later.
 
+
+
 Error Codes
-~~~~~~~~~~~
+-----------
 
 ==== =======================================
    0 no error
