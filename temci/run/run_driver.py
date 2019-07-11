@@ -48,10 +48,10 @@ class RunDriverRegistry(AbstractRegistry):
     plugin_synonym = ("run driver", "run drivers")
 
     @classmethod
-    def register(cls, name: str, klass: type, misc_type: Type):
+    def register(cls, name: str, klass: type, misc_type: Type, deprecated: bool = False):
         assert issubclass(klass, AbstractRunDriver)
-        super().register(name, klass, misc_type)
-        if not sphinx_doc():
+        super().register(name, klass, misc_type, deprecated)
+        if not sphinx_doc() or deprecated:
             return
         klass.__doc__ += """
 

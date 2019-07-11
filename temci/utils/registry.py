@@ -69,7 +69,8 @@ class AbstractRegistry:
             return Settings()[key]
 
     @classmethod
-    def register(cls, name: str, klass: type, misc_type: Type, activate_by_default: bool = None):
+    def register(cls, name: str, klass: type, misc_type: Type, activate_by_default: bool = None,
+                 deprecated: bool = False):
         """
         Registers a new class.
         The constructor of the class gets as first argument the misc settings.
@@ -78,7 +79,12 @@ class AbstractRegistry:
         :param klass: actual class
         :param misc_type: type scheme of the {name}_misc settings
         :param misc_default: default value of the {name}_misc settings
+        :param deprecated: is the registered class deprecated and should not be used?
         """
+
+        if deprecated:
+            Settings().get_type_scheme(cls.settings_key_path).unknown_keys = True
+            return
 
         def format_str_list(val: t.List[str], sep: str = "and") -> str:
             return join_strs(list(map(repr, val)), sep)
@@ -216,18 +222,19 @@ class AbstractRegistry:
         return cls.registry[name]
 
 
-def register(registry: type, name: str, misc_type: Type):
+def register(registry: type, name: str, misc_type: Type, deprecated: bool = False):
     """
     Class decorator that calls the register method for the decorated method.
 
     :param registry: the registry class to register the class in
     :param name: common name of the registered class
     :param misc_type: type scheme of the {name}_misc settings (each dict key must have a default value)
+    :param deprecated: is the registered class deprecated and should not be used?
     """
     assert issubclass(registry, AbstractRegistry)
 
     def dec(klass):
-        registry.register(name, klass, misc_type)
+        registry.register(name, klass, misc_type, deprecated=deprecated)
         return klass
 
     return dec
