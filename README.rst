@@ -22,7 +22,7 @@ benchmarking results with a low variance.
 Installation
 ------------
 
-The simplest way is to use the `Nix package manager <https://nixos.org/nix/>`_, after install nix, run:
+The simplest way is to use the `Nix package manager <https://nixos.org/nix/>`_, after installing nix, run:
 
 .. code:: sh
 
@@ -39,8 +39,8 @@ There is also the traditional way of using pip, requiring at least python3.6:
 A package called temci exists on pypi, but temci depends on an unpublished version of a library, only available on
 github. This should change in the near future.
 
-If this results in any problems or you're on an Apple system, visit the
-Installation_ page. This will also explain how to update the temci installation.
+The Installation_ page gives more details on the optional requirements and on ``temci setup`` that should be called
+before using ``temci build`
 
 Installation from source
 ~~~~~~~~~~~~~~~~~~~~~~~~

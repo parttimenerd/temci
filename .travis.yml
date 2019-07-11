@@ -4,8 +4,6 @@ matrix:
       os: linux
     - language: nix
       os: osx
-    - language: nix
-      os: windows
     - language: python
       python: "3.6"
       install:
