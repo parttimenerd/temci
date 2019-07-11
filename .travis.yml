@@ -1,5 +1,17 @@
-language: nix
 matrix:
   include:
-    - os: linux
-    - os: osx
+    - language: nix
+      matrix:
+        - os: linux
+        - os: osx
+    - language: python
+      python:
+        - "3.4"
+        - "3.5"
+        - "3.6"
+        - "3.7"
+      # command to install dependencies
+      install:
+        - pip3 install -e .
+      # command to run tests
+      script: pytest
