@@ -9,7 +9,8 @@ let
 in buildPythonApplication rec {
   name = "temci-${version}";
   version = "local";
-  src = pkgs.lib.sourceFilesBySuffices ./. [ "py" "setup.cfg" "README.rst" ];
+  # ignore untracked files in local checkout
+  src = if builtins.pathExists ./.git then builtins.fetchGit { url = ./.; } else ./.;
   checkInputs = [ pytest pytestrunner ];
   propagatedBuildInputs = [
     click_git
