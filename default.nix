@@ -1,4 +1,6 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import <nixpkgs> {},
+  # ignore untracked files in local checkout
+  src ? if builtins.pathExists ./.git then builtins.fetchGit { url = ./.; } else ./. }:
 with pkgs.python3Packages;
 let
   python = import ./requirements.nix { inherit pkgs; };
@@ -9,8 +11,7 @@ let
 in buildPythonApplication rec {
   name = "temci-${version}";
   version = "local";
-  # ignore untracked files in local checkout
-  src = if builtins.pathExists ./.git then builtins.fetchGit { url = ./.; } else ./.;
+  inherit src;
   checkInputs = [ pytest pytestrunner ];
   propagatedBuildInputs = [
     click_git
