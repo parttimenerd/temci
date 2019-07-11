@@ -24,6 +24,9 @@ in buildPythonApplication rec {
     scipy seaborn
     pyyaml
   ] ++ pkgs.lib.optional pkgs.stdenv.isLinux perf;
+  postInstall = ''
+    $out/bin/temci setup
+  '';
   postPatch = ''
     substituteInPlace temci/run/cpuset.py --replace python3 ${pkgs.python3.withPackages (ps: [ pypi.cpuset-py3 ])}/bin/python3
     substituteInPlace temci/run/run_driver.py \
