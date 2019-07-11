@@ -18,7 +18,7 @@ Contents of this documentation
    os_support
    resources
    changelog
-   development
+   contributing
    license
    temci
 
