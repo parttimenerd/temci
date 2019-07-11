@@ -6,7 +6,6 @@ matrix:
         - os: osx
     - language: python
       python:
-        - "3.4"
         - "3.5"
         - "3.6"
         - "3.7"
@@ -14,4 +13,6 @@ matrix:
       install:
         - pip3 install -e .
       # command to run tests
-      script: pytest
+      script:
+        - pytest
+        - TEMCI_TEST_CMD=1 pytest

@@ -6,7 +6,8 @@ temci
 .. image:: https://travis-ci.org/parttimenerd/temci.svg?branch=master
     :target: https://travis-ci.org/parttimenerd/temci
 
-An advanced benchmarking tool written in python3 that supports binary randomization and the generation of visually appealing reports.
+An advanced benchmarking tool written in python3 that supports setting up an environment for benchmarking and
+ the generation of visually appealing reports.
 
 It runs on Linux systems and (rudimentary) on Apple's OS X systems.
 
@@ -29,7 +30,7 @@ The simplest way is to use the `Nix package manager <https://nixos.org/nix/>`_, 
 
 This installs temci and runs the tests.
 
-There is also the traditional way of using pip:
+There is also the traditional way of using pip, requiring at least python3.5:
 
 .. code:: sh
 

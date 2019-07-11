@@ -145,7 +145,7 @@ def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, lis
     :param misc_env: additional environment variables
     :return: result of the call
     """
-    if os.getenv("TEMCI_TEST_CMD"):
+    if os.getenv("TEMCI_TEST_CMD", "0") == "1":
         return run_temci_proc(args, settings, files, expect_success, misc_env=misc_env)
     return run_temci_click(args, settings, files, expect_success, misc_env=misc_env)
 
