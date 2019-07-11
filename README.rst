@@ -30,7 +30,7 @@ The simplest way is to use the `Nix package manager <https://nixos.org/nix/>`_, 
 
 This installs temci and runs the tests.
 
-There is also the traditional way of using pip, requiring at least python3.5:
+There is also the traditional way of using pip, requiring at least python3.6:
 
 .. code:: sh
 
