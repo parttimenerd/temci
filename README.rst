@@ -8,9 +8,7 @@ temci
 
 An advanced benchmarking tool written in python3 that supports binary randomization and the generation of visually appealing reports.
 
-It runs on sufficiently new Linux systems and (rudimentary) on Apple's OS X systems.
-
-The development started as part of my bachelor thesis in October 2015. The bachelor thesis (written in German) can be found `here <https://pp.info.uni-karlsruhe.de/uploads/publikationen/bechberger16bachelorarbeit.pdf>`_.
+It runs on Linux systems and (rudimentary) on Apple's OS X systems.
 
 Why should you use temci?
 -------------------------
@@ -18,42 +16,49 @@ Why should you use temci?
 temci allows you to easily measure the execution time (and other things)
 of programs and compare them against each other resulting in a pretty
 HTML5 based report. Furthermore it sets up the environment to ensure
-benchmarking results with a low variance and use some kind of assembly
-randomisation to reduce the effect of caching.
+benchmarking results with a low variance.
 
 Installation
 ------------
 
-The simplest way to install temci and its dependencies on either Linux or macOS
-is to use the `Nix package manager <https://nixos.org/nix/>`_. After installing
-Nix, execute
+The simplest way is to use the `Nix package manager <https://nixos.org/nix/>`_, after install nix, run:
 
 .. code:: sh
 
           nix-env -f https://github.com/parttimenerd/temci/archive/master.tar.gz -i
 
-Alternatively, installing temci on Linux systems should be possible by just installing it via ``pip3``,
-requiring at least python3.5::
+This installs temci and runs the tests.
 
-    pip3 install temci
-
-If this results in any problems or you're on an Apple system, visit the
-Installation_ page.
-
-Open an issue in the `issue tracker <https://github.com/parttimenerd/temci/issues>`_
-if you experience any weird errors.
-
-To simplify using temci, enable tab completion for your favorite shell
-(bash and zsh are supported) by adding the following line to your bash or zsh configuration file
+There is also the traditional way of using pip:
 
 .. code:: sh
 
-        source `temci_completion [bash|zsh]`
+        pip3 install git+https://github.com/parttimenerd/temci.git
 
+A package called temci exists on pypi, but temci depends on an unpublished version of a library, only available on
+github. This should change in the near future.
 
-If you can't install temci via `pip3`, using it to benchmark programs is possible
-by using `temci/scripts/run` instead of temci (execute this file with your favorite python3 interpreter directly if this interpreter isn't located at `/usr/bin/python3`).
+If this results in any problems or you're on an Apple system, visit the
+Installation_ page. This will also explain how to update the temci installation.
 
+Installation from source
+~~~~~~~~~~~~~~~~~~~~~~~~
+Clone this repository and run
+
+.. code:: sh
+
+    nix build -f .
+    # or using pip
+    pip3 install -e .
+
+Auto completion
+~~~~~~~~~~~~~~~
+
+Temci can generate auto completion files for bash and zsh, run the following to use it for your respective shell:
+
+.. code:: sh
+
+    . `temci_completion [bash|zsh]`
 
 Usage
 -----
