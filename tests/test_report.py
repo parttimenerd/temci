@@ -3,7 +3,8 @@ Tests for reporters
 """
 import json
 
-from tests.utils import run_temci
+from tests.utils import run_temci, run_temci_proc
+
 
 def test_console_reporter_auto_mode():
     d = lambda d: {
@@ -41,6 +42,20 @@ def test_html2_with_single():
             }
         ]
     }).file_contents
+
+
+def test_all_reporters():
+    from temci.report.report import ReporterRegistry
+    for name, rep in ReporterRegistry.registry.items():
+        print(name)
+        run_temci_proc("report --reporter {} in.yaml".format(name), files={
+            "in.yaml": [
+                {
+                    "attributes": {"description": "XYZ"},
+                    "data": {"p": [1, 2]}
+                }
+            ]
+        })
 
 
 def test_codespeed_reporter():

@@ -4,6 +4,7 @@ import subprocess
 import sys
 
 import tempfile
+import traceback
 from typing import Dict, Union, NamedTuple, Tuple, Any
 
 import yaml
@@ -17,7 +18,7 @@ temci.utils.util.allow_all_imports = True
 from temci.utils.settings import Settings
 
 
-from temci.scripts.cli import cli
+from temci.scripts.cli import cli, ErrorCode
 
 
 class Result(NamedTuple):
@@ -42,7 +43,7 @@ def run_temci_proc(args: str, settings: dict = None, files: Dict[str, Union[dict
     """
     with tempfile.TemporaryDirectory() as d:
         _store_files(files, str(d))
-        cmd = "temci " + args
+        cmd = "python3 {}/temci/scripts/cli.py {}".format(os.path.dirname(os.path.dirname(__file__)), args)
         if settings is not None:
             with open(d + "/settings.yaml", "w") as f:
                 yaml.dump(settings, f)
@@ -92,7 +93,7 @@ def _load_files(files: Dict[str, Any], d: str = ".") -> Tuple[Dict[str, str], Di
 
 
 def run_temci_click(args: str, settings: dict = None, files: Dict[str, Union[dict, list, str]] = None,
-                    expect_success: bool = True, misc_env: Dict[str, str] = None) \
+                    expect_success: bool = True, misc_env: Dict[str, str] = None, raise_exc: bool = False) \
         -> Result:
     """
     Run temci with the passed arguments
@@ -119,21 +120,32 @@ def run_temci_click(args: str, settings: dict = None, files: Dict[str, Union[dic
         env.update(misc_env or {})
         args = sys.argv.copy()
         sys.argv = shlex.split("temci " + cmd)
-        result = runner.invoke(cli, cmd.replace(" ", " --settings settings.yaml ", 1), env=env, catch_exceptions=True)
+        err_code = None
+        exc = None
+        try:
+            result = runner.invoke(cli, cmd.replace(" ", " --settings settings.yaml ", 1), env=env, catch_exceptions=True)
+        except Exception as ex:
+            print("".join(traceback.format_exception(None, ex, ex.__traceback__)), sys.stderr)
+            err_code = ErrorCode.TEMCI_ERROR
+            exc = ex
         sys.argv = args
         file_contents, yaml_contents = _load_files(files)
-        ret = Result(result.output.strip(), str(result.stderr_bytes).strip(), result.exit_code, file_contents, yaml_contents)
+        ret = Result(result.output.strip(), str(result.stderr_bytes).strip(),
+                     err_code if err_code is not None else result.exit_code, file_contents, yaml_contents)
         Settings().load_from_dict(prior)
         if result.exception and not isinstance(result.exception, SystemExit):
             print(repr(ret))
-            raise result.exception
+            if raise_exc:
+                raise result.exception
+        if exc and raise_exc:
+            raise exc
         if expect_success:
             assert result.exit_code == 0, repr(ret)
         return ret
 
 
 def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, list, str]] = None,
-              expect_success: bool = True, misc_env: Dict[str, str] = None) \
+              expect_success: bool = True, misc_env: Dict[str, str] = None, raise_exc: bool = False) \
         -> Result:
     """
     Run temci with the passed arguments
@@ -147,5 +159,5 @@ def run_temci(args: str, settings: dict = None, files: Dict[str, Union[dict, lis
     """
     if os.getenv("TEMCI_TEST_CMD", "0") == "1":
         return run_temci_proc(args, settings, files, expect_success, misc_env=misc_env)
-    return run_temci_click(args, settings, files, expect_success, misc_env=misc_env)
+    return run_temci_click(args, settings, files, expect_success, misc_env=misc_env, raise_exc=raise_exc)
 

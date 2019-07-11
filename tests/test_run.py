@@ -38,15 +38,14 @@ def test_errorneous_run():
 
 
 def test_check_tag_attribute():
-    with pytest.raises(TypeError):
-        assert run_temci("exec bla.yaml --runs 1", files={
-            "bla.yaml": [
-                {
-                    "run_config": {"cmd": "echo 1"},
-                    "attributes": {"tags": "slow"}
-                }
-            ]
-        }).ret_code != 0
+    assert run_temci("exec bla.yaml --runs 1", files={
+        "bla.yaml": [
+            {
+                "run_config": {"cmd": "echo 1"},
+                "attributes": {"tags": "slow"}
+            }
+        ]
+    }, expect_success=False).ret_code != 0
 
 
 def test_included_blocks():

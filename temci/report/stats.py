@@ -498,7 +498,10 @@ class BaseStatObject:
         if not filename.endswith(self.img_filename_ending):
             filename += self.img_filename_ending
         self.reset_plt()
-        plt.savefig(filename)
+        try:
+            plt.savefig(filename)
+        except FileNotFoundError:
+            print("hi")
         self.reset_plt()
         return os.path.realpath(filename)
 

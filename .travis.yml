@@ -5,15 +5,23 @@ matrix:
         - os: linux
         - os: osx
     - language: python
-      python:
-        - "3.6"
-        - "3.7"
-        - "3.8"
-      # command to install dependencies
+      python: "3.6"
       install:
         - pip install --upgrade pip
         - pip3 install -e .
-      # command to run tests
+      script: pytest
+    - language: python
+      python: "3.7"
+      install:
+        - pip install --upgrade pip
+        - pip3 install -e .
       script:
         - pytest
         - TEMCI_TEST_CMD=1 pytest
+    - language: python
+      python: "3.8"
+      install:
+        - pip install --upgrade pip
+        - pip3 install -e .
+      script:
+        - pytest
