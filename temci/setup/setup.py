@@ -53,7 +53,6 @@ def make_scripts():
     Builds the C and C++ code inside the scripts directory.
     """
     try:
-        exec("hadori", "make")
         exec("rusage", "make")
         exec("linker", "make")
     except ExecError as err:

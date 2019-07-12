@@ -1,11 +1,6 @@
  - attributes:
-     description: 'hadori'
+     description: 'test'
    run_config:
-      run_cmd: 'hadori .'
+      run_cmd: 'sh test'
    build_config:
-      build_cmd: 'make'
-      randomization:
-        heap: 100
-        stack: 100
-        data: true
-      number: 10
+      build_cmd: 'echo "sleep 1" > test'

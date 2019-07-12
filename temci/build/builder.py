@@ -221,5 +221,3 @@ class BuilderThread(threading.Thread):
                         shutil.rmtree(tmp_build_dir)
                     #self.submit_queue.put(item)
                     raise EnvironmentError("Thread {}: Build error: {}".format(self.id, str(err)))
-            #logging.info("Thread {}: Finished building… {}".format(self.id, str(out)))
-            #setup.exec("hadori", "./hadori {} {}".format(item.tmp_dir, tmp_build_dir))
