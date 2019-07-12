@@ -1,75 +1,97 @@
 Installation
 ============
+This page covers the installation and updating of temci.
 
 System Requirements
 -------------------
 
-* Linux (although Apples OS X works to a certain degree), a kernel version >= 2.6.31 is recommended
+* Linux or OS X (see `Supported Operating Systems <temci.run.html>`_)
 * Processor with an x86 or AMD64 architecture (although most features should work on ARM too)
-* python with a version >= 3.3
 
-Required packages
------------------
+Using Nix
+---------
 
-temci depends on the existence of some packages that aren't installible via `pip`. The following commands install the normally needed packages.
+The simplest way is to use the `Nix package manager <https://nixos.org/nix/>`_, after installing nix, run:
 
-On **Ubuntu** or **Debian** (or a similar distribution) execute the following command with super user privileges::
+.. code:: sh
 
-   apt-get install time python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy time linux-tools-`uname -r` gcc make
+          nix-env -f https://github.com/parttimenerd/temci/archive/master.tar.gz -i
 
-On **Fedora** (or similar distribution using the `dnf` or `yum` package manager) execute the following command with super user privileges::
+This method has the advantage that nix downloads a suitable python3 interpreter and all packages likes
+matplotlib that could otherwise cause problems. The nix install also runs all the test cases, to ensure
+that temci works properly on your system.
 
-   dnf install time python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy perf gcc make
+To install temci from source run:
 
-or::
+.. code:: sh
 
-   yum install time python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy perf gcc make
+    git clone https://github.com/parttimenerd/temci
+    cd temci
+    nix build -f .
 
-On **Apples OS X** install at least the gnu-time package with homebrew.
+``nix-build -f .`` can also be used to re-run all test cases and to update your install after updating the git repository.
 
+Using pip3
+----------
+
+There is also the traditional way of using pip, requiring at least python3.6.
+
+Temci depends on the existence of some packages that cannot be installed properly using pip and have to be installed manually:
+
+.. code:: sh
+
+    # on debian/ubuntu/…
+    time python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy linux-tools-`uname -r`
+    # on fedora
+    time python3-pandas python3-cffi python3-cairo python3-cairocffi python3-matplotlib python3-numpy python3-scipy perf
+    # on OS X (using homebrew)
+    gnu-time
+
+The Linux packages can be installed by calling the ``install_packages.sh`` script.
+
+After installing these packages, temci can be installed by calling:
+
+.. code:: sh
+
+        pip3 install git+https://github.com/parttimenerd/temci.git
+
+A package called temci exists on pypi, but temci depends on an unpublished version of the ``click`` library that is only available on
+github. This should change in the near future when the version 8.0 of ``click`` is published.
+
+To install temci from source run:
+
+.. code:: sh
+
+    git clone https://github.com/parttimenerd/temci
+    cd temci
+    pip3 install -e
+
+Post Installation
+~~~~~~~~~~~~~~~~~
+Run the following command after the installation to compile some binaries needed e.g. for ``temci build``:
+
+.. code:: sh
+
+   temci setup
+
+This requires ``gcc`` and ``make`` to be installed.
 
 Optional Requirements
 ---------------------
 
-Requirements that aren't normally needed.
+Requirements that aren't normally needed are the following:
 
-- kernel-devel packages (for compiling the kernel module to disable caches)
-- (pdf)latex (for pdf report generation)
+- ``kernel-devel`` packages (for compiling the kernel module to disable caches)
+- ``pdflatex`` (for ``pdf`` report generation)
 
-
-Installation via pip3
----------------------
-Just run (with super user privileges)::
-
-   pip3 install temci
+Temci runs perfectly fine without them if you are not using the mentioned features.
 
 
+Auto Completion
+~~~~~~~~~~~~~~~
 
-Installation from the Git repository
-------------------------------------
-Just clone temci and install it via::
+Temci can generate auto completion files for bash and zsh, run the following to use it for your respective shell:
 
-   git clone https://github.com/parttimenerd/temci
-   cd temci
-   ./install_packages.sh # runs the install package commands from above
-   sudo pip3 install .
+.. code:: sh
 
-Post installation
------------------
-Run the following command after the installation to compile some binaries needed e.g. for `temci build`::
-
-   temci setup
-
-
-Tab completion for zsh or bash
-------------------------------
-To enable zsh or bash tab completion support for temci add::
-
-  source `temci_completion [bash|zsh]`
-
-to your shell's configuration file.
-
-To regenerate the tab completions run::
-
-  temci completion [bash|zsh]
-
+    . `temci_completion [bash|zsh]`

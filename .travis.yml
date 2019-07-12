@@ -7,9 +7,6 @@ matrix:
     - language: nix
       os: osx
       script: nix-build --arg src ./.
-    - language: nix
-      os: windows
-      script: nix-build --arg src ./.
     - language: python
       python: "3.6"
       install:
