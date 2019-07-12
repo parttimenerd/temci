@@ -68,7 +68,8 @@ To install temci from source run:
 
 Post Installation
 ~~~~~~~~~~~~~~~~~
-Run the following command after the installation to compile some binaries needed e.g. for ``temci build``:
+Run the following command after the installation to compile some binaries needed for the ``rusage`` runner or
+the disabling of caches:
 
 .. code:: sh
 

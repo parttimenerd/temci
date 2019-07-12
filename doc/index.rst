@@ -17,11 +17,12 @@ Contents of this documentation
    temci_report
    temci_format
    os_support
-   resources
-   changelog
+   extending
    contributing
+   changelog
    license
    temci
+   resources
 
 * :ref:`modindex`
 * :ref:`search`

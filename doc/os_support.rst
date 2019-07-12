@@ -27,5 +27,5 @@ Other Unix like operating systems aren't currently tested. But there is a chance
 
 Windows
 -------
-Windows is currently not supported, but `temci report` might still work. The Linux subsystem in Windows might
+Windows is currently not supported, but ``temci report`` might still work. The Linux subsystem in Windows might
 enable the usage of the features that work on Apples OS X.
