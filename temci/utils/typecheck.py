@@ -1003,6 +1003,8 @@ class Dict(Type):
             return info.errormsg(self, value)
         non_existent_val_num = 0
         for key in self.data.keys():
+            if self.is_obsolete(key):
+                continue
             if key in value:
                 res = self.data[key].__instancecheck__(value[key], info.add_to_name("[{!r}]".format(key)))
                 if not res:
@@ -1021,6 +1023,8 @@ class Dict(Type):
             if not self.unknown_keys and key not in self.data:
                 return ninfo.errormsg_unexpected(key)
         for key in value.keys():
+            if self.is_obsolete(key):
+                continue
             val = value[key]
             ninfo = info.add_to_name("[{!r}]".format(key))
             res = self.value_type.__instancecheck__(val, ninfo)
@@ -1036,6 +1040,10 @@ class Dict(Type):
             fmt = "Dict({{{data}}}, {unknown_keys}, keys={key_type}, values={value_type}{default})"
         return fmt.format(data=data_str, unknown_keys=self.unknown_keys, key_type=self.key_type,
                           value_type=self.value_type, default=default)
+
+    def __contains__(self, key) -> bool:
+        return self.is_obsolete(key) or (self.unknown_keys and isinstance(key, self.key_type)) or (key in self.data)
+
 
     def __repr__(self) -> str:
         return self.string_representation()
@@ -1079,7 +1087,7 @@ class Dict(Type):
         if self.default is not None:
             default_dict = self.default.default
         for key in self.data:
-            if key not in default_dict:
+            if key not in default_dict and not self.is_obsolete(key):
                 default_dict[key] = self[key].get_default()
         return default_dict
 
@@ -1087,7 +1095,7 @@ class Dict(Type):
         default_dict = {}
         if self.default is not None:
             default_dict = self.default.default
-        return all(self[key].has_default() for key in self.data if key not in default_dict)
+        return all(self[key].has_default() for key in self.data if key not in default_dict and not self.is_obsolete(key))
 
     def get_default_yaml(self, indent: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> str:
         if len(self.data.keys()) == 0:
@@ -1111,9 +1119,10 @@ class Dict(Type):
         keys = sorted(groups["simple"]) + sorted(groups["misc"])
 
         for i in range(0, len(keys)):
-            #if i != 0:
-            strs.append("")
             key = keys[i]
+            if self.is_obsolete(key):
+                continue
+            strs.append("")
             if self.data[key].description is not None:
                 comment_lines = self.data[key].description.split("\n")
                 comment_lines = map(lambda x: "# " + x, comment_lines)
@@ -1167,9 +1176,10 @@ class Dict(Type):
                 groups["simple"].append(key)
         keys = sorted(groups["simple"]) + sorted(groups["misc"])
         for i in range(0, len(keys)):
-            #if i != 0:
-            strs.append("")
             key = keys[i]
+            if self.is_obsolete(key):
+                continue
+            strs.append("")
             if self.data[key].description is not None:
                 comment_lines = self.data[key].description.split("\n")
                 comment_lines = map(lambda x: "# " + x, comment_lines)
@@ -1187,6 +1197,48 @@ class Dict(Type):
                     strs.extend(value_yaml[1:])
         strs = pad(strs, indents)
         return strs if str_list else "\n".join(strs)
+
+    def is_obsolete(self, key: str) -> bool:
+        """
+        Is the type that belongs to the key Obsolete?
+
+        :param key: dict key
+        :return: obsolete?
+        """
+        return self.obsoleteness_reason(key) is not None
+
+    def obsoleteness_reason(self, key: str) -> t.Optional['Obsolete']:
+        """
+        Return the obsoleteness reason (the Obsolete type object) if the key is obsolete
+
+        :param key: dict key
+        :return: Obsolete object or none
+        """
+        t = self[key] if key in self.data else self.value_type
+        if isinstance(t, Obsolete):
+            return t
+        return None
+
+
+class Obsolete(Any):
+    """
+    Marks a value as obsolete
+    """
+
+    def __init__(self, reason: str, version: str):
+        """
+        :param reason: reason for the entry being obsolete, e.g. "Removed builder"
+        :param version: version of temci that the entry became obsolete
+        """
+        super().__init__()
+        self.reason = reason
+        self.version = version
+
+    def __str__(self):
+        return "{} (temci {})".format(self.reason, self.version)
+
+    def _eq_impl(self, other: 'Obsolete') -> bool:
+        return True
 
 
 class Int(Type):

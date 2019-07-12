@@ -14,6 +14,7 @@ from temci.utils.settings import Settings, SettingsError
 from temci.utils.registry import AbstractRegistry
 import typing as t
 
+from temci.utils.typecheck import Obsolete
 from temci.utils.util import sphinx_doc
 
 
@@ -32,6 +33,8 @@ def type_scheme_option(option_name: str, type_scheme: Type, is_flag: bool = Fals
     :param default: default value (if with_default is true), default: default value of the type scheme
     :param validate_settings: call Settings().validate() in the callback
     """
+    if isinstance(type_scheme, Obsolete):
+        return lambda x: x
     __type_scheme = type_scheme
     __short = short
     help_text = type_scheme.description
@@ -285,6 +288,8 @@ class CmdOption:
             misc = Settings().get_type_scheme(misc_key)
             typecheck(misc, Dict)
             for misc_sub_key in misc.data:
+                if misc.is_obsolete(misc_sub_key):
+                    continue
                 misc_sub = misc[misc_sub_key]
                 if not isinstance(misc_sub, Dict):
                     ret_list.append(CmdOption(
@@ -313,7 +318,11 @@ class CmdOption:
         if settings_domain != "":
             domain = Settings().get_type_scheme(settings_domain)
         ret_list = []
+        if isinstance(domain, Obsolete):
+            return CmdOptionList()
         for sub_key in domain.data:
+            if domain.is_obsolete(sub_key):
+                continue
             if sub_key not in exclude and all(not sub_key.endswith(suf) for suf in ["_active", "_misc"]) \
                and not isinstance(domain[sub_key], Dict):
                 ret_list.append(CmdOption(

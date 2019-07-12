@@ -310,6 +310,8 @@ class Settings(metaclass=Singleton):
         :return: value of the setting
         :raises: SettingsError if the setting doesn't exist
         """
+        if self.is_obsolete(key):
+            raise SettingsError("Using obsolete setting {!r}: {}".format(key, self.obsoleteness_reason(key)))
         path = key.split("/")
         if not self.validate_key_path(path):
             raise SettingsError("No such setting {}".format(key))
@@ -331,6 +333,8 @@ class Settings(metaclass=Singleton):
         :param path: passed key path
         :param value: new value
         """
+        if self.is_obsolete(path):
+            return
         tmp_pref = self.prefs
         tmp_type = self.type_scheme
         for key in path[0:-1]:
@@ -384,6 +388,8 @@ class Settings(metaclass=Singleton):
         :param path: list of sub keys
         :return: Is this key path valid?
         """
+        if self.is_obsolete(path):
+            return True
         tmp = self.prefs
         for item in path:
             if item not in tmp:
@@ -414,6 +420,9 @@ class Settings(metaclass=Singleton):
         :raises: SettingsError if the settings domain (the key without the last element) doesn't exist
         :raises: TypeError if the default value doesn't adhere the type scheme
         """
+        if self.is_obsolete(key):
+            logging.info("Using obsolete setting {!r}: {}".format(key, self.obsoleteness_reason(key)))
+            return
         path = key.split("/")
         domain = "/".join(path[:-1])
         if len(path) > 1 and not self.validate_key_path(path[:-1]) \
@@ -431,7 +440,6 @@ class Settings(metaclass=Singleton):
             tmp_typ[path[-1]] = type_scheme
         else:
             tmp_prefs[path[-1]] = type_scheme.get_default()
-
 
     def get_type_scheme(self, key: str) -> Type:
         """
@@ -456,6 +464,8 @@ class Settings(metaclass=Singleton):
         :param modificator: gets the type scheme and returns its modified version
         :raises: SettingsError if the setting with the given key doesn't exist
         """
+        if self.is_obsolete(key):
+            return
         if not self.validate_key_path(key.split("/")):
             raise SettingsError("Setting {} doesn't exist".format(key))
         tmp_typ = self.type_scheme
@@ -494,3 +504,33 @@ class Settings(metaclass=Singleton):
         """
         levels = ["error", "warn", "info", "debug"]
         return levels.index(level) <= levels.index(self["log_level"])
+
+    def is_obsolete(self, key: t.Union[str, t.List[str]]) -> bool:
+        """
+        Is the setting with the passed key obsolete?
+
+        :param key: key or key path
+        :return: obsolete setting?
+        """
+        return self.obsoleteness_reason(key) is not None
+
+    def obsoleteness_reason(self, key: t.Union[str, t.List[str]]) -> t.Optional[Obsolete]:
+        """
+        Returns the obsolete type object for obsolete settings
+
+        :param key: key or path
+        :return: object that contains information on the obsoleteness or None
+        """
+        path = key.split("/") if isinstance(key, str) else key
+        tmp_type = self.type_scheme
+        for subkey in path[:-1]:
+            if tmp_type.is_obsolete(subkey):
+                return tmp_type.obsoleteness_reason(subkey)
+            if subkey not in tmp_type:
+                return None
+            if isinstance(tmp_type[subkey], Obsolete):
+                return tmp_type[subkey]
+            tmp_type = tmp_type[subkey]
+        if path[-1] in tmp_type and isinstance(tmp_type[path[-1]], Obsolete):
+            return tmp_type[subkey]
+        return None
