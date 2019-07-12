@@ -2,8 +2,11 @@ matrix:
   include:
     - language: nix
       os: linux
+      # work around weird `fetchGit` behavior...
+      script: nix-build --arg src ./.
     - language: nix
       os: osx
+      script: nix-build --arg src ./.
     - language: python
       python: "3.6"
       install:

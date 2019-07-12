@@ -1,4 +1,6 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import <nixpkgs> {},
+  # ignore untracked files in local checkout
+  src ? if builtins.pathExists ./.git then builtins.fetchGit { url = ./.; } else ./. }:
 with pkgs.python3Packages;
 let
   python = import ./requirements.nix { inherit pkgs; };
@@ -9,7 +11,7 @@ let
 in buildPythonApplication rec {
   name = "temci-${version}";
   version = "local";
-  src = pkgs.lib.sourceFilesBySuffices ./. [ "py" "setup.cfg" "README.rst" ];
+  inherit src;
   checkInputs = [ pytest pytestrunner ];
   propagatedBuildInputs = [
     click_git
@@ -23,6 +25,9 @@ in buildPythonApplication rec {
     scipy seaborn
     pyyaml
   ] ++ pkgs.lib.optional pkgs.stdenv.isLinux perf;
+  postInstall = ''
+    $out/bin/temci setup
+  '';
   postPatch = ''
     substituteInPlace temci/run/cpuset.py --replace python3 ${pkgs.python3.withPackages (ps: [ pypi.cpuset-py3 ])}/bin/python3
     substituteInPlace temci/run/run_driver.py \
