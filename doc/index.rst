@@ -13,8 +13,9 @@ Contents of this documentation
 
    installation
    temci_build
-   temci_run
+   temci_exec
    temci_report
+   temci_format
    os_support
    resources
    changelog

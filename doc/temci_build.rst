@@ -1,4 +1,4 @@
 temci build
 ===========
 
-Can build programs.
+Build programs before the actual benchmarks, can checkout specific git commits.
