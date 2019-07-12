@@ -54,7 +54,6 @@ def make_scripts():
     """
     try:
         exec("rusage", "make")
-        exec("linker", "make")
     except ExecError as err:
         logging.error(err)
         exit(1)

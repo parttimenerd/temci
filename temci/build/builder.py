@@ -15,37 +15,18 @@ import typing as t
 
 class Builder:
     """
-    Allows the randomized building of a program configured by a program block configuration.
+    Allows the building of a program configured by a program block configuration.
     """
 
-    rand_conf_scheme = Dict({        # type: Dict
-            "heap": (NaturalNumber() | NonExistent())
-                    // Description("0: don't randomize, > 0 randomize with paddings in range(0, x)"),
-            "bss": (Bool() | NonExistent())
-                    // Description("Randomize the bss sub segments?"),
-            "data": (Bool() | NonExistent())
-                    // Description("Randomize the data sub segments?"),
-            "rodata": (Bool() | NonExistent())
-                    // Description("Randomize the rodata sub segments?"),
-            "file_structure": (Bool() | NonExistent())
-                              // Description("Randomize the file structure."),
-            "linker": (Bool() | NonExistent())
-                              // Description("Randomize the linking order"),
-            "used_as": (Str() | NonExistent()) // Description("Used gnu assembler, default is /usr/bin/as"),
-            "used_ld": (Str() | NonExistent()) // Description("Used gnu linker, default is /usr/bin/ld")
-        }, unknown_keys=True)
-    """ Type scheme of the randomization configuration for a program block """
-
-    def __init__(self, build_dir: str, build_cmd: str, revision: t.Union[str, int], number: int, rand_conf: dict,
+    def __init__(self, build_dir: str, build_cmd: str, revision: t.Union[str, int], number: int,
                  base_dir: str, branch: str):
         """
         Creates a new builder for a program block.
 
         :param build_dir: working directory in which the build command is run
         :param build_cmd: command to build this program block
-        :param revision: used version control system revision of the program (-1 is the current revision)
+        :param revision: used version control systemrand revision of the program (-1 is the current revision)
         :param number: number of times to build this program
-        :param rand_conf: randomization configuration
         :param base_dir: base directory that contains everything to build an run the program
         :param branch: used version control system branch
         """
@@ -53,12 +34,6 @@ class Builder:
         typecheck(build_cmd, str)
         typecheck(revision, Int() | Str())
         typecheck(number, PositiveInt())
-        typecheck(base_dir, DirName())
-        _rand_conf = rand_conf
-        _rand_conf = Settings()["build/rand"]
-        _rand_conf.update(rand_conf)
-        rand_conf = _rand_conf
-        typecheck(rand_conf, self.rand_conf_scheme)
         self.build_dir = os.path.join(base_dir, build_dir) if base_dir != "." else build_dir # type: str
         """ Working directory in which the build command is run """
         self.build_cmd = build_cmd  # type: str
@@ -67,8 +42,6 @@ class Builder:
         """ Used version control system revision of the program """
         self.number = number  # type: int
         """ Number of times to build this program """
-        self.rand_conf = rand_conf
-        """ Randomization configuration """
         self.vcs_driver = VCSDriver.get_suited_vcs(dir=self.build_dir, branch=None if branch is "" else branch)
         """ Used version control system driver """
 
@@ -93,7 +66,7 @@ class Builder:
             tmp_dir = self.build_dir
             os.makedirs(tmp_dir, exist_ok=True)
             submit_queue = queue.Queue()
-            submit_queue.put(BuilderQueueItem(0, tmp_dir, tmp_dir, self.rand_conf, self.build_cmd))
+            submit_queue.put(BuilderQueueItem(0, tmp_dir, tmp_dir, self.build_cmd))
             BuilderThread(0, submit_queue).run()
 
             logging.info("Finished building")
@@ -108,7 +81,7 @@ class Builder:
         threads = []
         for i in range(0, self.number):
             tmp_build_dir = tmp_dirname(i)
-            submit_queue.put(BuilderQueueItem(i, tmp_build_dir, tmp_dir, self.rand_conf, self.build_cmd))
+            submit_queue.put(BuilderQueueItem(i, tmp_build_dir, tmp_dir, self.build_cmd))
             ret_list.append(tmp_build_dir)
         try:
             for i in range(min(thread_count, self.number)):
@@ -140,28 +113,7 @@ class BuilderKeyboardInterrupt(KeyboardInterrupt):
         """ Base directories of the succesfull builds """
 
 
-BuilderQueueItem = namedtuple("BuilderQueueItem", ["id", "tmp_build_dir", "tmp_dir", "rand_conf", "build_cmd"])
-
-
-def env_variables_for_rand_conf(rand_conf: t.Dict) -> t.Dict[str, str]:
-    """
-    Creates a dictionary of environment variables to use the assembler randomisation.
-
-    :param rand_conf: configuration (@see Builder.rand_conf_type)
-    """
-    typecheck_locals(rand_conf=Builder.rand_conf_scheme)
-    _rand_conf = Settings()["build/rand"]
-    _rand_conf.update(rand_conf)
-    as_path = os.path.abspath(os.path.abspath(__file__) + "../../../scripts")
-    return {
-        "RANDOMIZATION": json.dumps(_rand_conf),
-        "PATH": as_path + "/linker/:" + as_path + "/:" + os.environ["PATH"],
-        "LANG": "en_US.UTF-8",
-        "LANGUAGE": "en_US",
-        "TMP_DIR": Settings()["tmp_dir"],
-        "RANDOMIZATION_linker": "true" if rand_conf["linker"] else "false",
-        "RANDOMIZATION_used_ld": rand_conf["used_ld"]
-    }
+BuilderQueueItem = namedtuple("BuilderQueueItem", ["id", "tmp_build_dir", "tmp_dir", "build_cmd"])
 
 
 class BuilderThread(threading.Thread):
@@ -199,25 +151,14 @@ class BuilderThread(threading.Thread):
                 if os.path.exists(tmp_build_dir):
                     shutil.rmtree(tmp_build_dir)
                 shutil.copytree(item.tmp_dir, tmp_build_dir)
-            env = os.environ.copy()
-            env.update(env_variables_for_rand_conf(item.rand_conf))
             logging.info("Thread {}: Building number {}".format(self.id, item.id))
-            proc = subprocess.Popen(["/bin/sh", "-c", "export PATH={}; sync;".format(env["PATH"])
-                                     + item.build_cmd],
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    universal_newlines=True,
-                                    cwd=tmp_build_dir, env=env)
+            proc = subprocess.Popen(["/bin/sh", "-c", item.build_cmd],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                universal_newlines=True,
+                                cwd=tmp_build_dir)
             out, err = proc.communicate()
             if proc.poll() > 0:
-                proc = subprocess.Popen(["/bin/sh", "-c", item.build_cmd],
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    universal_newlines=True,
-                                    cwd=tmp_build_dir, env=env)
-                out, err = proc.communicate()
-                if proc.poll() > 0:
-                    if tmp_build_dir != item.tmp_dir:
-                        shutil.rmtree(tmp_build_dir)
-                    #self.submit_queue.put(item)
-                    raise EnvironmentError("Thread {}: Build error: {}".format(self.id, str(err)))
+                if tmp_build_dir != item.tmp_dir:
+                    shutil.rmtree(tmp_build_dir)
+                raise EnvironmentError("Thread {}: Build error: {}".format(self.id, str(err)))

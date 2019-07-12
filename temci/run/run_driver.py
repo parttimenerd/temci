@@ -12,7 +12,7 @@ from threading import Timer
 import humanfriendly
 import yaml
 
-from temci.build.builder import Builder, env_variables_for_rand_conf
+from temci.build.builder import Builder
 from temci.build.build_processor import BuildProcessor
 from temci.setup import setup
 from temci.utils.config_utils import ATTRIBUTES_TYPE
@@ -1252,10 +1252,8 @@ class CPUSpecExecRunner(ExecRunner):
                                                 "result/CFP2000.*.raw"])
                  // Description("File patterns (the newest file will be used)"),
         "randomize": Bool() // Default(False)
-                     // Description("Randomize the assembly during compiling?"),
-        "rand_conf": Builder.rand_conf_scheme // Default(Settings()["build/rand"])
-                     // Description("Randomisation ")
-    })
+                     // Description("Randomize the assembly during compiling?")
+    }, unknown_keys=True)
 
     def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
         file_cmds = []

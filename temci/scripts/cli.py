@@ -18,7 +18,6 @@ import shutil
 from temci.utils.typecheck import *
 
 from temci.run.run_processor import RunProcessor
-from temci.build.assembly import AssemblyProcessor, process_assembler
 from temci.build.build_processor import BuildProcessor
 import temci.run.run_driver as run_driver
 import temci.run.run_driver_plugin
@@ -66,7 +65,6 @@ def cli():
 
 
 command_docs = {
-    "assembler": "Wrapper around the gnu assembler to allow assembler randomization",
     "build": "Build program blocks",
     "report": "Generate a report from benchmarking result",
     "init": "Helper commands to initialize files (like settings)",
@@ -909,17 +907,6 @@ def temci__completion__bash():
         f.flush()
     os.chmod(file_name, 0o777)
     print(file_name)
-
-
-@cli.command(short_help=command_docs["assembler"])
-@click.argument("call", type=str)
-def assembler(call: str):
-    process_assembler(call.split(" "))
-
-
-@document_func(command_docs["assembler"])
-def temci__assembler(call: str):
-    process_assembler(call.split(" "))
 
 
 def cli_with_verb_arg_handling():

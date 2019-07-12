@@ -4,6 +4,8 @@ import yaml
 import copy
 import os, logging
 import click
+
+from temci.utils.typecheck import Obsolete
 from temci.utils.util import recursive_exec_for_leafs, Singleton
 from temci.utils.typecheck import *
 import multiprocessing
@@ -128,29 +130,12 @@ class Settings(metaclass=Singleton):
                          // Description("Record the caught errors in the run_output file")
         }),
         "build": Dict({
-            "rand": Dict({
-                "heap": NaturalNumber() // Default(0)
-                        // Description("0: don't randomize, > 0 randomize with paddings in range(0, x)"),
-                "bss": Bool() // Default(False)
-                        // Description("Randomize the bss sub segments?"),
-                "data": Bool() // Default(False)
-                        // Description("Randomize the data sub segments?"),
-                "rodata": Bool() // Default(False)
-                        // Description("Randomize the rodata sub segments?"),
-                "file_structure": Bool() // Default(False)
-                                  // Description("Randomize the file structure."),
-                "linker": (Bool() | NonExistent()) // Default(False)
-                              // Description("Randomize the linking order"),
-                "used_as": (Str() | NonExistent()) // Default("/usr/bin/as")
-                            // Description("Used gnu assembler, default is /usr/bin/as"),
-                "used_ld": (Str() | NonExistent()) // Default("/usr/bin/ld")
-                            // Description("Used gnu linker, default is /usr/bin/ld")
-            }) // Description("Assembly randomization"),
             "in": Str() // Default("build.yaml") // Description("Input file with the program blocks to build")
                 // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
             "out": Str() // Default("run.exec.yaml") // Description("Resulting run config file"),
-            "threads": PositiveInt() // Default(1) // Description("Number of threads that build simultaneously")
-        }),
+            "threads": PositiveInt() // Default(1) // Description("Number of threads that build simultaneously"),
+            "rand": Obsolete("Removed builder randomization", "0.8") // Description("Obsolete randomization configuration")
+        }, unknown_keys=True),
         "package": Dict({
             "dry_run": Bool() // Default(False) // Description("Only log proposed actions?"),
             "compression": Dict({

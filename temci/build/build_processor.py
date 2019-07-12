@@ -11,18 +11,16 @@ import typing as t
 @document(block_scheme="A block in the configuration has the following format:")
 class BuildProcessor:
     """
-    Build programs with possible randomizations.
+    Build programs
     """
 
     block_scheme = Dict({     # type: Dict
         "attributes": ATTRIBUTES_TYPE,
         "run_config": Dict(unknown_keys=True) // Description("Run configuration for this program block"),
         "build_config": Dict({
-            "cmd": Str() // Default("") // Description("Command to build this program block"),
+            "cmd": Str() // Default("") // Description("Command to build this program block, might randomize it"),
             "number": (PositiveInt() | NonExistent()) // Default(1)
                       // Description("Number of times to build this program"),
-            "randomization": Builder.rand_conf_scheme // Default({})
-                // Description("Randomization configuration"),
             "working_dir": (DirName() | NonExistent()) // Default(".")
                 // Description("Working directory in which the build command is run"),
             "revision": (Str() | Int() | NonExistent()) // Default(-1)
@@ -31,7 +29,7 @@ class BuildProcessor:
                 // Description("Used version control system branch (default is the current branch)"),
             "base_dir": (DirName() | NonExistent()) // Default(".")
                 // Description("Base directory that contains everything to build an run the program")
-        }) // Description("Build configuration for this program block")
+        }, unknown_keys=True) // Description("Build configuration for this program block")
     })
     """ Type scheme of the program block configurations """
 
@@ -81,7 +79,7 @@ class BuildProcessor:
                 try:
                     block_builder = Builder(block["build_config"]["working_dir"],
                                             block["build_config"]["cmd"], block["build_config"]["revision"],
-                                            block["build_config"]["number"], block["build_config"]["randomization"],
+                                            block["build_config"]["number"],
                                             block["build_config"]["base_dir"], block["build_config"]["branch"])
                     working_dirs = block_builder.build()
                 except BuilderKeyboardInterrupt as err:

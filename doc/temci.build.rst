@@ -28,14 +28,6 @@ temci.build.builder module
     :undoc-members:
     :show-inheritance:
 
-temci.build.linker module
--------------------------
-
-.. automodule:: temci.build.linker
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 
 Module contents
 ---------------
