@@ -771,6 +771,11 @@ class Constraint(Type):
             descr = "<function>"
         return "{}:{}".format(self.constrained_type, descr)
 
+    def string_representation(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> t.Union[str, t.List[str]]:
+        l = self.constrained_type.string_representation(indents, indentation, str_list=True, defaults=defaults) \
+            + [" " * indents * indentation + "# with constrain: " + self.description]
+        return l if str_list else "\n".join(l)
+
 
 class NonErrorConstraint(Type):
     """

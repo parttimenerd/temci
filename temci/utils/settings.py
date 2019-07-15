@@ -6,7 +6,7 @@ import os, logging
 import click
 
 from temci.utils.typecheck import Obsolete
-from temci.utils.util import recursive_exec_for_leafs, Singleton
+from temci.utils.util import recursive_exec_for_leafs, Singleton, sphinx_doc
 from temci.utils.typecheck import *
 import multiprocessing
 import typing as t
@@ -27,6 +27,12 @@ class Settings(metaclass=Singleton):
     """
     Manages the Settings.
     The settings keys and sub keys are combined by a slash, e.g. "report/in".
+
+    The current settings are:
+
+    .. code: yaml
+
+
     """
 
     config_file_name = "temci.yaml"  # type: str
@@ -201,6 +207,16 @@ class Settings(metaclass=Singleton):
             "quiet": logging.ERROR
         }
         logger.setLevel(mapping[log_level])
+        self._update_doc()
+
+    def _update_doc(self):
+        """
+        Update the class documentation
+        """
+        if sphinx_doc():
+            self.__doc__ = self.__doc__.split(".. code: yaml")[0] + """.. code: yaml 
+
+        """ + "\n        ".join(self.type_scheme.get_default_yaml().split("\n"))
 
     def reset(self):
         """
@@ -333,6 +349,7 @@ class Settings(metaclass=Singleton):
             tmp_type[path[-1]] = Any() // Default(value)
         if (path == ["config"] or path == ["settings"]) and value is not "":
             self.load_file(value)
+        self._update_doc()
 
     def validate(self):
         """
@@ -394,6 +411,7 @@ class Settings(metaclass=Singleton):
         :param value: new default value
         """
         self.modify_type_scheme("/".join(path), lambda t: t // Default(value))
+        self._update_doc()
 
     def modify_setting(self, key: str, type_scheme: Type):
         """
