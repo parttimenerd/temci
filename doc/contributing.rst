@@ -6,7 +6,7 @@ Pull requests and issues are always welcomed.
 Issues
 ------
 Issues can be submitted at `GitHub <https://github.com/parttimenerd/temci/issues>`_ and should specify the used
-settings (and if possible the local ``temci.yaml``configuration file).
+settings (and if possible the local ``temci.yaml`` configuration file).
 
 New Features
 ------------
@@ -15,7 +15,7 @@ The code can be added to the appropriate places and should be tested with a few 
 
 Coding Style
 ------------
-The code should use type annotations everywhere and use functionality of the `typecheck module <temci.utils.typecheck>`_
+The code should use type annotations everywhere and use functionality of the `typecheck module <temci.utils.typecheck.html>`_
 whenever there is uncertainty over the type of a variable (e.g. when reading from a YAML file).
 The currently used python version 3.6, all code should run in python 3.6 and above.
 

@@ -14,6 +14,7 @@ Contents of this documentation
    installation
    temci_build
    temci_exec
+   temci_shell
    temci_report
    temci_format
    os_support

@@ -1,5 +1,5 @@
 Extending temci
----------------
+===============
 
 Temci can be extended by either editing the code of temci directly or by placing the code in a file in your
 local ``~/.temci`` folder or in a folder that is passed to temci via the ``TEMCI_PLUGIN_PATH`` variable.
@@ -11,7 +11,7 @@ Usage as a Library
 ------------------
 temci can be used in library mode by importing via
 
-.. code:: sh
+.. code:: python
 
     import temci.utils.library_init
 
@@ -28,7 +28,8 @@ This reporter is based on the ``codespeed`` reporter:
 .. code:: python3
 
     @register(ReporterRegistry, "json", Dict({
-        # define the settings for this reporter, currently every setting has to have a valid default value
+        # define the settings for this reporter
+        # currently every setting has to have a valid default value
         "project": Str() // Default("") // Description("Project name reported to codespeed."),
     })) # the register call registers the reporter
     class JSONReporter(AbstractReporter):
@@ -44,7 +45,8 @@ This reporter is based on the ``codespeed`` reporter:
             self.meta = {
                 "project": self.misc["project"]  # access the settings specific to this reporter
             }
-            data = [self._report_prop(run, prop)             # iterate overall recorded properties of all run programs
+            data = [self._report_prop(run, prop)
+                    # iterate overall recorded properties of all run programs
                     for run in self.stats_helper.runs
                     for prop in sorted(run.get_single_properties()]
             json.dump(data, sys.stdout)
@@ -74,18 +76,19 @@ by extending the `ExecRunner <temci.run.html#temci.run.run_driver.ExecRunner>`_ 
 A good example is the `OutputRunner <temci.run.html#temci.run.run_driver.OutputRunner>`_ itself, with some added
 documentation:
 
-.. code:: sh
+.. code:: python
 
     @ExecRunDriver.register_runner()  # register the runner
     class OutputExecRunner(ExecRunner):
         """
-        Parses the output of the called command as YAML dictionary (or list of dictionaries) populate
-        the benchmark results (string key and int or float value).
+        Parses the output of the called command as YAML dictionary (or list of dictionaries)
+        populate the benchmark results (string key and int or float value).
         For the simplest case, a program just outputs something like `time: 1000.0`.
         """
 
         name = "output"   # name of the runner
-        misc_options = Dict({})   # settings of the runner, these can be set under `run/exec/NAME_misc`
+        misc_options = Dict({})
+        # settings of the runner, these can be set under `run/exec/NAME_misc` in the settings file
 
         def __init__(self, block: RunProgramBlock):
             """
@@ -99,10 +102,10 @@ documentation:
             """
             Configure the passed copy of a run program block (e.g. the run command).
 
-            The parts of the command between two `$SUDO$` occurrences is run with super user privileges if
-            in `--sudo` mode.
+            The parts of the command between two `$SUDO$` occurrences is run with
+            super user privileges if in `--sudo` mode.
 
-            :param block: modified copy of a block
+            :param block:  modified copy of a block
             :param cpuset: used CPUSet instance
             :param set_id: id of the cpu set the benchmarking takes place in
             """
@@ -113,12 +116,15 @@ documentation:
             """
             Parse the output of a program and turn it into benchmarking results.
             :param exec_res: program output
-            :param res: benchmarking result to which the extracted results should be added or None if they should be added
-            to an empty one
+            :param res:      benchmarking result to which the extracted results should be added
+                             or None if they should be added to an empty one
             :return: the modified benchmarking result block
             """
             res = res or BenchmarkingResultBlock()
-            dict_type = Dict(unknown_keys=True, key_type=Str(), value_type=Either(Int(), Float(), List(Either(Int(), Float()))))
+            # schema for the output of a program
+            dict_type = Dict(key_type=Str(),
+                             value_type=Either(Int(), Float(), List(Either(Int(), Float()))),
+                             unknown_keys=True)
             output = yaml.safe_load(exec_res.stdout.strip())
             if isinstance(output, dict_type):
                 res.add_run_data(dict(output))
@@ -126,7 +132,8 @@ documentation:
                 for entry in list(output):
                     res.add_run_data(entry)
             else:
-                raise BenchmarkingError("Not a valid benchmarking program output: " + exec_res.stdout)
+                raise BenchmarkingError("Not a valid benchmarking program output: {}"
+                                        .format(exec_res.stdout))
             return res
 
         def get_property_descriptions(self) -> t.Dict[str, str]:
@@ -145,7 +152,8 @@ A simple example is the `DisableSwap` plugin:
 
 .. code:: python3
 
-    @register(ExecRunDriver, "disable_swap", Dict({})) # register the plugin and state the configuration
+    # register the plugin and state the configuration
+    @register(ExecRunDriver, "disable_swap", Dict({}))
     class DisableSwap(AbstractRunDriverPlugin):
         """
         Disables swapping on the system before the benchmarking and enables it after.
