@@ -22,7 +22,7 @@ The native type wrappers also support custom constraints. With help of the fn mo
 
 For more examples look into the test_typecheck.py file.
 """
-
+import textwrap
 import typing as t
 
 from temci.utils.util import parse_timespan
@@ -1129,9 +1129,7 @@ class Dict(Type):
                 continue
             strs.append("")
             if self.data[key].description is not None:
-                comment_lines = self.data[key].description.split("\n")
-                comment_lines = map(lambda x: "# " + x, comment_lines)
-                strs.extend(comment_lines)
+                strs.extend(self._format_comment(self.data[key].description, width=100 - indent * indentation))
             key_yaml = yaml.dump(key, default_flow_style=None).split("\n")[0]
             if len(self.data[key].get_default_yaml(str_list=True, defaults=defaults[key])) == 1 and \
                     (not isinstance(self.data[key], Dict) or len(self.data[key].data.keys()) == 0):
@@ -1144,6 +1142,12 @@ class Dict(Type):
         i_str = " " * indent * indentation
         ret_strs = list(map(lambda x: i_str + x, strs))
         return ret_strs if str_list else "\n".join(ret_strs)
+
+    @staticmethod
+    def _format_comment(comment: str, width: int = 80) -> t.Iterable[str]:
+        comment_lines = comment.split("\n")
+        comment_lines = [l for long in comment_lines for l in textwrap.wrap(long, width=width)]
+        return map(lambda x: "# " + x, comment_lines)
 
     def string_representation(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) \
             -> t.Union[str, t.List[str]]:
@@ -1186,9 +1190,7 @@ class Dict(Type):
                 continue
             strs.append("")
             if self.data[key].description is not None:
-                comment_lines = self.data[key].description.split("\n")
-                comment_lines = map(lambda x: "# " + x, comment_lines)
-                strs.extend(comment_lines)
+                strs.extend(self._format_comment(self.data[key].description, width=100 - indents * indentation))
             key_yaml = yaml.dump(key, default_flow_style=None).split("\n")[0]
             default = defaults[key] if defaults and key in defaults else None
             if len(self.data[key].string_representation(str_list=True, defaults=default)) == 1 and \
