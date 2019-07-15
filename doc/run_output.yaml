@@ -1,0 +1,47 @@
+- attributes: {__description: sleep 0.5, description: sleep 0.5}
+  data:
+    __ov-time: [0.5063278675079346, 0.5064189434051514, 0.5059614181518555, 0.5067398548126221,
+      0.5061709880828857]
+    idrss: [0.0, 0.0, 0.0, 0.0, 0.0]
+    inblock: [0.0, 0.0, 0.0, 0.0, 0.0]
+    isrss: [0.0, 0.0, 0.0, 0.0, 0.0]
+    ixrss: [0.0, 0.0, 0.0, 0.0, 0.0]
+    majflt: [0.0, 0.0, 0.0, 0.0, 0.0]
+    maxrss: [2324.0, 2272.0, 2164.0, 2280.0, 2156.0]
+    minflt: [165.0, 160.0, 156.0, 160.0, 159.0]
+    msgrcv: [0.0, 0.0, 0.0, 0.0, 0.0]
+    msgsnd: [0.0, 0.0, 0.0, 0.0, 0.0]
+    nivcsw: [0.0, 2.0, 1.0, 2.0, 1.0]
+    nsignals: [0.0, 0.0, 0.0, 0.0, 0.0]
+    nswap: [0.0, 0.0, 0.0, 0.0, 0.0]
+    nvcsw: [4.0, 4.0, 4.0, 4.0, 4.0]
+    oublock: [0.0, 0.0, 0.0, 0.0, 0.0]
+    stime: [0.0, 0.0, 0.0, 0.0, 0.0]
+    utime: [0.00145, 0.001275, 0.001518, 0.002089, 0.001971]
+- attributes: {__description: sleep 1, description: sleep 1}
+  data:
+    __ov-time: [1.0068104267120361, 1.0060529708862305, 1.0057413578033447, 1.006652593612671,
+      1.0058579444885254]
+    idrss: [0.0, 0.0, 0.0, 0.0, 0.0]
+    inblock: [0.0, 0.0, 0.0, 0.0, 0.0]
+    isrss: [0.0, 0.0, 0.0, 0.0, 0.0]
+    ixrss: [0.0, 0.0, 0.0, 0.0, 0.0]
+    majflt: [0.0, 0.0, 0.0, 0.0, 0.0]
+    maxrss: [2280.0, 2164.0, 2160.0, 2216.0, 2268.0]
+    minflt: [161.0, 162.0, 158.0, 160.0, 161.0]
+    msgrcv: [0.0, 0.0, 0.0, 0.0, 0.0]
+    msgsnd: [0.0, 0.0, 0.0, 0.0, 0.0]
+    nivcsw: [1.0, 0.0, 1.0, 0.0, 0.0]
+    nsignals: [0.0, 0.0, 0.0, 0.0, 0.0]
+    nswap: [0.0, 0.0, 0.0, 0.0, 0.0]
+    nvcsw: [4.0, 4.0, 4.0, 4.0, 4.0]
+    oublock: [0.0, 0.0, 0.0, 0.0, 0.0]
+    stime: [0.0, 0.000852, 0.0, 0.001018, 0.000826]
+    utime: [0.00174, 0.000736, 0.001581, 0.00085, 0.000785]
+- property_descriptions: {idrss: integral unshared data size, inblock: block input
+      operations, isrss: integral unshared stack size, ixrss: integral shared memory
+      size, majflt: page faults (hard page faults), maxrss: maximum resident set size,
+    minflt: page reclaims (soft page faults), msgrcv: IPC messages received, msgsnd: IPC
+      messages sent, nivcsw: involuntary context switches, nsignals: signals received,
+    nswap: swaps, nvcsw: voluntary context switches, oublock: block output operations,
+    stime: system CPU time used, utime: user CPU time used}

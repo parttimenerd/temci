@@ -1,5 +1,5 @@
-Documentation of the temci module
-=================================
+API Documentation
+=================
 
 Subpackages
 -----------

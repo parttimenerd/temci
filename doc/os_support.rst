@@ -1,5 +1,5 @@
-Supported Operating Systems
-===========================
+OS Support
+==========
 
 Linux is the main target for this tool.
 The support for other Unix like operating systems is limited. Most of the advanced environment setup functionality,

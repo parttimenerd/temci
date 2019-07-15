@@ -64,7 +64,7 @@ This reporter is based on the ``codespeed`` reporter:
 For more information, consider looking into the documentation of the `report module <temci.report.html>`_.
 
 New Runner
-~~~~~~~~~~
+----------
 
 Before implementing a new runner, you should consider whether using the ``output`` runner is enough.
 The output runner parses the output of the benchmarked programs as a list of ``property: value`` mappings, e.g.
@@ -143,7 +143,7 @@ documentation:
             return {}
 
 New exec Plugin
-~~~~~~~~~~~~~~~
+---------------
 
 New plugins for setting up the benchmarking environment can be developed by extending the
 `AbstractRunDriverPlugin <temci.run.html#temci.run.run_driver_plugin.AbstractRunDriverPlugin>`_ class.
