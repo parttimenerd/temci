@@ -1,7 +1,37 @@
 temci format
 ============
 
+.. code:: sh
+
+    temci format [OPTIONS] NUMBER [ABS_DEVIATION]
+
 A small formatting utility, to format numbers with their standard deviation and si prefixes.
+
+Usage Example
+-------------
+
+.. code:: sh
+
+    > temci format 1.0 0.5
+    1.(000)
+
+    > temci format 1.56 0.005
+    1.56(0)
+
+    > temci format 1560 --scientific_notation
+    1.560k
+
+    > temci format 1560 --no-scientific_notation_si_prefixes
+    1.560e3
+
+This tool uses the number formatting module `temci.utils.number <temci.utils.html#temci.utils.number>`_.
+The therein defined method `format_number <temci.utils.html#temci.utils.number.format_number>`_ can be
+used to format numbers and has the same options as the tool itself.
+Read `Usage as a Library <extending.html#usage-as-a-library>`_ on how to use the module in a project other
+than temci.
+
+Options
+-------
 
 .. code:: sh
 
@@ -56,3 +86,6 @@ A small formatting utility, to format numbers with their standard deviation and 
                                       Don't omit the minimum number of decimal
                                       places if insignificant?  [default: True]
       --help                          Show this message and exit.
+
+
+These options can also be set in the settings file, under ``report/number``.

@@ -1,5 +1,5 @@
 temci shell
------------
+===========
 
 ``temci short shell`` opens a shell in a benchmarking environment. It allows to execute your own benchmarking suite
 in its own cpuset with disabled hyper threading, ….
@@ -8,17 +8,18 @@ This command has the same options as `temci exec <temci_exec.html>`_ (regarding 
 For example running your own benchmarking suite ``bench.sh`` in a reasonably setup environment can be done
 via:
 
-.. code: sh
+.. code:: sh
 
     temci short shell ./bench.sh
 
-The launched shell is interative:
+The launched shell is interactive:
 
-.. code: sh
+.. code:: sh
 
-    temci short shell
-    > echo 1
+    > temci short shell
+    >> echo 1
     1
+
 
 ``temci shell`` accepts an input file as its argument which has the following structure
 (see `ShellRunDriver <temci.run.html#temci.run.run_driver.ShellRunDriver>`_:

@@ -4,6 +4,7 @@ from enum import Enum
 
 import math
 from temci.utils.typecheck import *
+from temci.utils.util import document
 
 Number = t.Union[int, float]
 """ Numeric type """
@@ -28,6 +29,7 @@ class ParenthesesMode(Enum):
         }[key]
 
 
+@document(settings_format="Configuration format, is in the settings under report/number")
 class FNumber:
     """
     A formattable number wrapper.
