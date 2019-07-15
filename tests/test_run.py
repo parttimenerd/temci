@@ -55,3 +55,7 @@ def test_included_blocks():
 
 def test_discard_blocks_on_error():
     assert run_temci("short exec 'exit 1' --discard_all_data_for_block_on_error", expect_success=False).ret_code == ErrorCode.PROGRAM_ERROR.value
+
+
+def test_temci_short_shell():
+    assert "42" in run_temci_proc("short shell echo 42").out

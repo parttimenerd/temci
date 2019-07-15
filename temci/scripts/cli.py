@@ -265,11 +265,11 @@ def temci__short__exec(commands: list, with_description: list = None, without_de
 
 
 @short.command(short_help=misc_commands_description["short"]["shell"])
-@click.argument('command', nargs=1, metavar="COMMAND", default="sh")
+@click.argument('command', nargs=-1, metavar="COMMAND")
 @cmd_option(common_options)
 @cmd_option(misc_commands["short"]["sub_commands"]["shell"])
 def shell(command, **kwargs):
-    temci__short__shell(command, **kwargs)
+    temci__short__shell(" ".join(command) if len(command) > 0 else "sh", **kwargs)
 
 
 @document_func(misc_commands_description["short"]["shell"], common_options,
@@ -280,7 +280,7 @@ def temci__short__shell(command: str, **kwargs):
     Settings()["run/discarded_runs"] = 0
     Settings()["run/cpuset/parallel"] = 0
     benchmark_and_exit([{"run_config": {
-                "run_cmd": [command]
+                "run_cmd": command
             },
             "attributes": {
                 "description": command
