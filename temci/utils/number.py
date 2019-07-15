@@ -66,6 +66,8 @@ class FNumber:
                  is_percent: bool = None, scientific_notation: bool = None,
                  parentheses_mode: t.Union[str, ParenthesesMode] = None,
                  parentheses: bool = None):
+        from temci.utils.settings import Settings
+        self.settings = Settings()["report/number"]
         self.number = number  # type: Number
         assert not (rel_deviation is not None and abs_deviation is not None)
         self.deviation = None  # type: t.Optional[Number]
@@ -84,6 +86,7 @@ class FNumber:
                                                                      else self.settings["parentheses_mode"])
         self.parentheses = parentheses if parentheses is not None \
                                        else self.settings["parentheses"]
+
     def __int__(self) -> int:
         return int(self.number)
 
