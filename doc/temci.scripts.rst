@@ -12,14 +12,6 @@ temci.scripts.cli module
     :undoc-members:
     :show-inheritance:
 
-temci.scripts.init module
--------------------------
-
-.. automodule:: temci.scripts.init
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 temci.scripts.temci_completion module
 -------------------------------------
 

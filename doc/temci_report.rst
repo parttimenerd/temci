@@ -85,7 +85,7 @@ The input file for ``temci report`` consists of list of entries per run program 
           property_1: long name of property_1
 
 
-Common options
+Common Options
 --------------
 These options are passed in the ``reporter`` settings block
 (see `Settings API </temci.utils.html#temci.utils.settings.Settings>`_ or directly on the command line
@@ -105,7 +105,8 @@ These options are passed in the ``reporter`` settings block
     in:         Either(Str()|ListOrTuple(Str()))
                 default: run_output.yaml
 
-    # List of included run blocks (all: include all), identified by their description or tag attribute
+    # List of included run blocks (all: include all), identified by their description
+    # or tag attribute
     included_blocks:         ListOrTuple(Str())
                 default: [all]
 
@@ -305,7 +306,7 @@ command line options of the same name (prefixed with ``csv_``):
 
 Output for a simple benchmark (with ``--csv_columns "utime[mean|p],utime[stddev],utime[max]"``, see `Console <temci_report.html#Console>`):
 
-.. code::
+.. code:: yaml
 
     utime[mean|p],utime[stddev],utime[max]
     0.00(2),0.000,0.002

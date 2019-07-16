@@ -138,7 +138,7 @@ class Settings(metaclass=Singleton):
         "build": Dict({
             "in": Str() // Default("build.yaml") // Description("Input file with the program blocks to build")
                 // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
-            "out": Str() // Default("run.exec.yaml") // Description("Resulting run config file"),
+            "out": Str() // Default("run_config.yaml") // Description("Resulting run config file"),
             "threads": PositiveInt() // Default(1) // Description("Number of threads that build simultaneously"),
             "rand": Obsolete("Removed builder randomization", "0.8") // Description("Obsolete randomization configuration")
         }, unknown_keys=True),

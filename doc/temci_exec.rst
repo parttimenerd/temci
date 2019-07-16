@@ -202,7 +202,7 @@ The input file for ``temci exec`` consists of list of entries per run program bl
                       default: time
 
           # Override min run and max runspecifications if > -1
-          runs:         Int(constraint=<function>)
+          runs:         Int()
                       default: -1
 
           # Environment variables
@@ -210,13 +210,15 @@ The input file for ``temci exec`` consists of list of entries per run program bl
 
           # Configuration for the output and return code validator
           validator:
-              # Program error output without ignoring line breaks and spaces at the beginning and the end
+              # Program error output without ignoring line breaks and spaces at the beginning
+              # and the end
               expected_err_output:         Optional(Str())
 
               # Strings that should be present in the program error output
               expected_err_output_contains:         Either(List(Str())|Str())
 
-              # Program output without ignoring line breaks and spaces at the beginning and the end
+              # Program output without ignoring line breaks and spaces at the beginning
+              # and the end
               expected_output:         Optional(Str())
 
               # Strings that should be present in the program output
@@ -270,12 +272,14 @@ flags are of the schema ``--SETTING/--no-SETTING``):
     in:         Str()
                 default: input.exec.yaml
 
-    # List of included run blocks (all: include all), or their tag attribute or their number in the
+    # List of included run blocks (all: include all)
+    # or their tag attribute or their number in the
     # file (starting with 0)
     included_blocks:         ListOrTuple(Str())
                 default: [all]
 
-    # Maximum time one run block should take, -1 == no timeout, supports normal time span expressions
+    # Maximum time one run block should take, -1 == no timeout,
+    # supports normal time span expressions
     max_block_time:         ValidTimespan()
                 default: '-1'
 
@@ -283,7 +287,9 @@ flags are of the schema ``--SETTING/--no-SETTING``):
     max_runs:         Int()
                 default: 100
 
-    # Maximum time the whole benchmarking should take, -1 == no timeout, supports normal time span
+    # Maximum time the whole benchmarking should take
+    #    -1 == no timeout
+    # supports normal time spans
     # expressions
     max_time:         ValidTimespan()
                 default: '-1'
@@ -330,7 +336,9 @@ flags are of the schema ``--SETTING/--no-SETTING``):
         base_core_number:         Int(range=range(0, 8))
                     default: 1
 
-        # 0: benchmark sequential, > 0: benchmark parallel with n instances, -1: determine n automatically
+        #   0: benchmark sequential
+        # > 0: benchmark parallel with n instances
+        #  -1: determine n automatically (based on the number of cpu cores)
         parallel:         Int()
 
         # Number of cpu cores per parallel running program.
@@ -338,13 +346,13 @@ flags are of the schema ``--SETTING/--no-SETTING``):
                     default: 1
 
      # Maximum runs per tag (block attribute 'tag'), min('max_runs', 'per_tag') is used
-    max_runs_per_tag:         Dict(, keys=Str(), values=Int(constraint=<function>), default = {})
+    max_runs_per_tag:         Dict(, keys=Str(), values=Int(), default = {})
 
     # Minimum runs per tag (block attribute 'tag'), max('min_runs', 'per_tag') is used
-    min_runs_per_tag:         Dict(, keys=Str(), values=Int(constraint=<function>), default = {})
+    min_runs_per_tag:         Dict(, keys=Str(), values=Int(), default = {})
 
     # Runs per tag (block attribute 'tag'), max('runs', 'per_tag') is used
-    runs_per_tag:         Dict(, keys=Str(), values=Int(constraint=<function>), default = {})
+    runs_per_tag:         Dict(, keys=Str(), values=Int(), default = {})
 
 There also some exec run driver specific options:
 
@@ -354,11 +362,7 @@ There also some exec run driver specific options:
     # measurement. Not all runners support it.
     parse_output:         Bool()
 
-    # Enable other plugins by default: none =  (enable none by default); all = cpu_governor,disable_sw
-    # ap,sync,stop_start,other_nice,nice,disable_aslr,disable_ht,disable_intel_turbo (enable all,
-    # might freeze your system); usable =
-    # cpu_governor,disable_swap,sync,nice,disable_aslr,disable_ht,cpuset,disable_intel_turbo (like
-    # 'all' but doesn't affect other processes)
+    # Enable other plugins by default
     preset:         ExactEither('none'|'all'|'usable')
                 default: none
 
@@ -463,8 +467,10 @@ This configuration has the following structure:
 
     # Measured properties that are stored in the benchmarking result
     properties:         ValidRusagePropertyList()
-                default: [idrss, inblock, isrss, ixrss, majflt, maxrss, minflt, msgrcv, msgsnd, nivcsw, nsignals,
-              nswap, nvcsw, oublock, stime, utime]
+                default: [idrss, inblock, isrss, ixrss,
+                          majflt, maxrss, minflt,
+                          msgrcv, msgsnd, nivcsw, nsignals,
+                          nswap, nvcsw, oublock, stime, utime]
 
 The measurable properties are:
 
@@ -523,7 +529,8 @@ This configuration has the following structure:
 
     # Measured properties. The number of properties that can be measured at once is limited.
     properties:         List(Str())
-                default: [wall-clock, cycles, cpu-clock, task-clock, instructions, branch-misses, cache-references]
+                default: [wall-clock, cycles, cpu-clock, task-clock,
+                          instructions, branch-misses, cache-references]
 
     # If runner=perf_stat make measurements of the program repeated n times. Therefore scale the number of
     # times a program is benchmarked.
@@ -584,9 +591,10 @@ This configuration has the following structure:
     # Base property path that all other paths are relative to.
     base_path:         Str()
 
-    # Code that is executed for each matched path. The code should evaluate to the actual measured value
-    # for the path. It can use the function get(sub_path: str = '') and the modules pytimeparse, numpy,
-    # math, random, datetime and time.
+    # Code that is executed for each matched path.
+    # The code should evaluate to the actual measured value
+    # for the path. It can use the function get(sub_path: str = '')
+    # and the modules pytimeparse, numpy, math, random, datetime and time.
     code:         Str()
                 default: get()
 
@@ -794,8 +802,8 @@ or by using the command line options of the same names prefixed by ``--nice_``:
     #   3 for idle
     io_nice: 1
 
-    # Niceness values range from -20 (most favorable to the process) to 19 (least favorable to the
-    # process).
+    # Niceness values range from -20 (most favorable to the process)
+    # to 19 (least favorable to the process).
     nice: -15
 
 ``nice`` values lower than -15 seem to cripple Linux systems.
@@ -871,12 +879,12 @@ or by using the command line options of the same names prefixed by ``--stop_star
 
 .. code:: yaml
 
-    # Each process which name (lower cased) starts with one of the prefixes is not ignored. Overrides the
-    # decision based on the min_id.
+    # Each process which name (lower cased) starts with one of the prefixes is not ignored.
+    # Overrides the decision based on the min_id.
     comm_prefixes: [ssh, xorg, bluetoothd]
 
-    # Each process which name (lower cased) starts with one of the prefixes is ignored. It overrides the
-    # decisions based on comm_prefixes and min_id.
+    # Each process which name (lower cased) starts with one of the prefixes is ignored.
+    # It overrides the decisions based on comm_prefixes and min_id.
     comm_prefixes_ignored: [dbus, kworker]
 
     # Just output the to be stopped processes but don't actually stop them?
@@ -914,9 +922,9 @@ can also be set using the options with the same names prefixed with ``--cpuset_`
     base_core_number:         Int(range=range(0, 8))
                 default: 1
 
-    # 0: benchmark sequential
+    #  0: benchmark sequential
     # > 0: benchmark parallel with n instances
-    # -1: determine n automatically
+    #  -1: determine n automatically, based on the number of CPU cores
     parallel:         Int()
 
     # Number of cpu cores per parallel running program.

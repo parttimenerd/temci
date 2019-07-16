@@ -4,14 +4,6 @@ temci.build package
 Submodules
 ----------
 
-temci.build.assembly module
----------------------------
-
-.. automodule:: temci.build.assembly
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 temci.build.build_processor module
 ----------------------------------
 
