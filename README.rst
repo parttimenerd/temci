@@ -6,6 +6,9 @@ temci
 .. image:: https://travis-ci.org/parttimenerd/temci.svg?branch=master
     :target: https://travis-ci.org/parttimenerd/temci
 
+.. image:: https://readthedocs.org/projects/temci/badge/?version=latest&style=plastic
+    :target: https://temci.readthedocs.org
+
 An advanced benchmarking tool written in python3 that supports setting up an environment for benchmarking and the generation of visually appealing reports.
 
 It runs on Linux systems and (rudimentary) on OS X.
