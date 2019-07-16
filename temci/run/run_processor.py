@@ -316,7 +316,7 @@ class RunProcessor:
                 msg = descr + ":\n\t" + "\n\t".join(str(result.error).split("\n"))
                 msgs.append(msg)
             subject = "Errors while benchmarking " + join_strs(descrs)
-            send_mail(Settings()["run/send_mail"], subject, "\n\n".join(msgs), [Settings()["run/in"]  + ".erroneous.yaml"])
+            send_mail(Settings()["run/send_mail"], subject, "\n\n".join(msgs), [Settings()["run/in"] + ".erroneous.yaml"])
 
     def store(self):
         """ Store the result file """

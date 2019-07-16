@@ -29,7 +29,7 @@ To install temci from source run:
     cd temci
     nix build -f .
 
-``nix-build -f .`` can also be used to re-run all test cases and to update your install after updating the git repository.
+``nix-build -f .`` can also be used to re-run unit test cases and to update your install after updating the git repository.
 
 Using pip3
 ----------

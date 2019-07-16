@@ -16,6 +16,7 @@ Contents of this documentation
    temci_exec
    temci_shell
    temci_report
+   temci_init
    temci_format
    os_support
    extending

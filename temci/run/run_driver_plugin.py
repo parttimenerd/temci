@@ -490,7 +490,7 @@ class DisableIntelTurbo(AbstractRunDriverPlugin):
 
 
 @register(ExecRunDriver, "cpuset", Dict({}))
-class DisableIntelTurbo(AbstractRunDriverPlugin):
+class CPUSet(AbstractRunDriverPlugin):
     """
     Enable cpusets, simply sets run/cpuset/active to true
     """

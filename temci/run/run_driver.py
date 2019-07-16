@@ -478,7 +478,7 @@ _intel = ",disable_intel_turbo" if does_command_succeed("ls /sys/devices/system/
 
 PRESET_PLUGIN_MODES = {
     "none": ("", "enable none by default"),
-    "all": ("cpu_governor,disable_swap,sync,stop_start,other_nice,nice,disable_aslr,disable_ht" + _intel,
+    "all": ("cpu_governor,disable_swap,sync,stop_start,other_nice,nice,disable_aslr,disable_ht,cpuset" + _intel,
             "enable all, might freeze your system"),
     "usable": ("cpu_governor,disable_swap,sync,nice,disable_aslr,disable_ht,cpuset" + _intel,
                "like 'all' but doesn't affect other processes")

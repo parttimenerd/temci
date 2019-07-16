@@ -22,17 +22,30 @@ Usage
 .. code: sh
 
     # using the console reporter
-    temci report run_output.yaml
+    > temci report run_output.yaml # see below for more examples
+    Report for single runs
+    sleep 0.5            (    2 single benchmarks)
+         utime mean =        1.(211)m, deviation = 33.27828%
+
+    sleep 1              (    2 single benchmarks)
+         utime mean =        1.(172)m, deviation = 29.91891%
+
+    Equal program blocks
+         sleep 0.5  ⟷  sleep 1
+             utime confidence =        95%, speed up =      3.26%
+
 
     # using any other reporter
-    temci report run_output.yaml --reporter [console,html2,csv,codespeed]
+    > temci report run_output.yaml --reporter [console,html2,csv,codespeed]
+    …
 
     # pass reporter specific options either via the reporter/REPORTER_misc settings block
     # in the settings file, or via --REPORTER_SETTING
     # options common to all reporters are passed without prefix or via the reporter settings
     # block, for example to generate pdfs for all graphics and tables in the HTML2 reporter
     # use the following
-    temci report run_output.yaml --reporter html2 --html2_gen_pdf
+    > temci report run_output.yaml --reporter html2 --html2_gen_pdf
+    …
 
 File format
 -----------

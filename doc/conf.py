@@ -48,7 +48,8 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
-    'shelltest'
+    'shelltest',
+    'sphinx.ext.autosectionlabel'
 ]
 
 if not on_rtd:
