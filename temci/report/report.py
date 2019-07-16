@@ -449,7 +449,7 @@ class HTMLReporter2(AbstractReporter):
                 pair = self.stats.get_pair(i, j)
                 rel_diff = None
                 if property is None:
-                    popover.content = """
+                    popover.content = r"""
                         Geometric mean of the means of the left relative to the means of the right:
                         \\[\\sqrt[\|properties\|]{
                         \\prod_{p \in \\text{properties}}
@@ -878,7 +878,7 @@ class HTMLReporter2(AbstractReporter):
                 "format": self._float_format,
                 "extended": True
             }, {
-                "title": "\(\sigma\) per mean",
+                "title": r"\(\sigma\) per mean",
                 "func": lambda x: fnumber(x.std_dev_per_mean(), rel_deviation=x.sem() / (x.mean() ** 2),
                                           is_percent=True),
                 "format": self._percent_format,
@@ -924,7 +924,7 @@ class HTMLReporter2(AbstractReporter):
             }]
         if self.misc["min_in_comparison_tables"]:
             tested_per_prop.extend([{
-                    "title": "\(\sigma\) per min",
+                    "title": r"\(\sigma\) per min",
                     "func": lambda x: x.std_dev() / x.min(),
                     "format": self._float_format,
                     "popover": _Popover(self, "sdf", "sdf"),
@@ -1796,8 +1796,6 @@ class CSVReporter(AbstractReporter):
         """
         Create an report and output it as configured.
 
-        :param with_tester_results: include the hypothesis tester results
-        :param to_string: return the report as a string and don't output it?
         :return: the report string if ``to_string == True``
         """
         if not self.misc["out"] == "-" and not os.path.exists(os.path.dirname(self.misc["out"])):
@@ -1858,12 +1856,14 @@ class CSVReporter(AbstractReporter):
 }))
 class CodespeedReporter(AbstractReporter):
     """
-    Reporter that outputs JSON as expected by [codespeed](https://github.com/tobami/codespeed).
+    Reporter that outputs JSON as expected by `codespeed <https://github.com/tobami/codespeed>`_.
     Branch name and commit ID are taken from the current directory.
     Use it like this:
-    ```
-    temci report --reporter codespeed ... | curl --data-urlencode json@- http://localhost:8000/result/add/json/
-    ```
+
+    .. code:: sh
+
+        temci report --reporter codespeed ... | curl --data-urlencode json@- http://localhost:8000/result/add/json/
+
     """
 
     def report(self):
