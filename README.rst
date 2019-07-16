@@ -131,11 +131,11 @@ For more information see the Installation_ page.
 Auto completion
 ~~~~~~~~~~~~~~~
 
-Temci can generate auto completion files for bash and zsh, run the following to use it for your respective shell:
+Temci can generate auto completion files for bash and zsh:
 
 .. code:: sh
 
-    . `temci_completion [bash|zsh]`
+    . `temci_completion $0`
 
 
 Using temci to setup a benchmarking environment

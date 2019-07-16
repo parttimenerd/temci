@@ -91,8 +91,8 @@ Temci runs perfectly fine without them if you are not using the mentioned featur
 Auto Completion
 ~~~~~~~~~~~~~~~
 
-Temci can generate auto completion files for bash and zsh, run the following to use it for your respective shell:
+Temci can generate auto completion files for bash and zsh:
 
 .. code:: sh
 
-    . `temci_completion [bash|zsh]`
+    . `temci_completion $0`
