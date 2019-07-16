@@ -32,3 +32,7 @@ def test_config_default_values():
             "runs": 11
         }
     }).out
+
+
+def test_format():
+    assert run_temci("format 1.001 0.05").out == "1.0(01)"

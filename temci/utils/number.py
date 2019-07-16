@@ -136,7 +136,7 @@ class FNumber:
 
 def format_number(number: Number, deviation: float = 0.0,
                   parentheses: bool = True, explicit_deviation: bool = False,
-                  is_deviation_absolute: bool = False,
+                  is_deviation_absolute: bool = True,
                   min_decimal_places: int = 3,
                   max_decimal_places: t.Optional[int] = None,
                   omit_insignificant_decimal_places: bool = True,
@@ -144,13 +144,25 @@ def format_number(number: Number, deviation: float = 0.0,
                   scientific_notation_steps: int = 3,
                   scientific_notation_decimal_places: int = None,
                   scientific_notation_si_prefixes: bool = True,
-                  force_min_decimal_places: bool = False,
+                  force_min_decimal_places: bool = True,
                   relative_to_deviation: bool = False,
                   sigmas: int = 2,
                   parentheses_mode: ParenthesesMode = ParenthesesMode.ORDER_OF_MAGNITUDE
                   ) -> str:
     """
     Format the passed number
+
+    >>> format_number(1.0, 0.5)
+    '1.(000)'
+
+    >>> format_number(1.56, 0.005)
+    '1.56(0)'
+
+    >>> format_number(1560, scientific_notation=True)
+    '1.560k'
+
+    >>> format_number(1560, scientific_notation_si_prefixes=False, scientific_notation=True)
+    '1.560e3'
 
     :param number: formatted number
     :param deviation: standard deviation associated with the number
@@ -208,7 +220,7 @@ def _format_number(number: Number, deviation: float,
                    min_decimal_places: int = 3,
                    max_decimal_places: t.Optional[int] = None,
                    omit_insignificant_decimal_places: bool = True,
-                   force_min_decimal_places: bool = False,
+                   force_min_decimal_places: bool = True,
                    relative_to_deviation: bool = False,
                    scientific_notation: bool = False,
                    scientific_notation_si_prefixes: bool = True,

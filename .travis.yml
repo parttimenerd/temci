@@ -12,7 +12,7 @@ matrix:
       install:
         - pip install --upgrade pip
         - pip3 install -e .
-      script: pytest
+      script: ./test.sh
     - language: python
       python: "3.7"
       dist: xenial
@@ -20,5 +20,5 @@ matrix:
         - pip install --upgrade pip
         - pip3 install -e .
       script:
-        - pytest
-        - TEMCI_TEST_CMD=1 pytest
+        - ./test.sh
+        - TEMCI_TEST_CMD=1 ./test.sh

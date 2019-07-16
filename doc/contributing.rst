@@ -30,10 +30,12 @@ Testing
 The tests are located in the ``tests`` folder and roughly grouped by the temci subcommand they belong to.
 New features should by covered by tests.
 
+There is also support for doctests that can be added into the documentation.
+
 The tests are using the pytest framework and can be executed by simply calling
 
 .. code:: sh
 
-    pytest
+    ./test.sh
 
 It recommended to install the package ``pytest-clarity`` to improve the error output.
