@@ -1,19 +1,19 @@
 temci exec
 ==========
 
-This page explains ``temci exec`` and ``temci short exec`` that allow you to do the actual benchmarks.
+This page explains ``temci exec`` and ``temci short exec`` that allow you to run the actual benchmarks.
 
 The basic concept is that there are
 
 run drivers
-    that support a specific benchmarking concept (like benchmarking whole programs that can be executed on the shell),
+    that support a specific benchmarking concept (like benchmarking whole programs that can be executed in the shell),
     these run drivers use
 :ref:`runners <Runners>`
     for the actual benchmarking and
 :ref:`plugins <Plugins>`
     to setup up the benchmarking environment
 
-Currently only one run driver is implemented, the exec run driver that supports benchmarking programs
+Currently only one run driver is implemented, the `exec` run driver that supports benchmarking programs
 executed in a shell.
 
 The benchmarking process produces a YAML file with the benchmarking results.
@@ -21,7 +21,7 @@ The benchmarking process produces a YAML file with the benchmarking results.
 There are multiple features that require root privileges. To use these features, call temci with
 the ``--sudo`` option. It will run only temci in super user mode, but not the benchmarked programs
 themself. Notable features that require these rights are cpu sets (for separating the benchmarked programs
-from the rest of the system), disabling hyperthreading and settings the CPU governor.
+from the rest of the system), disabling hyperthreading and setting the CPU governor.
 
 temci short exec
 ----------------
@@ -84,7 +84,7 @@ The produced ``run_output.yaml`` file is:
         …
     - property_descriptions: {avg_mem_usage: average total mem usage (in K), …}
 
-More on the format of the result file can be found in the documentation for `temci report <temci_report.html#file-format>`_.
+More information on the format of the result file can be found in the documentation for `temci report <temci_report.html#file-format>`_.
 
 This documentation focuses on ``temci exec`` and its input file and options.
 
@@ -96,7 +96,7 @@ combination of plugins:
 none
     no plugins are enabled, the default for non super user benchmarking
 all
-    Use all available plugins and render the system partially unusable by stopping all unnecessary processes, …,
+    Use all available plugins and render the system partially unusable by stopping all unnecessary processes etc.,
     enables: :ref:`cpu_governor`, :ref:`disable_swap`, :ref:`sync`, :ref:`stop_start`, :ref:`other_nice`, :ref:`nice`,
     :ref:`disable_aslr`, :ref:`disable_ht`, :ref:`disable_intel_turbo`, :ref:`cpuset`
 usable
@@ -123,11 +123,11 @@ Configuring them in ``temci short exec`` is currently not possible.
    Uses the ``getrusage`` method and a small wrapper written in C (be sure to call ``temci setup`` if
    you install temci via pip, to build the wrapper).
 :ref:`perf_stat<perf_stat runner>`
-   Uses ``perf stat`` for measurements, might require root privileges, allows to measure a wide
+   Uses ``perf stat`` for measurements, might require root privileges. Allows measuring a wide
    range of properties
 :ref:`output<output runner>`
    This runner obtains the measurements by parsing the output of the benchmarked program and interpreting
-   it as a YAML mapping of property to measurement (``property: NUMBER`` lines).
+   it as a YAML mapping of properties to measurements (``property: NUMBER`` lines).
    It can be used in combination with the :ref:`time<time runner>` and :ref:`perf_stat<perf_stat runner>` runners
    (using the ``--parse_output`` option or setting ``parse_output`` to true in the run block config).
 
@@ -143,7 +143,7 @@ Error Codes
 File format
 -----------
 
-The input file for ``temci exec`` consists of list of entries per run program block:
+The input file for ``temci exec`` consists of a list of entries per run program block:
 
 .. code:: yaml
 
@@ -380,7 +380,7 @@ Number of runs
 ~~~~~~~~~~~~~~
 The number of runs per block is either fixed by the ``runs`` settings that apply or is between
 the applying ``min_runs`` and ``max_runs`` setting. In the latter case, the benchmarking of a program
-block is stopped if there is some of significance in the benchmarking results compared to all
+block is stopped early as soon as there is some significance in the benchmarking results compared to all
 other benchmarked programs.
 
 
@@ -514,9 +514,9 @@ class.
 perf_stat runner
 ~~~~~~~~~~~~~~~~
 
-This runner uses ``perf stat`` tool to obtain measurements. It might have to be installed separately 
+This runner uses the ``perf stat`` tool to obtain measurements. It might have to be installed separately 
 (see `Installation <installation.html>`).
-``perf stat`` allows to measure a myriad of properties but might require root privileges.
+``perf stat`` allows measuring a myriad of properties but might require root privileges.
 
 The runner is configured by modifying the ``perf_stat`` property of a run configuration.
 This configuration has the following structure:
@@ -554,7 +554,7 @@ This runner obtains the measurements by parsing the output of the benchmarked pr
 it as a YAML mapping of property to measurement (``property: NUMBER`` lines).
 
 It can be used in combination with the :ref:`time<time runner>` and the :ref:`perf_stat<perf_stat runner>` runner,
-(using the ``--parse_output`` option). Allowing to benchmark a command and parsing its result for additional
+(using the ``--parse_output`` option), allowing benchmarking a command and parsing its result for additional
 measurements.
 
 An example output is:
@@ -565,7 +565,7 @@ An example output is:
     load_time: 5
 
 It also supports lists of values if the lists of all properties have the same number of elements.
-This can be used return the result of multiple measurements in on call of the benchmarked program:
+This can be used return the result of multiple measurements in one call of the benchmarked program:
 
 .. code:: sh
 
