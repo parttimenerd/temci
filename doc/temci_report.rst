@@ -47,6 +47,20 @@ Usage
     > temci report run_output.yaml --reporter html2 --html2_gen_pdf
     …
 
+Using the html2 reporter:
+
+.. raw:: html
+
+    <iframe src="https://uqudy.serpens.uberspace.de/files/report/report.html" style="width: 133.3333%;
+    height: 400px;
+    -ms-zoom: 0.75;
+    -moz-transform: scale(0.75);
+    -moz-transform-origin: 0 0;
+    -o-transform: scale(0.75);
+    -o-transform-origin: 0 0;
+    -webkit-transform: scale(0.75);
+    -webkit-transform-origin: 0 0; transform: scale(0.75); transform-origin: 0 0;"></iframe>
+
 File format
 -----------
 
@@ -208,7 +222,7 @@ Output for the simple benchmark from above (with ``--properties utime --properti
 
 .. raw:: html
 
-    <iframe src="http://mostlynerdless.de/files/report/report.html" style="    width: 133.3333%;
+    <iframe src="https://uqudy.serpens.uberspace.de/files/report/report.html" style="width: 133.3333%;
     height: 400px;
     -ms-zoom: 0.75;
     -moz-transform: scale(0.75);
@@ -216,7 +230,7 @@ Output for the simple benchmark from above (with ``--properties utime --properti
     -o-transform: scale(0.75);
     -o-transform-origin: 0 0;
     -webkit-transform: scale(0.75);
-    -webkit-transform-origin: 0 0;"></iframe>
+    -webkit-transform-origin: 0 0; transform: scale(0.75); transform-origin: 0 0;"></iframe>
 
 
 All images and tables are statically generated, this results in a large HTML file with many ressources.

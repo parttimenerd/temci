@@ -6,10 +6,11 @@ temci
 .. image:: https://travis-ci.org/parttimenerd/temci.svg?branch=master
     :target: https://travis-ci.org/parttimenerd/temci
 
-.. image:: https://readthedocs.org/projects/temci/badge/?version=latest&style=plastic
+.. image:: https://readthedocs.org/projects/temci/badge/?version=latest&style=plain
     :target: https://temci.readthedocs.org
 
-An advanced benchmarking tool written in python3 that supports setting up an environment for benchmarking and the generation of visually appealing reports.
+An advanced benchmarking tool written in python3 that supports setting up an environment for benchmarking
+and the generation of visually appealing reports.
 
 It runs on Linux systems and (rudimentary) on OS X.
 
@@ -19,7 +20,95 @@ Why should you use temci?
 temci allows you to easily measure the execution time (and other things)
 of programs and compare them against each other resulting in a pretty
 HTML5 based report. Furthermore it sets up the environment to ensure
-benchmarking results with a low variance.
+benchmarking results with a low variance. The latter feature can be used
+without using temci for benchmarking,
+by using `temci short shell <https://temci.readthedocs.io/en/latest/temci_shell.html>`_.
+
+Usage
+-----
+
+The main parts of temci are `temci exec <https://temci.readthedocs.io/en/latest/temci_exec.html>`_ and
+`temci report <https://temci.readthedocs.io/en/latest/temci_report.html>`_.
+
+Consider you want to see whether grepping for the strings that consist of ``a`` and ``b`` in the current
+folder is slower than for strings that consist only of ``a``.
+
+First we have to install temci (see below for more instructions):
+
+.. code:: sh
+
+    nix-env -f https://github.com/parttimenerd/temci/archive/master.tar.gz -i
+
+After this, we can benchmark both commands with temci:
+
+.. code:: sh
+
+    # benchmark both commands 20 times
+    temci short exec "grep '[ab]*' -R ." "grep 'a*' -R ." --runs 10
+
+    # if you want to improve the stability your benchmarks, run them with root privileges
+    # the benchmarked programs are run with your current privileges
+    temci short exec "grep '[ab]*' -R ." "grep 'a*' -R ." --runs 10 --sudo
+
+This results in a ``run_output.yaml`` file that should look like:
+
+.. code:: yaml
+
+    - attributes: {description: 'grep ''[ab]*'' -R .'}
+      data:
+        etime: [0.03, 0.02, 0.02, 0.03, 0.03, 0.03, 0.02, 0.03, 0.03, 0.02]
+        … # other properties
+    - attributes: {description: grep 'a*' -R .}
+      data:
+        etime: [0.02, 0.03, 0.02, 0.03, 0.03, 0.02, 0.03, 0.03, 0.02, 0.02]
+        … # other properties
+    - property_descriptions: {etime: elapsed real (wall clock) time, … }
+
+For more information on the support measurement tools (like
+`perf stat <https://temci.readthedocs.io/en/latest/temci_exec.html#perf-stat-runner>`_ and
+`rusage <https://temci.readthedocs.io/en/latest/temci_exec.html#rusage-runner>`_),
+the supported `plugins for setting up the environment <https://temci.readthedocs.io/en/latest/temci_exec.html#plugins>`_
+and more, see `temci exec <https://temci.readthedocs.io/en/latest/temci_exec.html>`_.
+
+We can now create a report from these benchmarking results using
+`temci report <https://temci.readthedocs.io/en/latest/temci_report.html>`_.
+We use the option ``--properties`` to include only the elapsed time in the
+report to keep the report simple:
+
+
+.. code:: sh
+
+    > temci report run_output_readme.yaml --properties etime
+    Report for single runs
+    grep '[ab]*' -R .    (   10 single benchmarks)
+         etime mean =     2(6).(000)m, deviation = 18.84223%
+
+    grep 'a*' -R .       (   10 single benchmarks)
+         etime mean =     2(5).(000)m, deviation = 20.00000%
+
+    Equal program blocks
+         grep '[ab]*' -R .  ⟷  grep 'a*' -R .
+             etime confidence =        67%, speed up =      3.85%
+
+We see that there is no big difference between the two commands.
+
+There are multiple reporters besides the default
+`console reporter <https://temci.readthedocs.io/en/latest/temci_report.html#console>`_.
+Another reporter is the `html2 reporter <https://temci.readthedocs.io/en/latest/temci_report.html#html2>`_
+that produces an HTML report, use by adding the ``--reporter html2`` option:
+
+.. raw:: html
+
+    <iframe src="https://uqudy.serpens.uberspace.de/files/report_readme/report.html" style="width: 133.3333%;
+    height: 400px;
+    -ms-zoom: 0.75;
+    -moz-transform: scale(0.75);
+    -moz-transform-origin: 0 0;
+    -o-transform: scale(0.75);
+    -o-transform-origin: 0 0;
+    -webkit-transform: scale(0.75);
+    -webkit-transform-origin: 0 0; transform: scale(0.75); transform-origin: 0 0;"></iframe>
+
 
 Installation
 ------------
@@ -30,29 +119,14 @@ The simplest way is to use the `Nix package manager <https://nixos.org/nix/>`_, 
 
           nix-env -f https://github.com/parttimenerd/temci/archive/master.tar.gz -i
 
-This installs temci and runs the tests.
-
-There is also the traditional way of using pip, requiring at least python3.6:
+Using pip requiring at least python3.6:
 
 .. code:: sh
 
         pip3 install git+https://github.com/parttimenerd/temci.git
 
-A package called temci exists on pypi, but temci depends on an unpublished version of a library, only available on
-github. This should change in the near future.
+For more information see the Installation_ page.
 
-The Installation_ page gives more details on the optional requirements and on ``temci setup`` that should be called
-before using ``temci build`
-
-Installation from source
-~~~~~~~~~~~~~~~~~~~~~~~~
-Clone this repository and run
-
-.. code:: sh
-
-    nix build -f .
-    # or using pip
-    pip3 install -e .
 
 Auto completion
 ~~~~~~~~~~~~~~~
@@ -63,170 +137,12 @@ Temci can generate auto completion files for bash and zsh, run the following to 
 
     . `temci_completion [bash|zsh]`
 
-Usage
------
 
-*Side note: This tool needs root privileges for some benchmarking
-features (using the `--sudo` flag is preferred over calling temci
-with sudo directly).* *If you're not root, it will not fail, but
-it will warn you and disable the* *features.*
-
-There are currently two good ways to explore the features of temci: 1.
-Play around with temci using the provided tab completion for zsh
-(preferred) and bash 2. Look into the annotated settings file (it can be
-generated via ``temci init settings``).
-
-A user guide is planned. Until it's finished consider reading the
-`code documentation <https://temci.readthedocs.io/en/latest/temci.html>`_.
-
-A documentation of all command line commands and options is given in
-the `documentation for the cli module <https://temci.readthedocs.io/en/latest/temci.scripts.html#module-temci.scripts.cli>`_.
-
-A documentation for all available run drivers, runners and run
-driver plugins is given in the `documentation for the run module <https://temci.readthedocs.io/en/latest/temci.run.html>`_
-
-The status of the documentation is given in the section `Status of the documentation`_.
-
-Getting started with simple benchmarking
-----------------------------------------
-
-*Or: How to benchmarking a simple program called ls (a program is every
-valid shell code that is executable by /bin/sh)*
-
-There are two ways to benchmark a program: A short and a long one.
-
-The short one first: Just type:
-
-.. code:: sh
-
-        temci short exec "ls" --runs 10 --out out.yaml
-
-Explanation:
-
--  ``short`` is the category of small helper subprograms that allow to
-   use some temci features without config files
--  ``ls`` is the executed program
-    - this is equivalent to ``-wd "ls"``
-    -  where ``-wd`` is the short option for ``--without_description`` an tells
-       temci to use the program as its own description
--  ``--runs 100`` is short for ``--min_runs 100 --max_runs 100``
--  ``--min_runs 100`` tells temci to benchmark ``ls`` at least 100 times
-   (the default value is currently 20)
--  ``--max_runs 100`` tells temci to benchmark ``ls`` at most 100 times
-   (the default value is currently 100)
--  setting min and max runs non equal makes only sense when comparing
-   two or more programs via temci
--  ``--out out.yaml`` tells temci to store the YAML result file as
-   ``out.yaml`` (default is ``result.yaml``)
-
-The long one now: Just type
-
-.. code:: sh
-
-        temci init run_config
-
-This let's you create a temci run config file by using a textual
-interface (if you don't want to create it entirely by hand). To actually
-run the configuration type:
-
-.. code:: sh
-
-        temci exec [file you stored the run config in] --out out.yaml
-
-Explanation:
-
--  ``exec`` is the sub program that takes a run config an benchmarks all
-   the included program blocks
--  ``--out out.yaml`` tells temci where to store the YAML file
-   containing the benchmarking results
--  the measured ``__ov-time`` property is just a time information used
-   by temci internally
-
-Now you have a YAML result file that has the following structure:
-
-.. code:: yaml
-
-    - attributes:
-         description: ls
-      data:
-         …
-         task-clock:
-            - [first measurement for property task-clock]
-            - …
-         …
-
-You can either create a report by parsing the YAML file yourself or by
-using the temci report tool. To use the latter type:
-
-.. code:: sh
-
-        temci report out.yaml --reporter html2 --html2_out ls_report
-
-Explanation:
-
--  ``out.yaml`` is the previously generated benchmarking result file
--  ``--reporter html2`` tells temci to use the HTML2Reporter. This
-   reporter creates a fancy HTML5 based report in the folder
-   ``ls_report``. The main HTML file is named ``report.html``. Other
-   possible reporters are ``html`` and ``console``. The default reporter
-   is ``html2``
--  ``--html2_out`` tells the HTML2Reporter the folder in which to place
-   the report.
-
-Now you have a report on the performance of ``ls``.
-
-How to go further from here
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
--  Benchmark two programs against each other either by adding a
-   ``-wd [other program]`` to the command line or appending the run
-   config file (also possible via ``temci init run_config``)
--  If using ``temci short exec``
-
-   -  add a better description for the benchmarked program by using
-      ``-d [DESCRIPTION] [PROGRAM]`` instead ``-wd``. ``-d`` is short
-      for ``--with_description``
-
--  If using ``temci init run_config``:
-
-   -  Choose another set of measured properties (e.g. to measure the L1
-      cache misses)
-   -  Change the used runner. The default runner is ``time`` and uses
-      ``time`` (gnu time, not shell builtin) to actually measure the
-      program. Other possible runners are for example ``perf_stat``,
-      ``rusage`` and ``spec``:
-
-      -  The ``perf_stat`` runner that uses the ``perf`` tool
-         (especially ``perf stat``) to measure the performance and read
-         performance counters.
-      -  The ``rusage`` runner uses a small C wrapper around the
-         ``getrusage(2)`` system call to measure things like the maximum
-         resource usage (it's comparable to ``time``)
-      -  The ``spec`` runner gets its measurements by parsing a SPEC
-         benchmark like result file. This allows using the SPEC
-         benchmark with temci.
-
--  Append ``--send_mail [your email adress]`` to get a mail after the
-   benchmarking finished. This mail has the benchmarking result file in
-   its appendix
--  Try to benchmark a failing program (e.g. "lsabc"). temci will create
-   a new run config file (with the ending ".erroneous.yaml" that
-   contains all failing run program blocks. Try to append the
-   benchmarking result via "--append" to the original benchmarking
-   result file.
-
-
-Use temci as a library
-~~~~~~~~~~~~~~~~~~~~~~
-This is useful for example for processing the benchmarking results.
-Before importing other parts of the library the module `temci.utils.library_init` has to be loaded,
-which runs the necessary setup code (reading the settings file, …).
-
-Use temci to setup a benchmarking environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Use `temci short shell COMMAND` to run a command (`sh` by default) in a shell that is inside
-the benchmarking environment. Most options (like `--preset`) of `temci short exec` are
-supported.
+Using temci to setup a benchmarking environment
+-----------------------------------------------
+Use the ``temci short shell COMMAND`` to run a command (``sh`` by default) in a shell that is inside
+the benchmarking environment. Most options of ``temci short exec`` are supported.
+For more information, see `temci shell <https://temci.readthedocs.io/en/latest/temci_shell.html>`_.
 
 
 Why is temci called temci?
@@ -247,31 +163,8 @@ Contributing
 `Bug reports <https://github.com/parttimenerd/temci/issues>`_ and
 `Code contributions <https://github.com/parttimenerd/temci>`_ are highly appreciated.
 
+For more information, see the `Contributing <https://temci.readthedocs.io/en/latest/contributing.html>`_ page.
 
-Basic Testing
--------------
-Basic integration tests are run via `SHELLTEST=1 ./doc.sh` using a custom sphinx plugin.
-There are no tests yet.
-
-Unit Testing
-------------
-Install temci via `pip` and run the tests via
-
-.. code:: sh
-
-    ./test.sh
-
-The tests can be found in the `tests` folder and use the pytest framework.
-
-
-Status of the documentation
----------------------------
-
-===================== ========================
-README/this page      Work in progress
-Installation_         Finished
-Resources_            Finished
-===================== ========================
 
 .. _Installation: https://temci.readthedocs.io/en/latest/installation.html
 
