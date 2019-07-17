@@ -1,42 +1,43 @@
 Installation
 ============
-This page covers the installation and updating of temci.
+This page covers installating and updating temci.
 
 System Requirements
 -------------------
 
-* Linux or OS X (see `Supported Operating Systems <temci.run.html>`_)
+* Linux or macOS (see `Supported Operating Systems <temci.run.html>`_)
 * Processor with an x86 or AMD64 architecture (although most features should work on ARM too)
 
 Using Nix
 ---------
 
-The simplest way is to use the `Nix package manager <https://nixos.org/nix/>`_, after installing nix, run:
+The simplest way is to use the `Nix package manager <https://nixos.org/nix/>`_. After installing Nix, run:
 
 .. code:: sh
 
           nix-env -f https://github.com/parttimenerd/temci/archive/master.tar.gz -i
 
-This method has the advantage that nix downloads a suitable python3 interpreter and all packages likes
-matplotlib that could otherwise cause problems. The nix install also runs all the test cases, to ensure
+This method has the advantage that Nix downloads a suitable python3 interpreter and all packages like
+matplotlib that could otherwise cause problems. The Nix installation also runs all the test cases, to ensure
 that temci works properly on your system.
 
-To install temci from source run:
+To install temci from source, run:
 
 .. code:: sh
 
     git clone https://github.com/parttimenerd/temci
     cd temci
-    nix build -f .
+    nix-env -f .
 
-``nix-build -f .`` can also be used to re-run unit test cases and to update your install after updating the git repository.
+``nix-env -f .`` can also be used to update your installation after updating the git repository. For a more
+convenient development environment, see also `Temporary Python environment with nix-shell <https://github.com/NixOS/nixpkgs/blob/master/doc/languages-frameworks/python.section.md#temporary-python-environment-with-nix-shell>`_.
 
 Using pip3
 ----------
 
-There is also the traditional way of using pip, requiring at least python3.6.
+There is also the traditional way of using pip, requiring at least Python 3.6.
 
-Temci depends on the existence of some packages that cannot be installed properly using pip and have to be installed manually:
+temci depends on the existence of some packages that cannot be installed properly using pip and have to be installed manually:
 
 .. code:: sh
 
@@ -58,7 +59,7 @@ After installing these packages, temci can be installed by calling:
 A package called temci exists on pypi, but temci depends on an unpublished version of the ``click`` library that is only available on
 github. This should change in the near future when the version 8.0 of ``click`` is published.
 
-To install temci from source run:
+To install temci from source, run:
 
 .. code:: sh
 
@@ -91,7 +92,7 @@ Temci runs perfectly fine without them if you are not using the mentioned featur
 Auto Completion
 ~~~~~~~~~~~~~~~
 
-Temci can generate auto completion files for bash and zsh:
+Temci can generate auto completion files for bash and zsh. Add the following line to your `.bashrc` or `.zshrc`:
 
 .. code:: sh
 
