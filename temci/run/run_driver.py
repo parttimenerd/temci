@@ -1472,6 +1472,47 @@ class OutputExecRunner(ExecRunner):
         return {}
 
 
+@ExecRunDriver.register_runner()
+class StdMetaExecRunner(ExecRunner):
+    """
+    Run the benchmarks from the passed run_config file with different combinations of plugins and
+    record the standard deviation and the mean
+    """
+
+    name = "meta"
+    misc_options = Dict()
+
+    def __init__(self, block: RunProgramBlock):
+        super().__init__(block)
+        self._name = block.description()
+        self._out_yaml = "{}/run_output.yaml".format(self._name)
+
+    def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
+
+        try:
+            os.mkdir(self._name)
+        except IOError as err:
+            pass
+        block["run_cmds"] = [block["run_cmds"][0] + " --out " + self._out_yaml]
+        print(repr(block["run_cmds"]))
+
+    def parse_result_impl(self, exec_res: ExecRunDriver.ExecResult,
+                     res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
+        res = res or BenchmarkingResultBlock()
+        from temci.report.rundata import RunDataStatsHelper
+        helper = RunDataStatsHelper.init_from_file(self._out_yaml)
+        data = {}
+        for run in helper.runs:
+            for p, prop in run.get_single_properties().items():
+                prop_name = "{}_{}".format(run.description(), p)
+                data[prop_name + "_std"] = prop.std_dev_per_mean()
+                data[prop_name + "_mean"] = prop.mean()
+                data[prop_name + "_max"] = prop.max()
+                data[prop_name + "_min"] = prop.min()
+        res.add_run_data(data)
+        return res
+
+
 class BenchmarkingError(RuntimeError):
     """
     Thrown when the benchmarking of a program block fails.
