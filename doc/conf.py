@@ -23,11 +23,28 @@ os.environ["SPHINXDOC"] = 'True'
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
+_IMAGE = """
+.. image:: http://mostlynerdless.de/files/report_readme/html_report.png
+    :target: http://mostlynerdless.de/files/report_readme/report.html
+"""
+_IFRAME = """
+.. raw:: html
+
+    <iframe src="https://uqudy.serpens.uberspace.de/files/report_readme/report.html" style="width: 133.3333%;
+    height: 500px;
+    -ms-zoom: 0.75;
+    -moz-transform: scale(0.75);
+    -moz-transform-origin: 0 0;
+    -o-transform: scale(0.75);
+    -o-transform-origin: 0 0;
+    -webkit-transform: scale(0.75);
+    -webkit-transform-origin: 0 0; transform: scale(0.75); transform-origin: 0 0;"></iframe>
+"""
 
 # preprocess README file
 with open(os.path.join(os.path.dirname(__file__), "../README.rst"), 'r') as f:
     with open(os.path.join(os.path.dirname(__file__), "README_.rst"), 'w') as f2:
-        print(f.read().replace('https://temci.readthedocs.io/en/latest/', ''), file=f2)
+        print(f.read().replace('https://temci.readthedocs.io/en/latest/', '').replace(_IMAGE, _IFRAME), file=f2)
 
 
 

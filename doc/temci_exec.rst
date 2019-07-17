@@ -374,8 +374,6 @@ There also some exec run driver specific options:
     runner:         ExactEither(''|'perf_stat'|'rusage'|'spec'|'spec.py'|'time'|'output')
 
 
-Note that the shell run driver is essentially an exec run driver.
-
 Number of runs
 ~~~~~~~~~~~~~~
 The number of runs per block is either fixed by the ``runs`` settings that apply or is between

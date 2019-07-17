@@ -9,8 +9,9 @@ temci
 .. image:: https://readthedocs.org/projects/temci/badge/?version=latest&style=plain
     :target: https://temci.readthedocs.org
 
-An advanced benchmarking tool written in Python 3 that supports setting up an environment for benchmarking
-and the generation of visually appealing reports.
+An advanced benchmarking tool written in Python 3 that supports
+`setting up an environment for benchmarking <https://temci.readthedocs.io/en/latest/temci_exec.html#plugins>`_
+and the generation of `visually appealing reports <http://mostlynerdless.de/files/report_readme/report.html>`_.
 
 It runs on Linux systems and (rudimentarily) on macOS.
 
@@ -97,18 +98,8 @@ There are multiple reporters besides the default
 Another reporter is the `html2 reporter <https://temci.readthedocs.io/en/latest/temci_report.html#html2>`_
 that produces an HTML report, use it by adding the ``--reporter html2`` option:
 
-.. raw:: html
-
-    <iframe src="https://uqudy.serpens.uberspace.de/files/report_readme/report.html" style="width: 133.3333%;
-    height: 400px;
-    -ms-zoom: 0.75;
-    -moz-transform: scale(0.75);
-    -moz-transform-origin: 0 0;
-    -o-transform: scale(0.75);
-    -o-transform-origin: 0 0;
-    -webkit-transform: scale(0.75);
-    -webkit-transform-origin: 0 0; transform: scale(0.75); transform-origin: 0 0;"></iframe>
-
+.. image:: http://mostlynerdless.de/files/report_readme/html_report.png
+    :target: http://mostlynerdless.de/files/report_readme/report.html
 
 Installation
 ------------

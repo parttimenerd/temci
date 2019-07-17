@@ -52,7 +52,7 @@ Using the html2 reporter:
 .. raw:: html
 
     <iframe src="https://uqudy.serpens.uberspace.de/files/report/report.html" style="width: 133.3333%;
-    height: 400px;
+    height: 500px;
     -ms-zoom: 0.75;
     -moz-transform: scale(0.75);
     -moz-transform-origin: 0 0;
@@ -223,7 +223,7 @@ Output for the simple benchmark from above (with ``--properties utime --properti
 .. raw:: html
 
     <iframe src="https://uqudy.serpens.uberspace.de/files/report/report.html" style="width: 133.3333%;
-    height: 400px;
+    height: 500px;
     -ms-zoom: 0.75;
     -moz-transform: scale(0.75);
     -moz-transform-origin: 0 0;
