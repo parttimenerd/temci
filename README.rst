@@ -9,31 +9,31 @@ temci
 .. image:: https://readthedocs.org/projects/temci/badge/?version=latest&style=plain
     :target: https://temci.readthedocs.org
 
-An advanced benchmarking tool written in python3 that supports setting up an environment for benchmarking
+An advanced benchmarking tool written in Python 3 that supports setting up an environment for benchmarking
 and the generation of visually appealing reports.
 
-It runs on Linux systems and (rudimentary) on OS X.
+It runs on Linux systems and (rudimentarily) on macOS.
 
 Why should you use temci?
 -------------------------
 
 temci allows you to easily measure the execution time (and other things)
 of programs and compare them against each other resulting in a pretty
-HTML5 based report. Furthermore it sets up the environment to ensure
+HTML5 based report. Furthermore it can set up the environment to ensure
 benchmarking results with a low variance. The latter feature can be used
-without using temci for benchmarking,
+without using temci for benchmarking
 by using `temci short shell <https://temci.readthedocs.io/en/latest/temci_shell.html>`_.
 
 Usage
 -----
 
-The main parts of temci are `temci exec <https://temci.readthedocs.io/en/latest/temci_exec.html>`_ and
+The main commands of temci are `temci exec <https://temci.readthedocs.io/en/latest/temci_exec.html>`_ and
 `temci report <https://temci.readthedocs.io/en/latest/temci_report.html>`_.
 
-Consider you want to see whether grepping for the strings that consist of ``a`` and ``b`` in the current
+Suppose you want to see whether grepping for the strings that consist of ``a`` and ``b`` in the current
 folder is slower than for strings that consist only of ``a``.
 
-First we have to install temci (see below for more instructions):
+First we have to install temci (using `Nix <https://nixos.org/nix/>`_, see below for more instructions):
 
 .. code:: sh
 
@@ -78,7 +78,7 @@ report to keep the report simple:
 
 .. code:: sh
 
-    > temci report run_output_readme.yaml --properties etime
+    > temci report run_output.yaml --properties etime
     Report for single runs
     grep '[ab]*' -R .    (   10 single benchmarks)
          etime mean =     2(6).(000)m, deviation = 18.84223%
@@ -90,12 +90,12 @@ report to keep the report simple:
          grep '[ab]*' -R .  ⟷  grep 'a*' -R .
              etime confidence =        67%, speed up =      3.85%
 
-We see that there is no big difference between the two commands.
+We see that there is no significant difference between the two commands.
 
 There are multiple reporters besides the default
 `console reporter <https://temci.readthedocs.io/en/latest/temci_report.html#console>`_.
 Another reporter is the `html2 reporter <https://temci.readthedocs.io/en/latest/temci_report.html#html2>`_
-that produces an HTML report, use by adding the ``--reporter html2`` option:
+that produces an HTML report, use it by adding the ``--reporter html2`` option:
 
 .. raw:: html
 
@@ -113,13 +113,13 @@ that produces an HTML report, use by adding the ``--reporter html2`` option:
 Installation
 ------------
 
-The simplest way is to use the `Nix package manager <https://nixos.org/nix/>`_, after installing nix, run:
+The simplest way is to use the `Nix package manager <https://nixos.org/nix/>`_, after installing Nix, run:
 
 .. code:: sh
 
           nix-env -f https://github.com/parttimenerd/temci/archive/master.tar.gz -i
 
-Using pip requiring at least python3.6:
+Using pip requiring at least Python 3.6:
 
 .. code:: sh
 
@@ -131,15 +131,15 @@ For more information see the Installation_ page.
 Auto completion
 ~~~~~~~~~~~~~~~
 
-Temci can generate auto completion files for bash and zsh:
+Temci can generate auto completion files for bash and zsh. Add the following line to your `.bashrc` or `.zshrc`:
 
 .. code:: sh
 
     . `temci_completion $0`
 
 
-Using temci to setup a benchmarking environment
------------------------------------------------
+Using temci to set up a benchmarking environment
+------------------------------------------------
 Use the ``temci short shell COMMAND`` to run a command (``sh`` by default) in a shell that is inside
 the benchmarking environment. Most options of ``temci short exec`` are supported.
 For more information, see `temci shell <https://temci.readthedocs.io/en/latest/temci_shell.html>`_.
@@ -150,18 +150,21 @@ Why is temci called temci?
 
 The problem in naming programs is that most good program names are
 already taken. A good program or project name has (in my opinion) the
-following properties: - it shouldn't be used on the relevant platforms
-(in this case: github and pypi) - it should be short (no one want's to
-type long program names) - it should be pronounceable - it should have
-at least something to do with the program temci is such a name. It's
-lojban for time (i.e. the time duration between to moments or events).
+following properties:
+
+* it shouldn't be used on the relevant platforms (in this case: github and pypi)
+* it should be short (no one wants to type long program names)
+* it should be pronounceable
+* it should have at least something to do with the program
+
+temci is such a name. It's lojban for time (i.e. the time duration between two moments or events).
 
 
 Contributing
 ------------
 
 `Bug reports <https://github.com/parttimenerd/temci/issues>`_ and
-`Code contributions <https://github.com/parttimenerd/temci>`_ are highly appreciated.
+`code contributions <https://github.com/parttimenerd/temci>`_ are highly appreciated.
 
 For more information, see the `Contributing <https://temci.readthedocs.io/en/latest/contributing.html>`_ page.
 
