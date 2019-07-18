@@ -905,7 +905,7 @@ def is_perf_available() -> bool:
     Is the ``perf`` tool available?
     """
     try:
-        subprocess.check_call(["perf"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.check_call(["perf", "help"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except BaseException:
         return False
     return True
