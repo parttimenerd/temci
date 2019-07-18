@@ -120,7 +120,7 @@ These options are passed in the ``reporter`` settings block
                 default: run_output.yaml
 
     # List of included run blocks (all: include all), identified by their description
-    # or tag attribute
+    # or tag attribute, can be regular expressions
     included_blocks:         ListOrTuple(Str())
                 default: [all]
 
@@ -142,7 +142,8 @@ or with the unprefixed options of the same names:
 
 .. code:: yaml
 
-        # Properties to use for reporting and null hypothesis tests
+    # Properties to use for reporting and null hypothesis tests,
+    # can be regular expressions
     properties:         ListOrTuple(Str())
                 default: [all]
 

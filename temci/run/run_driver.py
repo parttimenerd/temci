@@ -66,17 +66,28 @@ class RunDriverRegistry(AbstractRegistry):
 
 def filter_runs(blocks: t.List[t.Union['RunProgramBlock','RunData']], included: t.List[str]) -> t.List['RunProgramBlock']:
     """
-    Filter run blocks (all: include all), identified by their description or tag or their number in the file (starting with 0)
-    and run datas (only identified by their description and tag)
+    Filter run blocks (all: include all), identified by their description or tag or their number in the file
+    (starting at zero) and run datas (only identified by their description and tag). The include query can also
+    consist of regular expressions
 
     :param blocks: blocks or run datas to filter
     :param included: include query
     :return: filtered list
     """
-    list = [block for block in blocks
-            if ("description" in block.attributes and block.attributes["description"] in included) or
-            (isinstance(block, RunProgramBlock) and str(block.id) in included) or "all" in included or
-            ("tags" in block.attributes and any(tag in included for tag in block.attributes["tags"]))]
+    def parts(block) -> t.List[str]:
+        arr = []
+        if "description" in block.attributes:
+            arr.append(block.attributes["description"])
+        if isinstance(block, RunProgramBlock):
+            arr.append(str(block.id))
+        if "tags" in block.attributes:
+            arr.extend(block.attributes["tags"])
+        return arr
+
+    def match(block):
+        return ["all"] == included or any(p in included or any(re.fullmatch(i, p) for i in included)
+                                          for p in parts(block))
+    list = [block for block in blocks if match(block)]
     for i, x in enumerate(list):
         if isinstance(x, RunProgramBlock):
             x.id = i

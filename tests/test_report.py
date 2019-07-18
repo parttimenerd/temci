@@ -44,6 +44,18 @@ def test_html2_with_single():
     }).file_contents
 
 
+def test_properties_regexp():
+    out = run_temci(r"report in.yaml --properties 'p.*'", files={
+        "in.yaml": [
+            {
+                "attributes": {"description": "XYZ"},
+                "data": {"p456": [1], "z111": [2]}
+            }
+        ]
+    }).out
+    assert "p456" in out and "z111" not in out
+
+
 def test_all_reporters():
     from temci.report.report import ReporterRegistry
     for name, rep in ReporterRegistry.registry.items():
