@@ -1495,7 +1495,7 @@ class StdMetaExecRunner(ExecRunner):
 
     def __init__(self, block: RunProgramBlock):
         super().__init__(block)
-        self._name = block.description()
+        self._name = re.sub("\W*", "", block.description())
         self._out_yaml = "{}/run_output.yaml".format(self._name)
 
     def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
