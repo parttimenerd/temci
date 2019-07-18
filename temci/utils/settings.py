@@ -53,7 +53,8 @@ class Settings(metaclass=Singleton):
                                                               "instructions", "branch-misses", "cache-references",
                                                               "all"])
                                               + ")")
-                        // Description("Properties to use for reporting and null hypothesis tests"),
+                        // Description("Properties to use for reporting and null hypothesis tests, "
+                                       "can be regular expressions"),
             "uncertainty_range": Tuple(Float(lambda x: x >= 0), Float(lambda x: x >= 0)) // Default([0.05, 0.15])
                         // Description("Range of p values that allow no conclusion.")
         }, unknown_keys=True),
@@ -73,7 +74,8 @@ class Settings(metaclass=Singleton):
             "number": FNumber.settings_format,
             "included_blocks": ListOrTuple(Str()) // Default(["all"])
                                // Description("List of included run blocks (all: include all), "
-                                              "identified by their description or tag attribute"),
+                                              "identified by their description or tag attribute, "
+                                              "can be regular expressions"),
         }, unknown_keys=True),
         "run": Dict({
             "discarded_runs": NaturalNumber() // Description("First n runs that are discarded") // Default(1),
@@ -109,7 +111,8 @@ class Settings(metaclass=Singleton):
             "included_blocks" : ListOrTuple(Str()) // Default(["all"])
                               // Description("List of included run blocks (all: include all), "
                                              "or their tag attribute "
-                                             "or their number in the file (starting with 0)"),
+                                             "or their number in the file (starting with 0), "
+                                             "can be regular expressions"),
             "cpuset": Dict({
                 "active": Bool() // Description("Use cpuset functionality?") // Default(False),
                 "base_core_number": ValidCPUCoreNumber()

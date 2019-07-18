@@ -274,7 +274,7 @@ flags are of the schema ``--SETTING/--no-SETTING``):
 
     # List of included run blocks (all: include all)
     # or their tag attribute or their number in the
-    # file (starting with 0)
+    # file (starting with 0), can be regular expressions
     included_blocks:         ListOrTuple(Str())
                 default: [all]
 

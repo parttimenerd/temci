@@ -3,6 +3,7 @@ Contains the RunData object for benchmarking data of specific program block
 and the RunDataStatsHelper that provides helper methods for working with
 these objects.
 """
+import re
 import traceback
 from functools import reduce
 
@@ -229,12 +230,12 @@ class RunData(object):
         """
         Creates a new run data instance with only the passed properties.
 
-        :param properties: included properties
+        :param properties: included properties, can be regular expressions
         :return: new run data instance
         """
         data = {}
         for prop in self.data:
-            if prop in properties:
+            if prop in properties or any(re.fullmatch(p, prop) for p in properties):
                 data[prop] = self.data[prop]
         return self.clone(data=data)
 
@@ -711,9 +712,9 @@ class RunDataStatsHelper(object):
 
     def include_properties(self, properties: t.List[str]) -> 'RunDataStatsHelper':
         """
-        Create a new instance with only the passed properties.
+        Create a new instance with only the passed properties
 
-        :param properties: included properties
+        :param properties: included properties, can be regular expressions
         :return: new instance
         """
         runs = []
