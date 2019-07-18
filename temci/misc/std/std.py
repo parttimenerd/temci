@@ -6,6 +6,12 @@ from typing import List
 
 Analyse the different plugins of temci on how they affect the standard deviation.
 
+Sample call:
+
+.. code:: sh
+    
+    python3 temci/misc/std/std.py create "temci short exec 'grep \"[ab]*\"-R .' --runs 10 " "sync,sleep,drop_fs_caches,disable_swap,cpu_governor,disable_aslr,disable_ht,disable_intel_turbo,cpuset,nice,other_nice,preheat,flush_cpu_caches" > test.yaml
+
 """
 
 
