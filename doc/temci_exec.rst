@@ -666,6 +666,8 @@ plugins already available:
     Drops file system caches
 :ref:`env_randomize`
     Adds random environment variables to mitigate some cache alignment effects
+:ref:`flush_cpu_caches`
+    Flush the CPU caches on x86 CPUs
 :ref:`nice`
     Increases the CPU and IO scheduling priorities of the benchmarked program
 :ref:`other_nice`
@@ -782,6 +784,14 @@ or by using the command line options of the same names prefixed by ``--env_rando
 
     # Maximum length of each random value
     var_max: 4096
+
+flush_cpu_caches
+~~~~~~~~~~~~~~~~
+Write back and flush Internal caches; initiate writing-back and flushing of external caches
+(see `WBINVD <https://www.felixcloutier.com/x86/wbinvd>`_).
+
+It uses a small custom kernel module (be sure to compile it via ``temci setup`` after install the appropriate
+``kernel-devel`` package, see `Installation <installation.html>`_).
 
 nice
 ~~~~

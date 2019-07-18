@@ -391,10 +391,24 @@ class DisableCPUCaches(AbstractRunDriverPlugin):
     needs_root_privileges = True
 
     def setup(self):
-        setup.exec("cpu_cache", "insmod disable_cache.ko")
+        setup.exec("cpu_cache/disable", "insmod disable_cache.ko")
 
     def teardown(self):
-        setup.exec("cpu_cache", "rmmod disable_cache.ko")
+        setup.exec("cpu_cache/disable", "rmmod disable_cache.ko")
+
+
+@register(ExecRunDriver, "flush_cpu_caches", Dict({}))
+class FlushCPUCaches(AbstractRunDriverPlugin):
+    """
+    Flushes the CPU caches on a x86 CPU using a small kernel module,
+    see `WBINVD <https://www.felixcloutier.com/x86/wbinvd>`_
+    """
+
+    needs_root_privileges = True
+
+    def setup(self):
+        setup.exec("cpu_cache/flush", "insmod flush_cache.ko")
+        setup.exec("cpu_cache/flush", "rmmod flush_cache.ko")
 
 
 @register(ExecRunDriver, "cpu_governor", Dict({

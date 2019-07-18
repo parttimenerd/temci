@@ -58,7 +58,8 @@ def make_scripts():
         logging.error(err)
         exit(1)
     try:
-        exec("cpu_cache", "make")
+        exec("cpu_cache/disable", "make")
+        exec("cpu_cache/flush", "make")
     except ExecError as err:
         logging.error(err)
         logging.error("You probably haven't installed the proper packages for kernel module development "
