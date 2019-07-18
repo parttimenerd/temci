@@ -27,9 +27,9 @@ To install temci from source, run:
 
     git clone https://github.com/parttimenerd/temci
     cd temci
-    nix-env -f .
+    nix-env -i -f .
 
-``nix-env -f .`` can also be used to update your installation after updating the git repository. For a more
+``nix-env -i -f .`` can also be used to update your installation after updating the git repository. For a more
 convenient development environment, see also `Temporary Python environment with nix-shell <https://github.com/NixOS/nixpkgs/blob/master/doc/languages-frameworks/python.section.md#temporary-python-environment-with-nix-shell>`_.
 
 Using pip3
