@@ -5,7 +5,7 @@ import traceback
 import click
 
 from temci.build.build_processor import BuildProcessor
-from temci.build.builder import Builder
+from temci.build.builder import Builder, BuildError
 from temci.utils.sudo_utils import chown
 from temci.utils.util import join_strs, in_standalone_mode, parse_timespan
 
@@ -126,6 +126,7 @@ class RunProcessor:
         self.discard_all_data_for_block_on_error = Settings()["run/discard_all_data_for_block_on_error"]
         self.no_build = Settings()["run/no_build"]
         self.only_build = Settings()["run/only_build"]
+        self.abort_after_build_error = Settings()["run/abort_after_build_error"]
 
     def _finished(self) -> bool:
         if not self.pool.has_time_left():
@@ -171,16 +172,22 @@ class RunProcessor:
         for i, block in to_build:
             if "working_dir" not in block["build_config"]:
                 block["build_config"]["working_dir"] = self.run_blocks[i].data["cwd"]
-            block = BuildProcessor.preprocess_build_blocks([block])[0]
-            logging.info("##Build {}".format(self.run_blocks[i].description()))
-            block_builder = Builder(self.run_blocks[i].description(),
-                                    block["build_config"]["working_dir"],
-                                    block["build_config"]["cmd"], block["build_config"]["revision"],
-                                    block["build_config"]["number"],
-                                    block["build_config"]["base_dir"], block["build_config"]["branch"])
-            working_dirs = block_builder.build()
-            block["cwds"] = working_dirs
-            self.run_blocks[i].data["cwds"] = working_dirs
+            try:
+                block = BuildProcessor.preprocess_build_blocks([block])[0]
+                logging.info("Build {}".format(self.run_blocks[i].description()))
+                block_builder = Builder(self.run_blocks[i].description(),
+                                        block["build_config"]["working_dir"],
+                                        block["build_config"]["cmd"], block["build_config"]["revision"],
+                                        block["build_config"]["number"],
+                                        block["build_config"]["base_dir"], block["build_config"]["branch"])
+                working_dirs = block_builder.build()
+                block["cwds"] = working_dirs
+                self.run_blocks[i].data["cwds"] = working_dirs
+            except BuildError as err:
+                self.stats_helper.add_error(i, err.error)
+                self.erroneous_run_blocks.append((i, BenchmarkingResultBlock(data={}, error=err, recorded_error=err.error)))
+                if self.abort_after_build_error:
+                    raise err
 
     def benchmark(self):
         """

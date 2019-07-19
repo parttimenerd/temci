@@ -362,6 +362,10 @@ flags are of the schema ``--SETTING/--no-SETTING``):
     only_build: Bool()
                     default: False
 
+    # Abort after the build error
+    abort_after_build_error: Bool()
+                    default: True
+
 There also some exec run driver specific options:
 
 .. code:: yaml

@@ -23,6 +23,36 @@ def test_build_before_exec():
         ]
     })
 
+def test_build_before_exec_abort():
+    run_temci("exec bla.yaml --runs 1", files={
+        "bla.yaml": [
+            {
+                "run_config": {"cmd": "./test", "tags": []},
+                "build_config": {"cmd": "exit(1)"}
+            }
+        ]
+    }, expect_success=False, raise_exc=False)
+
+
+def test_build_before_exec_do_not_arbort():
+    assert "3333" in run_temci("exec bla.yaml --runs 1", files={
+        "bla.yaml": [
+            {
+                "run_config": {"cmd": "./test", "tags": []},
+                "build_config": {"cmd": "exit(1)"}
+            },
+            {
+                "attributes": {"description": "3333"},
+                "run_config": {"cmd": "./test", "tags": []},
+                "build_config": {"cmd": "echo 'echo 3333' > test; chmod +x test"}
+            }
+        ]
+    }, settings={
+        "run": {
+            "abort_after_build_error": False
+        }
+    }, expect_success=False, raise_exc=False).out
+
 
 def test_successful_run_errors():
     d = run_temci("short exec true").yaml_contents["run_output.yaml"][0]
