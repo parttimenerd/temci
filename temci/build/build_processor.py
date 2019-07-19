@@ -74,10 +74,10 @@ class BuildProcessor:
         """
         run_blocks = []
         try:
-            for block in self.build_blocks:
+            for id, block in enumerate(self.build_blocks):
                 error = None
                 try:
-                    block_builder = Builder(block["build_config"]["working_dir"],
+                    block_builder = Builder(id, block["build_config"]["working_dir"],
                                             block["build_config"]["cmd"], block["build_config"]["revision"],
                                             block["build_config"]["number"],
                                             block["build_config"]["base_dir"], block["build_config"]["branch"])
