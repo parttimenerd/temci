@@ -136,7 +136,11 @@ class Settings(metaclass=Singleton):
             "discard_all_data_for_block_on_error": Bool() // Default(False)
                          // Description("Discard all run data for the failing program on error"),
             "record_errors_in_file": Bool() // Default(True)
-                         // Description("Record the caught errors in the run_output file")
+                         // Description("Record the caught errors in the run_output file"),
+            "no_build": Bool() // Default(False)
+                         // Description("Do not build if build configs are present, only works if the working directory "
+                                        "of the blocks does not change"),
+            "only_build": Bool() // Default(False) // Description("Only build")
         }),
         "build": Dict({
             "in": Str() // Default("build.yaml") // Description("Input file with the program blocks to build")
