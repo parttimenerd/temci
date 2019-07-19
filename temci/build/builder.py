@@ -1,12 +1,12 @@
 import datetime
 import logging
 import os
-import json
 import subprocess
 import queue
 import shutil
 import threading
 from collections import namedtuple
+
 from ..utils.typecheck import *
 from ..utils.vcs import VCSDriver
 from ..utils.settings import Settings
@@ -162,8 +162,20 @@ class BuilderThread(threading.Thread):
             if proc.poll() > 0:
                 if tmp_build_dir != item.tmp_dir:
                     shutil.rmtree(tmp_build_dir)
-                logging.error("Build error for {}".format(item.id))
-                logging.error("out: {!r}".format(str(out)))
-                logging.error("err: {!r}".format(str(err)))
-                logging.error("cmd: {!r}", item.build_cmd)
-                raise EnvironmentError("Thread {}: Build error for block {!r}".format(self.id, item.id))
+                from temci.report.rundata import RecordedProgramError
+                raise BuildError(self.id, item, error=RecordedProgramError("Build error", str(out), str(err), proc.poll()))
+
+
+class BuildError(Exception):
+
+    def __init__(self, thread: int, item: BuilderQueueItem, error: 'RecordedError'):
+        super().__init__("Thread {}: Build error for block {!r}".format(thread, item.id))
+        self.thread = thread
+        self.item = item
+        self.error = error
+
+    def log(self):
+        logging.error("Build error for {}".format(self.item.id))
+        logging.error("out: {!r}".format(self.error.out))
+        logging.error("err: {!r}".format(self.error.err))
+        logging.error("cmd: {!r}", self.item.build_cmd)

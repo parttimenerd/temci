@@ -4,7 +4,7 @@ from temci.utils.util import get_doc_for_type_scheme, sphinx_doc, document
 import yaml
 from ..utils.typecheck import *
 from ..utils.settings import Settings
-from .builder import Builder, BuilderKeyboardInterrupt
+from .builder import Builder, BuilderKeyboardInterrupt, BuildError
 import typing as t
 
 
@@ -85,6 +85,9 @@ class BuildProcessor:
                 except BuilderKeyboardInterrupt as err:
                     working_dirs = err.result
                     error = err.error
+                except BuildError as err:
+                    err.log()
+                    raise err
                 block["run_config"]["cwd"] = working_dirs
                 run_blocks.append({
                     "attributes": block["attributes"],

@@ -140,7 +140,9 @@ class Settings(metaclass=Singleton):
             "no_build": Bool() // Default(False)
                          // Description("Do not build if build configs are present, only works if the working directory "
                                         "of the blocks does not change"),
-            "only_build": Bool() // Default(False) // Description("Only build")
+            "only_build": Bool() // Default(False) // Description("Only build"),
+            "abort_after_build_error": Bool() // Default(True)
+                                    // Description("Abort after the first failing build")
         }),
         "build": Dict({
             "in": Str() // Default("build.yaml") // Description("Input file with the program blocks to build")

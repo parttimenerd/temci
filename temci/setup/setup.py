@@ -13,7 +13,7 @@ def script_relative(file: str) -> str:
     return os.path.join(os.path.realpath(os.path.dirname(__file__)), "../scripts", file)
 
 
-class ExecError(BaseException):
+class ExecError(Exception):
     """
     Error raised if a command failed.
     """
