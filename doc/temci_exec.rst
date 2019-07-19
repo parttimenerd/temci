@@ -131,6 +131,38 @@ Configuring them in ``temci short exec`` is currently not possible.
    It can be used in combination with the :ref:`time<time runner>` and :ref:`perf_stat<perf_stat runner>` runners
    (using the ``--parse_output`` option or setting ``parse_output`` to true in the run block config).
 
+Building
+~~~~~~~~
+``temci exec`` supports to build the programs that are then benchmarked. It supports the same format and the same options as
+`temci build <temci_build.html>`_.
+
+In the most basic case (and the case that is thoroughly tested), just supply a build command:
+
+.. code:: yaml
+
+    - attributes: …
+      run_config: …
+      build_config:
+        cmd: make # a sample build command
+
+Executing the file with ``temci exec`` runs all available build commands.
+
+This can be configured using the following options (set in the ``run`` settings block):
+
+no_build
+    Do not build, default is false
+only_build:
+    Only build the build configs for all blocks, default is false
+abort_after_build_error
+    default true
+
+If building a block fails and ``abort_after_build_error`` is not true
+(e.g. ``--no-abort_after_build_error`` is passed), then temci
+produces an ``EXEC_INPUT_FILE.erroneous.yaml`` that contains the configurations
+of all failing blocks. This file can be used to execute the missing blocks
+again after the error is fixed. Use the ``--append`` option to append the benchmarks
+to the preexisting benchmark result file.
+
 Error Codes
 ~~~~~~~~~~~
 

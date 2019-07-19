@@ -54,6 +54,22 @@ def test_build_before_exec_do_not_arbort():
     }, expect_success=False, raise_exc=False).out
 
 
+def test_build_before_exec_only_build():
+    assert "3333" not in run_temci("exec bla.yaml --runs 1", files={
+        "bla.yaml": [
+            {
+                "attributes": {"description": "3333"},
+                "run_config": {"cmd": "./test", "tags": []},
+                "build_config": {"cmd": "echo 'echo 3333' > test; chmod +x test"}
+            }
+        ]
+    }, settings={
+        "run": {
+            "only_build": True
+        }
+    }, expect_success=False, raise_exc=False).out
+
+
 def test_successful_run_errors():
     d = run_temci("short exec true").yaml_contents["run_output.yaml"][0]
     assert "internal_error" not in d

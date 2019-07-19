@@ -193,8 +193,8 @@ class RunProcessor:
         """
         Benchmark and teardown.
         """
-        if not self.only_build:
-            pass
+        if self.only_build:
+            return
         try:
 
             show_progress = Settings().has_log_level("info") and \
