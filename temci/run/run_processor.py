@@ -124,6 +124,8 @@ class RunProcessor:
         self.erroneous_run_blocks = []  # type: t.List[t.Tuple[int, BenchmarkingResultBlock]]
         """ List of all failing run blocks (id and results till failing) """
         self.discard_all_data_for_block_on_error = Settings()["run/discard_all_data_for_block_on_error"]
+        self.no_build = Settings()["run/no_build"]
+        self.only_build = Settings()["run/only_build"]
 
     def _finished(self) -> bool:
         if not self.pool.has_time_left():
@@ -160,6 +162,8 @@ class RunProcessor:
         """
         Build before benchmarking, essentially calls `temci build` where necessary and modifies the run configs
         """
+        if self.no_build:
+            return
         to_build = [(i, conf) for i, conf in enumerate(self.runs) if "build_config" in conf]
         if len(to_build) is 0:
             return
@@ -168,7 +172,7 @@ class RunProcessor:
             if "working_dir" not in block["build_config"]:
                 block["build_config"]["working_dir"] = self.run_blocks[i].data["cwd"]
             block = BuildProcessor.preprocess_build_blocks([block])[0]
-            logging.info("Build {}".format(self.run_blocks[i].description()))
+            logging.info("##Build {}".format(self.run_blocks[i].description()))
             block_builder = Builder(self.run_blocks[i].description(),
                                     block["build_config"]["working_dir"],
                                     block["build_config"]["cmd"], block["build_config"]["revision"],
@@ -182,6 +186,8 @@ class RunProcessor:
         """
         Benchmark and teardown.
         """
+        if not self.only_build:
+            pass
         try:
 
             show_progress = Settings().has_log_level("info") and \

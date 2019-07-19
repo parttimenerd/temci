@@ -354,6 +354,14 @@ flags are of the schema ``--SETTING/--no-SETTING``):
     # Runs per tag (block attribute 'tag'), max('runs', 'per_tag') is used
     runs_per_tag:         Dict(, keys=Str(), values=Int(), default = {})
 
+    # Do not build, the building process should not set the working directory
+    no_build: Bool()
+                    default: False
+
+    # Only build the build configs for all blocks
+    only_build: Bool()
+                    default: False
+
 There also some exec run driver specific options:
 
 .. code:: yaml
