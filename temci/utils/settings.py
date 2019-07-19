@@ -145,24 +145,7 @@ class Settings(metaclass=Singleton):
             "threads": PositiveInt() // Default(1) // Description("Number of threads that build simultaneously"),
             "rand": Obsolete("Removed builder randomization", "0.8") // Description("Obsolete randomization configuration")
         }, unknown_keys=True),
-        "package": Dict({
-            "dry_run": Bool() // Default(False) // Description("Only log proposed actions?"),
-            "compression": Dict({
-                "program": ExactEither("xz", "gzip") // Default("xz")
-                           // Description("The used compress program. The parallel version (pixz or pigz) is used "
-                                          "if available."),
-                "level": Int(range=range(-9, 1)) // Default(-6)
-                         // Description("Compression level. 0 = low, -9 high compression.")
-            }),
-            "actions": Dict({
-                "sleep": NaturalNumber() // Default(30)
-                         // Description("Default sleep seconds for the sleep action.")
-            }),
-            "send_mail": Str() // Default("")
-                         // Description("If not empty, recipient of a mail if an error occurs or a command finished."),
-            "reverse_file": FileName() // Default("reverse.temci")
-                        // Description("Name of the produced file to reverse the actions of a package.")
-        }),
+        "package": Obsolete("Removed temci package", "0.8"),
         "env": Dict({"USER": Str(), "PATH": Str()}, unknown_keys=True)
                // Default({"USER": "", "PATH": ""})
                // Description("Environment variables for the benchmarked programs, includes the user used for "
