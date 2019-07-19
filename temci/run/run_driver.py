@@ -1516,10 +1516,10 @@ class StdMetaExecRunner(ExecRunner):
         for run in helper.runs:
             for p, prop in run.get_single_properties().items():
                 prop_name = "{}_{}".format(run.description(), p)
-                data[prop_name + "_std"] = prop.std_dev_per_mean()
-                data[prop_name + "_mean"] = prop.mean()
-                data[prop_name + "_max"] = prop.max()
-                data[prop_name + "_min"] = prop.min()
+                data[prop_name + "_std"] = float(prop.std_dev_per_mean())
+                data[prop_name + "_mean"] = float(prop.mean())
+                data[prop_name + "_max"] = float(prop.max())
+                data[prop_name + "_min"] = float(prop.min())
         res.add_run_data(data)
         return res
 

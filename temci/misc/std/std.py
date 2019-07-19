@@ -34,10 +34,10 @@ def create(cmd: str, plugins: str, mode: str, out: str):
     plugs = plugins.split(",")
     ret = []
     for plug_comb in combinations(plugs, mode):
-        temci_cmd = cmd + " " + " ".join("--{}".format(p) for p in plug_comb)
+        temci_cmd = cmd + " " + " ".join("--{}".format(p) for p in plug_comb if p is not "")
         ret.append({
             "attributes": {
-                "description": "_".join(plug_comb)
+                "description": "_" + "_".join(plug_comb)
             },
             "run_config": {
                 "run_cmd": temci_cmd
