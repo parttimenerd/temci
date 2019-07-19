@@ -18,7 +18,7 @@ class Builder:
     Allows the building of a program configured by a program block configuration.
     """
 
-    def __init__(self, build_dir: str, build_cmd: str, revision: t.Union[str, int], number: int,
+    def __init__(self, id: int, build_dir: str, build_cmd: str, revision: t.Union[str, int], number: int,
                  base_dir: str, branch: str):
         """
         Creates a new builder for a program block.
@@ -44,6 +44,7 @@ class Builder:
         """ Number of times to build this program """
         self.vcs_driver = VCSDriver.get_suited_vcs(dir=self.build_dir, branch=None if branch is "" else branch)
         """ Used version control system driver """
+        self.id = id
 
     def build(self, thread_count: t.Optional[int] = None) -> t.List[str]:
         """
@@ -66,7 +67,7 @@ class Builder:
             tmp_dir = self.build_dir
             os.makedirs(tmp_dir, exist_ok=True)
             submit_queue = queue.Queue()
-            submit_queue.put(BuilderQueueItem(0, tmp_dir, tmp_dir, self.build_cmd))
+            submit_queue.put(BuilderQueueItem(self.id, None, tmp_dir, tmp_dir, self.build_cmd))
             BuilderThread(0, submit_queue).run()
 
             logging.info("Finished building")
@@ -81,7 +82,7 @@ class Builder:
         threads = []
         for i in range(0, self.number):
             tmp_build_dir = tmp_dirname(i)
-            submit_queue.put(BuilderQueueItem(i, tmp_build_dir, tmp_dir, self.build_cmd))
+            submit_queue.put(BuilderQueueItem(self.id, i, tmp_build_dir, tmp_dir, self.build_cmd))
             ret_list.append(tmp_build_dir)
         try:
             for i in range(min(thread_count, self.number)):
@@ -113,7 +114,7 @@ class BuilderKeyboardInterrupt(KeyboardInterrupt):
         """ Base directories of the succesfull builds """
 
 
-BuilderQueueItem = namedtuple("BuilderQueueItem", ["id", "tmp_build_dir", "tmp_dir", "build_cmd"])
+BuilderQueueItem = namedtuple("BuilderQueueItem", ["id", "number", "tmp_build_dir", "tmp_dir", "build_cmd"])
 
 
 class BuilderThread(threading.Thread):
@@ -143,7 +144,7 @@ class BuilderThread(threading.Thread):
         while not self.stop:
             item = None
             try:
-                item = self.submit_queue.get(timeout=1)
+                item = self.submit_queue.get(timeout=1)  # type: BuilderQueueItem
             except queue.Empty:
                 return
             tmp_build_dir = item.tmp_build_dir
@@ -151,7 +152,7 @@ class BuilderThread(threading.Thread):
                 if os.path.exists(tmp_build_dir):
                     shutil.rmtree(tmp_build_dir)
                 shutil.copytree(item.tmp_dir, tmp_build_dir)
-            logging.info("Thread {}: Building number {}".format(self.id, item.id))
+            logging.info("Thread {}: Building block {!r}".format(self.id, item.id))
             proc = subprocess.Popen(["/bin/sh", "-c", item.build_cmd],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
@@ -161,4 +162,8 @@ class BuilderThread(threading.Thread):
             if proc.poll() > 0:
                 if tmp_build_dir != item.tmp_dir:
                     shutil.rmtree(tmp_build_dir)
-                raise EnvironmentError("Thread {}: Build error: {}".format(self.id, str(err)))
+                logging.error("Build error for {}".format(item.id))
+                logging.error("out: {!r}".format(str(out)))
+                logging.error("err: {!r}".format(str(err)))
+                logging.error("cmd: {!r}", item.build_cmd)
+                raise EnvironmentError("Thread {}: Build error for block {!r}".format(self.id, item.id))
