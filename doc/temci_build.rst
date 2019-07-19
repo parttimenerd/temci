@@ -7,6 +7,10 @@ and to build these programs at once. This build config also contains the run con
 each program. ``temci build`` compiles a run config and stores it into a file that can be
 directly used with `temci exec <temci_exec.html>`_ (or other configured run drivers).
 
+**For most cases using the builder capabilities of `temci exec <temci_exec.html#building>`_
+should be enough. This also has the advantage of using a single command for all benchmarked
+programs, whether they need to built or not.**
+
 Usage
 -----
 
