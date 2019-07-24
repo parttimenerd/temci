@@ -1,3 +1,4 @@
 *.pyc
 /result
 *.egg-info
+.idea

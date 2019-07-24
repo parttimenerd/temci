@@ -164,6 +164,9 @@ def format_number(number: Number, deviation: float = 0.0,
     >>> format_number(1560, scientific_notation_si_prefixes=False, scientific_notation=True)
     '1.560e3'
 
+    >>> format_number(float("inf"))
+    'inf'
+
     :param number: formatted number
     :param deviation: standard deviation associated with the number
     :param parentheses: show parentheses around non significant digits?
@@ -173,7 +176,7 @@ def format_number(number: Number, deviation: float = 0.0,
     :param max_decimal_places: the maximum number of decimal places
     :param omit_insignificant_decimal_places: omit insignificant decimal places
     :param scientific_notation: use the exponential notation, i.e. "10e3" for 1000
-    :param scientic_notation_steps: steps in which the exponential part is incremented
+    :param scientific_notation_steps: steps in which the exponential part is incremented
     :param scientific_notation_decimal_places: number of decimal places that are shown in the scientic notation
     :param scientific_notation_si_prefixes: use si prefixes instead of "e…"
     :param force_min_decimal_places: don't omit the minimum number of decimal places if insignificant?
@@ -201,6 +204,8 @@ def format_number(number: Number, deviation: float = 0.0,
         "sigmas": sigmas,
         "parentheses_mode": parentheses_mode
     }
+    if math.isinf(number):
+        return "inf"
     if explicit_deviation:
         return prefix + _format_number(**kwargs)
     if scientific_notation:
