@@ -635,7 +635,8 @@ class RunDataStatsHelper(object):
         """ Is there an error recorded for the program with the given id? """
         return self.runs[program_id + self.external_count].has_error()
 
-    def get_evaluation(self, with_equal: bool, with_unequal: bool, with_uncertain: bool) -> dict:
+    def get_evaluation(self, with_equal: bool, with_unequal: bool, with_uncertain: bool,
+                       blocks: t.List[RunData] = None) -> dict:
         """
 
         Structure of the returned list items::
@@ -652,14 +653,16 @@ class RunDataStatsHelper(object):
         :param with_equal: with tuple with at least one "equal" property
         :param with_unequal: ... unequal property
         :param with_uncertain: include also uncertain properties
+        :param blocks: blocks to compare
         :return: list of tuples for which at least one property matches the criteria
         """
+        blocks = blocks or self.runs
         arr = []
-        for i in range(0, len(self.runs) - 1):
-            for j in range(i + 1, len(self.runs)):
-                if self.runs[i].discarded or self.runs[j].discarded:
+        for i in range(0, len(blocks) - 1):
+            for j in range(i + 1, len(blocks)):
+                if blocks[i].discarded or blocks[j].discarded:
                     continue
-                data = (self.runs[i], self.runs[j])
+                data = (blocks[i], blocks[j])
                 props = {}
                 for prop in self.properties():
                     map = {"p_val": self.tester.test(data[0][prop], data[1][prop]),

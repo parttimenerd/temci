@@ -56,6 +56,21 @@ def test_properties_regexp():
     assert "p456" in out and "z111" not in out
 
 
+def test_console_baseline():
+    run_temci(r"report in.yaml --console_baseline base", files={
+        "in.yaml": [
+            {
+                "attributes": {"description": "XYZ"},
+                "data": {"p456": [1], "z111": [2]}
+            },
+            {
+                "attributes": {"description": "base"},
+                "data": {"p456": [1], "z111": [2]}
+            }
+        ]
+    }).out
+
+
 def test_all_reporters():
     from temci.report.report import ReporterRegistry
     for name, rep in ReporterRegistry.registry.items():

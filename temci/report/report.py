@@ -14,10 +14,13 @@ import sys
 
 import itertools
 
+from scipy import stats
+
 from temci.report.stats import TestedPairsAndSingles, BaseStatObject, TestedPair, TestedPairProperty, StatMessage, \
     StatMessageType, Single, SingleProperty, SinglesProperty
 from temci.report.testers import TesterRegistry, Tester
 from temci.report.rundata import RunDataStatsHelper, RunData, ExcludedInvalidData
+from temci.run.run_driver import filter_runs
 from temci.utils.sudo_utils import chown
 from temci.utils.typecheck import *
 from temci.utils.registry import AbstractRegistry, register
@@ -113,7 +116,11 @@ class AbstractReporter:
                          "'single': report all clusters together as one, "
                          "'cluster': report all clusters separately, "
                          "'both': append the output of 'cluster' to the output of 'single'"),
-    "report_errors": Bool() // Default(True) // Description("Report on the failing blocks")
+    "report_errors": Bool() // Default(True) // Description("Report on the failing blocks"),
+    "baseline": Str() // Default("") // Description("Matches the baseline block"),
+    "baseline_position": ExactEither("each", "after", "both", "instead") // Default("each")
+                    // Description("Position of the baseline comparison: each: after each block, after: after each "
+                                   "cluster, both: after each and after cluster, instead: instead of the non baselined")
 }))
 class ConsoleReporter(AbstractReporter):
     """
@@ -132,6 +139,8 @@ class ConsoleReporter(AbstractReporter):
 
         with_tester_results = with_tester_results and self.misc["with_tester_results"]
 
+        baselines = filter_runs(self.stats_helper.runs, self.misc["baseline"]) if self.misc["baseline"] else []
+
         def string_printer(line: str, **args):
             output[0] += str(line) + "\n"
 
@@ -139,15 +148,17 @@ class ConsoleReporter(AbstractReporter):
             print_func = string_printer if to_string else lambda x: print(x, file=f)
             if self.misc["mode"] == "auto":
                 single, clusters = self.stats_helper.get_description_clusters_and_single()
-                self._report_cluster("single runs", single, print_func, with_tester_results)
-                self._report_clusters(clusters, print_func, with_tester_results)
+                self._report_cluster("single runs", single, print_func, with_tester_results, baselines)
+                self._report_clusters(clusters, print_func, with_tester_results, baselines)
             if self.misc["mode"] in ["both", "single"]:
                 self._report_cluster("all runs",
                                      self.stats_helper.runs,
                                      print_func,
-                                     with_tester_results)
+                                     with_tester_results,
+                                     baselines)
             if self.misc["mode"] in ["both", "cluster"]:
-                self._report_clusters(self.stats_helper.get_description_clusters(), print_func, with_tester_results)
+                self._report_clusters(self.stats_helper.get_description_clusters(), print_func, with_tester_results,
+                                      baselines)
                 print_func("")
             if self.misc["report_errors"] and len(self.stats_helper.errorneous_runs) > 0:
                 self._report_errors(self.stats_helper.errorneous_runs, print_func)
@@ -156,65 +167,112 @@ class ConsoleReporter(AbstractReporter):
             return output[0]
 
     def _report_clusters(self, clusters: t.Dict[str, t.List[RunData]], print_func: t.Callable[[str], None],
-                         with_tester_results: bool):
+                         with_tester_results: bool, baselines: t.List[RunData]):
         for n, c in clusters.items():
             self._report_cluster(n,
                                  c,
                                  print_func,
-                                 with_tester_results)
+                                 with_tester_results,
+                                 baselines)
 
-    def _report_cluster(self, description: str, items: t.List[RunData], print_func: t.Callable[[str], None],
-                        with_tester_results: bool):
-        if not items:
+    def _report_cluster(self, description: str, blocks: t.List[RunData], print_func: t.Callable[[str], None],
+                        with_tester_results: bool, baselines: t.List[RunData]):
+        if not blocks:
             return
         print_func("Report for {}".format(description))
-        descr_size = max(len(prop) for block in items for prop in block.properties)
-        for block in items:
-            assert isinstance(block, RunData)
-            print_func("{descr:<20} ({num:>5} single benchmarks)"
-                       .format(descr=block.description(), num=len(block.data[block.properties[0]])))
-            for prop in sorted(block.properties):
-                mean = np.mean(block[prop])
-                std = np.std(block[prop])
-                mean_str = str(FNumber(mean, abs_deviation=std))
-                dev = "{:>5.5%}".format(std / mean) if mean != 0 else "{:>5.5}".format(std)
-                print_func("\t {{prop:<{}}} mean = {{mean:>15s}}, deviation = {{dev}}".format(descr_size)
-                    .format(
-                    prop=prop, mean=mean_str,
-                    dev=dev))
-            print_func("")
+        descr_size = max(len(prop) for block in blocks for prop in block.properties)
+        self._report_blocks(blocks, print_func, baselines, descr_size)
         if with_tester_results:
-            stats_helper = RunDataStatsHelper(items, self.stats_helper.tester,
+            stats_helper = RunDataStatsHelper(blocks, self.stats_helper.tester,
                                               property_descriptions=self.stats_helper.property_descriptions)
             self._report_list("Equal program blocks",
-                              stats_helper.get_evaluation(with_equal=True,
+                              stats_helper.get_evaluation(blocks=blocks, with_equal=True,
                                                           with_uncertain=False,
                                                           with_unequal=False),
                               print_func, descr_size)
             self._report_list("Unequal program blocks",
-                              stats_helper.get_evaluation(with_equal=False,
+                              stats_helper.get_evaluation(blocks=blocks, with_equal=False,
                                                           with_uncertain=False,
                                                           with_unequal=True),
                               print_func, descr_size)
             self._report_list("Uncertain program blocks",
-                              stats_helper.get_evaluation(with_equal=False,
+                              stats_helper.get_evaluation(blocks=blocks, with_equal=False,
                                                           with_uncertain=True,
                                                           with_unequal=False),
                               print_func, descr_size)
 
+    def _report_blocks(self, blocks: t.List[RunData], print_func: t.Callable[[str], None],
+                       baselines: t.List[RunData], descr_size: int):
+        if self.misc["baseline_position"] != "instead":
+            for block in blocks:
+                assert isinstance(block, RunData)
+                self._report_block(block, print_func, baselines, descr_size)
+        if self.misc["baseline_position"] in ["after", "both", "instead"]:
+            for baseline in baselines:
+                if baseline == block:
+                    continue
+                self._report_block_with_baseline(block, print_func, baseline, descr_size)
+                print_func("")
+
+    def _report_block(self, block: RunData, print_func: t.Callable[[str], None],
+                      baselines: t.List[RunData], descr_size: int):
+        print_func("{descr:<20} ({num:>5} single benchmarks)"
+                   .format(descr=block.description(), num=len(block.data[block.properties[0]])))
+        for prop in sorted(block.properties):
+            mean = np.mean(block[prop])
+            std = np.std(block[prop])
+            mean_str = str(FNumber(mean, abs_deviation=std))
+            dev = "{:>5.5%}".format(std / mean) if mean != 0 else "{:>5.5}".format(std)
+            print_func("\t {{prop:<{}}} mean = {{mean:>15s}}, deviation = {{dev:>11s}}".format(descr_size)
+                .format(
+                prop=prop, mean=mean_str,
+                dev=dev))
+        print_func("")
+        if self.misc["baseline_position"] in ["each", "both", "instead"]:
+            for baseline in baselines:
+                if baseline == block:
+                    continue
+                self._report_block_with_baseline(block, print_func, baseline, descr_size)
+                print_func("")
+
+    def _report_block_with_baseline(self, block: RunData, print_func: t.Callable[[str], None], baseline: RunData,
+                                    descr_size: int):
+        print_func("{descr:<20} ({num:>5}) with baseline {descr2:<20} ({num2:>5})"
+                   .format(descr=block.description(), num=len(block.data[block.properties[0]]),
+                           descr2=block.description(), num2=len(block.data[block.properties[0]])))
+        combined_props = set(block.properties) & set(baseline.properties)
+        tester = TesterRegistry.get_tester()
+        for prop in sorted(combined_props):
+            mean = np.mean(block[prop])
+            std = np.std(block[prop])
+            base_mean = baseline.get_single_properties()[prop].mean()
+            base_std = baseline.get_single_properties()[prop].std()
+            mean_str = str(FNumber(mean / base_mean, abs_deviation=std / base_mean, is_percent=True))
+            dev = "{:>5.5%}".format(std / mean) if mean != 0 else "{:>5.5}".format(std)
+            print_func("\t {{prop:<{}}} mean = {{mean:>15s}}, confidence = {{conf:>5.0%}}, dev = {{dev:>11s}}, "
+                       "{{dbase:>11s}}".format(descr_size)
+                .format(
+                    prop=prop,
+                    mean=mean_str,
+                    dev=dev,
+                    conf=tester.test(block[prop], baseline[prop]),
+                    dbase="{:>5.5%}".format(base_std / base_mean) if base_mean != 0 else "{:>5.5}".format(base_std)))
+        gmean = stats.gmean([(block.get_single_properties()[prop].mean() / baseline.get_single_properties()[prop].mean())
+                            for prop in combined_props])
+        print_func("geometric mean of relative mean = {:>15}".format(str(FNumber(gmean, is_percent=True))))
 
     def _report_list(self, title: str, items: t.List[dict], print_func: t.Callable[[str], None], descr_size: int):
         if len(items) != 0:
             print_func(title)
         for item in items:
-            print_func("\t {}  ⟷  {}".format(item["data"][0].description(),
+            print_func("\t {}  ⟷   {}".format(item["data"][0].description(),
                                        item["data"][1].description()))
             for prop in sorted(item["properties"]):
                 prop_data = item["properties"][prop]
                 perc = prop_data["p_val"]
                 if prop_data["unequal"]:
                     perc = 1 - perc
-                print_func("\t\t {{descr:<{}}} confidence = {{perc:>10.0%}}, speed up = {{speed_up:>10.2%}}"
+                print_func("\t\t {{descr:<{}}} confidence = {{perc:>5.0%}}, speed up = {{speed_up:>10.2%}}"
                       .format(descr_size).format(descr=prop_data["description"], perc=perc,
                               speed_up=prop_data["speed_up"]))
             print_func("")
@@ -1827,17 +1885,20 @@ class CSVReporter(AbstractReporter):
             raise SyntaxError("No such property {}".format(long_prop))
         return self._column_property(single.properties[long_prop], spec[1], spec[2])
 
-    def _column_property(self, single: SingleProperty, modifier: str, opts: t.List[str]) -> t.Union[str, int, float]:
+    def _column_property(self, single: SingleProperty, modifier: str, opts: t.List[str],
+                         baseline: SingleProperty = None) -> t.Union[str, int, float]:
         mod = {
-            "mean": lambda: single.mean(),
-            "stddev": lambda: single.std_dev(),
-            "property": lambda: single.property,
-            "description": lambda: single.description(),
-            "min": lambda: single.min(),
-            "max": lambda: single.max(),
-            "stddev per mean": lambda: single.std_dev_per_mean()
+            "mean": lambda single: single.mean(),
+            "stddev": lambda single: single.std_dev(),
+            "property": lambda single: single.property,
+            "description": lambda single: single.description(),
+            "min": lambda single: single.min(),
+            "max": lambda single: single.max(),
+            "stddev per mean": lambda single: single.std_dev_per_mean()
         }
-        num = mod[modifier]()
+        num = mod[modifier](single)
+        if baseline:
+            num = num / baseline.mean()
         return FNumber(num,
                        abs_deviation=single.std_dev(),
                        is_percent=("%" in opts),

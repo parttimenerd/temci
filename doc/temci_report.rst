@@ -167,6 +167,16 @@ command line options of the same name (prefixed with ``console_``):
 
 .. code:: yaml
 
+    # Matches the baseline block
+    baseline: ''
+
+    # Position of the baseline comparison:
+    # 'each': after each block
+    # 'after': after each cluster
+    # 'both': after each and after cluster
+    # 'instead': instead of the non baselined
+    baseline_position: each
+
     # 'auto': report clusters (runs with the same description)
     #         and singles (clusters with a single entry, combined) separately
     # 'single': report all clusters together as one
@@ -189,14 +199,34 @@ Output for a simple benchmark (with ``--properties utime``):
 
     Report for single runs
     sleep 0.5            (    2 single benchmarks)
-         utime mean =        1.(211)m, deviation = 33.27828%
+         utime mean =        1.(211)m, deviation =   33.27828%
 
     sleep 1              (    2 single benchmarks)
-         utime mean =        1.(172)m, deviation = 29.91891%
+         utime mean =        1.(172)m, deviation =   29.91891%
 
     Equal program blocks
          sleep 0.5  ⟷  sleep 1
              utime confidence =        95%, speed up =      3.26%
+
+Or using `sleep 0.5` as a baseline (``--console_baseline "sleep 0.5"``):
+
+.. code:: sh
+
+    Report for single runs
+    sleep 0.5            (    5 single benchmarks)
+         utime mean =      (1).(661)m, deviation =   18.91399%
+
+    sleep 1              (    5 single benchmarks)
+         utime mean =      (1).(138)m, deviation =   37.83985%
+
+    sleep 1              (    5) with baseline sleep 1              (    5)
+         utime mean =     (68).(554)%, confidence =    9%, dev =   37.83985%,   18.91399%
+    geometric mean of relative mean =         68.554%
+
+    Uncertain program blocks
+         sleep 0.5  ⟷   sleep 1
+             utime confidence =    9%, speed up =     31.45%
+
 
 The sample ``run_output.yaml`` was created via ``temci short exec 'sleep 0.5' 'sleep 1' --runs 5 --runner rusage``:
 

@@ -770,6 +770,10 @@ class SingleProperty(BaseStatObject):
         """ Standard deviation of the measurements """
         return np.std(self.array)
 
+    def std(self) -> float:
+        """ Standard deviation of the measurements """
+        return np.std(self.array)
+
     def std_devs(self) -> t.Tuple[float, float]:
         """
         Calculates the standard deviation of elements <= mean and of the elements > mean.
@@ -942,9 +946,7 @@ class TestedPair(BaseStatObject):
         """ First of the two compared single objects """
         self.second = Single(second)  # type: Single
         """ Second of the two compared single objects """
-        self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),  # type: Tester
-                                                            Settings()["stats/tester"],
-                                                            Settings()["stats/uncertainty_range"])
+        self.tester = tester or TesterRegistry.get_tester()
         """ Used statistical tester for the comparisons """
         self.properties = {} # type: t.Dict[str, TestedPairProperty]
         """ TestedPairProperty objects for each shared property of the inherited Single objects """

@@ -45,6 +45,17 @@ class AbstractRegistry:
         return cls.registry[name](misc_settings, *args, **kwargs)
 
     @classmethod
+    def get_tester(cls) -> 'Tester':
+        """
+        Returns the tester that is configured in the settings
+
+        :return: tester instance
+        """
+        return cls.get_for_name(cls.get_used(),
+                                Settings()["stats/tester"],
+                                Settings()["stats/uncertainty_range"])
+
+    @classmethod
     def get_used(cls) -> t.Union[str, t.List[str]]:
         """
         Get the list of name of the used plugins (use_list=True)
