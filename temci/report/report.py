@@ -257,9 +257,12 @@ class ConsoleReporter(AbstractReporter):
                     dev=dev,
                     conf=tester.test(block[prop], baseline[prop]),
                     dbase="{:>5.5%}".format(base_std / base_mean) if base_mean != 0 else "{:>5.5}".format(base_std)))
-        gmean = stats.gmean([(block.get_single_properties()[prop].mean() / baseline.get_single_properties()[prop].mean())
-                            for prop in combined_props])
-        print_func("geometric mean of relative mean = {:>15}".format(str(FNumber(gmean, is_percent=True))))
+        rels = [(block.get_single_properties()[prop].mean() / baseline.get_single_properties()[prop].mean())
+                            for prop in combined_props]
+        gmean = stats.gmean(rels)
+        gstd = util.geom_std(rels)
+        print_func("geometric mean of relative mean = {:>15}, std dev = {:>15}"
+                   .format(FNumber(gmean, is_percent=True).format(), FNumber(gstd, is_percent=True).format()))
 
     def _report_list(self, title: str, items: t.List[dict], print_func: t.Callable[[str], None], descr_size: int):
         if len(items) != 0:
