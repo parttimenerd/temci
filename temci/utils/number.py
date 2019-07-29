@@ -147,7 +147,8 @@ def format_number(number: Number, deviation: float = 0.0,
                   force_min_decimal_places: bool = True,
                   relative_to_deviation: bool = False,
                   sigmas: int = 2,
-                  parentheses_mode: ParenthesesMode = ParenthesesMode.ORDER_OF_MAGNITUDE
+                  parentheses_mode: ParenthesesMode = ParenthesesMode.ORDER_OF_MAGNITUDE,
+                  parentheses_format: str = "({})"
                   ) -> str:
     """
     Format the passed number
@@ -183,6 +184,7 @@ def format_number(number: Number, deviation: float = 0.0,
     :param relative_to_deviation: format the number relative to its deviation, i.e. "10 sigma"
     :param sigmas: number of standard deviations for significance
     :param parentheses_mode: mode for selecting the significant digits
+    :param parentheses_format: format string to use
     :return: the number formatted as a string
     """
     prefix = ""
@@ -202,7 +204,8 @@ def format_number(number: Number, deviation: float = 0.0,
         "relative_to_deviation": relative_to_deviation,
         "scientific_notation": scientific_notation,
         "sigmas": sigmas,
-        "parentheses_mode": parentheses_mode
+        "parentheses_mode": parentheses_mode,
+        "parenthese_format": parentheses_format
     }
     if math.isinf(number):
         return "inf"
@@ -230,7 +233,8 @@ def _format_number(number: Number, deviation: float,
                    scientific_notation: bool = False,
                    scientific_notation_si_prefixes: bool = True,
                    sigmas: int = 2,
-                   parentheses_mode: ParenthesesMode = ParenthesesMode.ORDER_OF_MAGNITUDE) -> str:
+                   parentheses_mode: ParenthesesMode = ParenthesesMode.ORDER_OF_MAGNITUDE,
+                   parentheses_format: str = "({})") -> str:
     app = ""
     if relative_to_deviation:
         app = "𝜎"
@@ -251,7 +255,8 @@ def _format_number(number: Number, deviation: float,
                             scientific_notation=scientific_notation,
                             scientific_notation_si_prefixes=scientific_notation_si_prefixes,
                             sigmas=sigmas,
-                            parentheses_mode=parentheses_mode)
+                            parentheses_mode=parentheses_mode,
+                            parentheses_format=parentheses_format)
         dev = format_number(deviation, deviation, parentheses=False, explicit_deviation=False,
                             is_deviation_absolute=True, min_decimal_places=min_decimal_places,
                             max_decimal_places=max_decimal_places,
@@ -297,7 +302,7 @@ def _format_number(number: Number, deviation: float,
             if max_decimal_places is not 0:
                 num += "."
                 if parentheses:
-                    num += "(" + dec_part + ")"
+                    num += parentheses_format.format(dec_part)
                 else:
                     num += dec_part
     else:
@@ -307,7 +312,7 @@ def _format_number(number: Number, deviation: float,
         if max_decimal_places is not 0:
             num += "."
             if parentheses and len(dec_part[abs(last_sig):]) > 0:
-                num += dec_part[0:abs(last_sig)] + "(" + dec_part[abs(last_sig):] + ")"
+                num += dec_part[0:abs(last_sig)] + parentheses_format.format(dec_part[abs(last_sig):])
             else:
                 num += dec_part
     return num + app
