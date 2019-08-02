@@ -406,7 +406,7 @@ class FlushCPUCaches(AbstractRunDriverPlugin):
 
     needs_root_privileges = True
 
-    def setup(self):
+    def setup_block_run(self, block: RunProgramBlock):
         setup.exec("cpu_cache/flush", "insmod flush_cache.ko")
         setup.exec("cpu_cache/flush", "rmmod flush_cache.ko")
 
