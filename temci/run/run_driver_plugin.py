@@ -136,46 +136,43 @@ class EnvRandomizePlugin(AbstractRunDriverPlugin):
 
 @register(ExecRunDriver, "preheat", Dict({
     "time": NaturalNumber() // Default(10)
-            // Description("Number of seconds to preheat the system with an cpu bound task")
+            // Description("Number of seconds to preheat the system with an cpu bound task"),
+    "when": ListOrTuple(ExactEither("before_each_run", "at_setup")) // Default(["before_each_run"])
+            // Description("When to preheat")
 }))
 class PreheatPlugin(AbstractRunDriverPlugin):
     """
     Preheats the system with a cpu bound task
-    (calculating the inverse of a big random matrice with numpy).
+    (calculating the inverse of a big random matrix with numpy).
     """
 
     def setup(self):
+        if "at_setup" in self.misc_settings["when"]:
+            proc = subprocess.Popen(["/bin/sh", "-c", self._command()], stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    universal_newlines=True)
+            time.sleep(self.misc_settings["time"])
+            try:
+                if not proc.poll():
+                    proc.kill()
+            except BaseException as ex:
+                logging.error(ex)
+
+    def setup_block(self, block: RunProgramBlock, runs: int = 1):
+        if "before_each_run" in self.misc_settings["when"]:
+            block["cmd_prefix"].append(self._command())
+            print(block["cmd_prefix"])
+
+    def _command(self) -> str:
         heat_time = self.misc_settings["time"]
-        logging.info("Preheat the system for {} seconds with a cpu bound task"
-                     .format(heat_time))
         cmd = "timeout {} python3 -c 'import numpy as np; " \
               "m = np.random.randint(0, 100, (500, 500)); " \
               "print(list(map(lambda x: len(np.linalg.eig(m)), range(10000))))' > /dev/null".format(heat_time)
-        if does_command_succeed("python3 -c 'import numpy as np; '") and does_program_exist("bash"):
-            # source: http://bruxy.regnet.cz/web/linux/EN/mandelbrot-set-in-bash/
-            cmd = """bash -c "
-            #!/bin/bash
-            S0=S;S1=H;S2=E;S3=L;S4=L;e=echo;b=bc;I=-1;for x in {1..24};
-            do R=-2;for y in {1..80};do B=0;r=0;i=0;while [ $B -le 32 ];do
-            r2=`$e "$r*$r"|$b`;i2=`$e "$i*$i"|$b`;i=`$e "2*$i*$r+$I"|$b`;
-            r=`$e "$r2-$i2+$R"|$b`;: $((B+=1));V=`$e "($r2 +$i2)>4"|$b`;
-            if [ "$V" -eq 1 ];then break;fi;done; if [ $B -ge 32 ];then
-            $e -n " ";else U=$(((B*4)/15+30));$e -en "\E[01;$U""m";C=$((C%5));
-            eval "$e -ne \$E\$S$C";: $((C+=1));fi;R=`$e "$R+0.03125"|$b`
-            done;$e -e "\E[m\E(\r";I=`$e "$I+0.08333"|$b`;done      #(c)BruXy "
-            """
-        procs = []
-        for i in range(0, multiprocessing.cpu_count()):
-            proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    universal_newlines=True)
-            procs.append(proc)
-        time.sleep(heat_time)
-        for proc in procs:
-            try:
-                proc.poll()
-            except BaseException as ex:
-                logging.error(ex)
+        cmds = []
+        for i in range(1, multiprocessing.cpu_count()):
+            cmds.append(cmd + "& > /dev/null")
+        cmds.append(cmd)
+        return ";".join(cmds)
 
 
 @register(ExecRunDriver, "other_nice", Dict({
@@ -327,7 +324,7 @@ class SyncPlugin(AbstractRunDriverPlugin):
     """
 
     def setup_block_run(self, block: RunProgramBlock, runs: int = 1):
-        os.sync()
+        block["cmd_prefix"].append("sync")
 
 
 @register(ExecRunDriver, "sleep", Dict({
@@ -357,9 +354,9 @@ class DropFSCaches(AbstractRunDriverPlugin):
 
     needs_root_privileges = True
 
-    def setup_block_run(self, block: RunProgramBlock):
+    def setup_block(self, block: RunProgramBlock, runs: int = 1):
         num = self.misc_settings["free_pagecache"] + 2 * self.misc_settings["free_dentries_inodes"]
-        self._exec_command("sync; echo {} > /proc/sys/vm/drop_caches".format(num))
+        block["cmd_prefix"].append("sync; echo {} > /proc/sys/vm/drop_caches".format(num))
 
 
 @register(ExecRunDriver, "disable_swap", Dict({}))
@@ -513,3 +510,16 @@ class CPUSet(AbstractRunDriverPlugin):
 
     def setup(self):
         Settings()["run/cpuset/active"] = True
+
+
+@register(ExecRunDriver, "discarded_runs", Dict({
+    "runs": NaturalNumber() // Default(1) // Description("Number of discarded runs")
+}))
+class DiscardedRuns(AbstractRunDriverPlugin):
+    """
+    Sets run/discarded_runs
+    """
+
+    def setup(self):
+        Settings()["run/discarded_runs"] = True
+
