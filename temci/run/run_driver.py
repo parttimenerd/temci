@@ -506,7 +506,10 @@ PRESET_PLUGIN_MODES = {
             // Description("Enable other plugins by default: {}".format("; ".join("{} = {} ({})".format(k, *t) for k, t in PRESET_PLUGIN_MODES.items()))),
     "parse_output": Bool() // Default(False) // Description("Parse the program output as a YAML dictionary of "
                                                             "that gives for a specific property a measurement. "
-                                                             "Not all runners support it.")
+                                                             "Not all runners support it."),
+    "plugin_order": ListOrTuple(Str()) // Default(["drop_fs_caches", "sync", "sleep", "preheat", "flush_cpu_caches"])
+                    // Description("Order in which the plugins are used, plugins that do not "
+                                   "appear in this list are used before all others")
 }, unknown_keys=True))
 class ExecRunDriver(AbstractRunDriver):
     """
@@ -770,12 +773,17 @@ class ExecRunDriver(AbstractRunDriver):
         for plugin in PRESET_PLUGIN_MODES[self.misc_settings["preset"]][0].split(","):
             if plugin not in used and plugin is not "":
                 used.append(plugin)
+        order = self.misc_settings["plugin_order"]
+        used = sorted(used, key=lambda plugin: order.index(plugin) if plugin in order else -1)
         return used
 
 
 @register(RunDriverRegistry, "shell", Dict({
     "preset": ExactEither(*PRESET_PLUGIN_MODES.keys()) // Default("none")
-            // Description("Enable other plugins by default: {}".format("; ".join("{} = {} ({})".format(k, *t) for k, t in PRESET_PLUGIN_MODES.items())))
+            // Description("Enable other plugins by default: {}".format("; ".join("{} = {} ({})".format(k, *t) for k, t in PRESET_PLUGIN_MODES.items()))),
+    "plugin_order": ListOrTuple(Str()) // Default(["drop_fs_caches", "sync", "sleep", "preheat", "flush_cpu_caches"])
+                    // Description("Order in which the plugins are used, plugins that do not "
+                                   "appear in this list are used before all others")
 }, unknown_keys=True))
 class ShellRunDriver(ExecRunDriver):
     """

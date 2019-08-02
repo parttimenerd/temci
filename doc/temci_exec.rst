@@ -346,6 +346,10 @@ flags are of the schema ``--SETTING/--no-SETTING``):
     runs:         Int()
                 default: -1
 
+    # Order in which the plugins are used, plugins that do not appear in this list are used before all others
+    plugin_order: ListOrTuple(Str())
+                default: ["drop_fs_caches", "sync", "sleep", "preheat", "flush_cpu_caches"]
+
     # If not empty, recipient of a mail after the benchmarking finished.
     send_mail:         Str()
 
@@ -730,6 +734,9 @@ plugins already available:
     Stops almost all other processes (as far as possible)
 :ref:`sync`
     Synchronizes cached writes of the file system to a persistent storage
+
+The order in which the plugins are used (and called) is defined by the ``run/plugin_order``, see
+:ref:`common-options`.
 
 cpu_governor
 ~~~~~~~~~~~~
