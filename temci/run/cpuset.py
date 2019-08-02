@@ -28,7 +28,8 @@ class CPUSet:
     """
 
     def __init__(self, active: bool = True, base_core_number: int = None,
-                 parallel: int = None, sub_core_number: int = None):
+                 parallel: int = None, sub_core_number: int = None,
+                 temci_in_base_set: bool = True):
         """
         Initializes the cpu sets an determines the number of parallel programs (parallel_number variable).
 
@@ -36,10 +37,11 @@ class CPUSet:
         :param base_core_number: number of cpu cores for the base (remaining part of the) system
         :param parallel: 0: benchmark sequential, > 0: benchmark parallel with n instances, -1: determine n automatically
         :param sub_core_number: number of cpu cores per parallel running program
+        :param temci_in_base_set: place temci in the same cpu set as the rest of the system?
         :raises ValueError: if the passed parameters don't work together on the current platform
         :raises EnvironmentError: if the environment can't be setup properly (e.g. no root privileges)
         """
-        #self.bench_set = "bench.set"
+        # self.bench_set = "bench.set"
         self.active = active and has_root_privileges()  # type: bool
         """ Are cpu sets actually used? """
         self.base_core_number = Settings().default(base_core_number, "run/cpuset/base_core_number")  # type: int
@@ -48,21 +50,23 @@ class CPUSet:
         """ 0: benchmark sequential, > 0: benchmark parallel with n instances, -1: determine n automatically """
         self.sub_core_number = Settings().default(sub_core_number, "run/cpuset/sub_core_number")  # type: int
         """ Number of cpu cores per parallel running program """
-        self.av_cores = len(self._cpus_of_set("")) if active else multiprocessing.cpu_count()  # zype: int
+        self.av_cores = len(self._cpus_of_set("")) if active else multiprocessing.cpu_count()  # type: int
         """ Number of available cpu cores """
         self.parallel_number = 0  # type: int
         """ Number of used parallel instances, zero if the benchmarking is done sequentially """
+        self.temci_in_base_set = Settings().default(temci_in_base_set, "run/cpuset/temci_in_base_set")
+        """ Place temci in the same cpu set as the rest of the system? """
         if self.parallel != 0:
             if self.parallel == -1:
                 self.parallel_number = self._number_of_parallel_sets(self.base_core_number,
                                                                      True, self.sub_core_number)
             else:
                 self.parallel_number = self.parallel
-                if self.parallel > self._number_of_parallel_sets(self.base_core_number, True, self.sub_core_number)\
+                if self.parallel > self._number_of_parallel_sets(self.base_core_number, True, self.sub_core_number) \
                         and self.active:
                     raise ValueError("Invalid values for base_core_number and sub_core_number "
-                             "on system with just {} cores. Note: The benchmark controller "
-                             "needs a cpuset too.".format(self.av_cores))
+                                     "on system with just {} cores. Note: The benchmark controller "
+                                     "needs a cpuset too.".format(self.av_cores))
             self.base_core_number = self.av_cores - self.sub_core_number * self.parallel_number - 1
         if not self.active:
             if active and not has_root_privileges():
@@ -72,7 +76,7 @@ class CPUSet:
         typecheck(self.base_core_number, PositiveInt())
         typecheck(self.parallel_number, NaturalNumber())
         self.own_sets = [SUB_BENCH_SET.format(i) for i in range(0, self.parallel_number)] \
-                   + [CONTROLLER_SUB_BENCH_SET, NEW_ROOT_SET, BENCH_SET]
+                        + [CONTROLLER_SUB_BENCH_SET, NEW_ROOT_SET, BENCH_SET]
         try:
             self._init_cpuset()
         except BaseException:
@@ -116,7 +120,7 @@ class CPUSet:
                 self._delete_set(set)
             except EnvironmentError as ex:
                 pass
-                #logging.error(str(ex))
+                # logging.error(str(ex))
             except BaseException:
                 raise
 
@@ -125,11 +129,13 @@ class CPUSet:
         Calculates the number of possible parallel sets.
         """
         typecheck([base_core_number, parallel, sub_core_number], List(Int()))
-        if base_core_number + 1 + sub_core_number > self.av_cores and self.active:
+        if base_core_number + (0 if self.temci_in_base_set else 1) + sub_core_number > self.av_cores and self.active:
             raise ValueError("Invalid values for base_core_number and sub_core_number "
-                             "on system with just {} cores. Note: The benchmark controller"
-                             "needs a cpuset too.".format(self.av_cores))
-        av_cores_for_par = self.av_cores - base_core_number - 1
+                             "on system with just {} cores.{}".format(self.av_cores,
+                                                                      ""
+                                                                      if self.temci_in_base_set
+                                                                      else "Note: temci needs a cpuset too."))
+        av_cores_for_par = self.av_cores - base_core_number - (0 if self.temci_in_base_set else 1)
         if parallel:
             return av_cores_for_par // sub_core_number
         return 1
@@ -142,9 +148,9 @@ class CPUSet:
             if not os.path.exists(CPUSET_DIR):
                 os.mkdir(CPUSET_DIR)
             proc = subprocess.Popen(["bash", "-c", "mount -t cpuset none /cpuset/"],
-                                stdout=subprocess.DEVNULL,
-                                stderr=subprocess.PIPE,
-                                universal_newlines=True)
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.PIPE,
+                                    universal_newlines=True)
             out, err = proc.communicate()
             if proc.poll() > 0:
                 raise EnvironmentError(
@@ -153,13 +159,13 @@ class CPUSet:
         self._create_cpuset(NEW_ROOT_SET, self._get_av_cpus()[0: self.base_core_number])
         logging.info("Move all processes to new root cpuset")
         self._move_all_to_new_root()
-        if self.parallel == 0: # just use all available cores, as the benchmarked program also runs in it
+        if self.parallel == 0:  # just use all available cores, as the benchmarked program also runs in it
             self._create_cpuset(CONTROLLER_SUB_BENCH_SET, self._get_av_cpus()[self.base_core_number:self.av_cores])
         else:
             self._create_cpuset(CONTROLLER_SUB_BENCH_SET, self._get_av_cpus()[self.base_core_number:1])
-        self._move_process_to_set(CONTROLLER_SUB_BENCH_SET)
+        self._move_process_to_set(NEW_ROOT_SET if self.temci_in_base_set else CONTROLLER_SUB_BENCH_SET)
         for i in range(0, self.parallel_number):
-            start = self.base_core_number + 1 + (i * self.sub_core_number)
+            start = self.base_core_number + (0 if self.temci_in_base_set else 1) + (i * self.sub_core_number)
             self._create_cpuset(SUB_BENCH_SET.format(i), self._get_av_cpus()[start:start + self.sub_core_number])
 
     def _cpus_of_set(self, name: str) -> t.Optional[t.List[int]]:
@@ -202,19 +208,19 @@ class CPUSet:
         :param name: name of the root cpu set
         :param _count: maximum cpu set tree depth
         """
-        cpus =  self._get_av_cpus()[0:self.base_core_number]
+        cpus = self._get_av_cpus()[0:self.base_core_number]
         self._set_cpu_affinity_of_set(name, cpus)
         if _count > 0:
             for child in self._child_sets(name):
                 if len(child) > 1:
-                    #print("moved from {child} to {root}".format(child=child, root=NEW_ROOT_SET))
+                    # print("moved from {child} to {root}".format(child=child, root=NEW_ROOT_SET))
                     try:
                         self._move_all_to_new_root(child, _count - 1)
                     except EnvironmentError as err:
                         pass
-                        #logging.warning(str(err))
+                        # logging.warning(str(err))
         self._move_processes(name, NEW_ROOT_SET)
-        #if _count == 100:
+        # if _count == 100:
         #    self._cset("proc --move -k --force --threads --pid=0-100000 --toset={}".format(NEW_ROOT_SET))
 
     def _move_processes(self, from_set: str, to_set: str):
@@ -275,15 +281,15 @@ class CPUSet:
         """ Set the cpu affinity for all processes that belong to the given set """
         if set == "root":
             set = ""
-        app = "cgroup.procs"  if set == "" else set + "/cgroup.procs"
+        app = "cgroup.procs" if set == "" else set + "/cgroup.procs"
         with open(os.path.join(CPUSET_DIR + "/" + app), "r") as f:
             for line in f.readlines():
                 try:
                     self._set_cpu_affinity(int(line.strip()), cpus)
-                    #logging.info("success {}".format(line))
+                    # logging.info("success {}".format(line))
                 except EnvironmentError as err:
                     pass
-                    #logging.error(str(err))
+                    # logging.error(str(err))
 
     def _set_cpu_affinity(self, pid: int, cpus: t.List[int]):
         """ Set the cpu affinity for the given process to the given cpu cores """
@@ -294,7 +300,7 @@ class CPUSet:
                                 universal_newlines=True)
         out, err = proc.communicate()
         if proc.poll() > 0:
-            raise EnvironmentError (
+            raise EnvironmentError(
                 "taskset error (cmd = '{}'): ".format(cmd) + str(err) + str(out)
             )
         return str(out)
@@ -307,7 +313,7 @@ class CPUSet:
         :return: output of executing the combined command
         :raises EnvironmentError: if something goes wrong
         """
-        #cmd = ["/bin/sh", "-c", "sudo cset {}".format(argument)]
+        # cmd = ["/bin/sh", "-c", "sudo cset {}".format(argument)]
         cmd = ["/bin/sh", "-c", "python3 -c 'import cpuset.main; print(cpuset.main.main())' " + argument]
         proc = subprocess.Popen(cmd,
                                 stdout=subprocess.PIPE,

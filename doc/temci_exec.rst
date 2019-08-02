@@ -365,7 +365,7 @@ flags are of the schema ``--SETTING/--no-SETTING``):
         active:         Bool()
 
         # Number of cpu cores for the base (remaining part of the) system
-        base_core_number:         Int(range=range(0, 8))
+        base_core_number:         Int(range=range(0, NUMBER OF CPUS))
                     default: 1
 
         #   0: benchmark sequential
@@ -374,8 +374,12 @@ flags are of the schema ``--SETTING/--no-SETTING``):
         parallel:         Int()
 
         # Number of cpu cores per parallel running program.
-        sub_core_number:         Int(range=range(0, 8))
+        sub_core_number:         Int(range=range(0, NUMBER OF CPUS))
                     default: 1
+
+        # Place temci in the same cpu set as the rest of the system?
+        temci_in_base_set:  Bool()
+                    default: True
 
      # Maximum runs per tag (block attribute 'tag'), min('max_runs', 'per_tag') is used
     max_runs_per_tag:         Dict(, keys=Str(), values=Int(), default = {})
@@ -706,6 +710,8 @@ plugins already available:
     Disables the turbo mode on Intel CPUs
 :ref:`disable_swap`
     Disables swapping data from the RAM into a backing hard drive
+:ref:`discarded_runs`
+    Discard the first runs (sets the ``run/discarded_runs`` setting)
 :ref:`drop_fs_caches`
     Drops file system caches
 :ref:`env_randomize`
@@ -788,6 +794,11 @@ Disables swapping data from the RAM into a backing hard drive. Swapping during b
 variance as accessing data on a hard drive is significantly slower than accessing data in RAM.
 
 Requires root privileges.
+
+discarded_runs
+~~~~~~~~~~~~~~
+Discard the first runs (sets the ``run/discarded_runs`` setting).
+As a result, the benchmark files should already be in the file system caches.
 
 drop_fs_caches
 ~~~~~~~~~~~~~~
@@ -887,6 +898,10 @@ Preheats the system with a CPU bound task (calculating the inverse of a big rand
 The length of the preheating can be configured by either using the ``--preheat_time SECONDS`` option or by
 setting ``run/exec_plugins/preheat_misc/time``.
 
+When the preheating takes place (before each run or at the beginning of the benchmarking) can
+be configured via ``--preheat_when [before_each_run|at_setup]`` or by setting
+``run/exec_plugins/preheat_misc/when`` (accepts a list).
+
 sleep
 ~~~~~
 Keep the system idle for some time before the actual benchmarking.
@@ -982,5 +997,10 @@ can also be set using the options with the same names prefixed with ``--cpuset_`
     # Number of cpu cores per parallel running program.
     sub_core_number:         Int(range=range(0, 8))
                 default: 1
+
+    # Place temci in the same cpu set as the rest of the system?
+    temci_in_base_set:  Bool()
+                default: True
+
 
 This functionality can also be enabling by using the ``--cpuset`` flag or by enabling the :ref:`cpuset` plugin.

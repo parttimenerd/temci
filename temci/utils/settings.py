@@ -121,7 +121,9 @@ class Settings(metaclass=Singleton):
                                                       "> 0: benchmark parallel with n instances, "
                                                       "-1: determine n automatically") // Default(0),
                 "sub_core_number": ValidCPUCoreNumber() // Description("Number of cpu cores per parallel running program.")
-                                   // Default(1)
+                                   // Default(1),
+                "temci_in_base_set": Bool() // Default(True)
+                                     // Description("place temci in the same cpu set as the rest of the system?")
             }),
             "disable_hyper_threading": Bool() // Default(False)
                                        // Description("Disable the hyper threaded cores. Good for cpu bound programs."),

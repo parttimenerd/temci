@@ -12,6 +12,7 @@ import temci.setup.setup as setup
 import subprocess, logging, os, signal, random, multiprocessing, time
 import typing as t
 
+
 class AbstractRunDriverPlugin:
     """
     A plugin for a run driver. It allows additional modifications.
@@ -161,7 +162,6 @@ class PreheatPlugin(AbstractRunDriverPlugin):
     def setup_block(self, block: RunProgramBlock, runs: int = 1):
         if "before_each_run" in self.misc_settings["when"]:
             block["cmd_prefix"].append(self._command())
-            print(block["cmd_prefix"])
 
     def _command(self) -> str:
         heat_time = self.misc_settings["time"]
