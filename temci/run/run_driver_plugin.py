@@ -186,6 +186,8 @@ class OtherNicePlugin(AbstractRunDriverPlugin):
     Allows the setting of the nice value of most other processes (as far as possible).
     """
 
+    needs_root_privileges = True
+
     def __init__(self, misc_settings):
         super().__init__(misc_settings)
         self._old_nices = {}
@@ -238,6 +240,8 @@ class StopStartPlugin(AbstractRunDriverPlugin):
     """
     Stop almost all other processes (as far as possible).
     """
+
+    needs_root_privileges = True
 
     def __init__(self, misc_settings):
         super().__init__(misc_settings)
@@ -512,7 +516,7 @@ class CPUSet(AbstractRunDriverPlugin):
         Settings()["run/cpuset/active"] = True
 
 
-@register(ExecRunDriver, "discarded_runs", Dict({
+@register(ExecRunDriver, "discard_runs", Dict({
     "runs": NaturalNumber() // Default(1) // Description("Number of discarded runs")
 }))
 class DiscardedRuns(AbstractRunDriverPlugin):
@@ -521,5 +525,5 @@ class DiscardedRuns(AbstractRunDriverPlugin):
     """
 
     def setup(self):
-        Settings()["run/discarded_runs"] = True
+        Settings()["run/discarded_runs"] = self.misc_settings["runs"]
 
