@@ -4,7 +4,7 @@ import datetime
 
 from temci.utils.number import FNumber
 from temci.utils.plugin import load_plugins
-from temci.utils.util import sphinx_doc, get_doc_for_type_scheme
+from temci.utils.util import sphinx_doc, get_doc_for_type_scheme, does_command_succeed
 
 import warnings
 
@@ -75,7 +75,8 @@ command_docs = {
     "clean": "Clean up the temporary files",
     "setup": "Compile all needed binaries in the temci scripts folder",
     "version": "Print the current version ({})".format(temci.scripts.version.version),
-    "format": "Format a number"
+    "format": "Format a number",
+    "autotune": "Auto tune the environment configuration"
 }
 for driver in run_driver.RunDriverRegistry.registry:
     command_docs[driver] = run_driver.RunDriverRegistry.registry[driver].__description__.strip().split("\n")[0]
@@ -975,6 +976,29 @@ def setup(**kwargs):
 def temci__setup(build_kernel_modules: bool):
     from temci.setup.setup import make_scripts
     make_scripts(build_kernel_modules)
+
+
+@cli.command(short_help=command_docs["autotune"])
+@click.argument("exec_file")
+@click.argument("runner")
+@click.argument("properties", default="wall-clock")
+@click.argument("runs", default=5)
+@click.argument("sleep", default=0)
+@cmd_option(common_options)
+def autotune(exec_file: str, runs: int, properties: str, sleep: int, runner: str, **kwargs):
+    from temci.utils.autotune import BasicGreedyAlgorithm, BASIC_SETTINGS
+    if not os.path.exists(exec_file):
+        exec_file = [{"run_config": {
+                "run_cmd": exec_file,
+                "runner": runner
+            },
+            "attributes": {
+                "description": exec_file
+            }
+        }]
+    best_conf = BasicGreedyAlgorithm(exec_file, runs=runs, settings=BASIC_SETTINGS,
+                                     properties=properties, sleep=sleep).tune()
+    print("best configuration: {}".format(best_conf.to_cli_options()))
 
 
 if sphinx_doc():
