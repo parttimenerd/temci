@@ -136,7 +136,7 @@ class EnvRandomizePlugin(AbstractRunDriverPlugin):
 
 
 @register(ExecRunDriver, "preheat", Dict({
-    "time": NaturalNumber() // Default(10)
+    "time": NaturalNumber() // Default(1)
             // Description("Number of seconds to preheat the system with an cpu bound task"),
     "when": ListOrTuple(ExactEither("before_each_run", "at_setup")) // Default(["before_each_run"])
             // Description("When to preheat")
@@ -332,7 +332,7 @@ class SyncPlugin(AbstractRunDriverPlugin):
 
 
 @register(ExecRunDriver, "sleep", Dict({
-    "seconds": PositiveInt() // Default(10) // Description("Seconds to sleep")
+    "seconds": PositiveInt() // Default(1) // Description("Seconds to sleep")
 }))
 class SleepPlugin(AbstractRunDriverPlugin):
     """
