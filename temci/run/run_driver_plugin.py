@@ -23,6 +23,9 @@ class AbstractRunDriverPlugin:
     needs_root_privileges = False  # type: bool
     """ Does this plugin work only with root privileges? """
 
+    use_with_autotune = True
+    """ Use with temci autotune """
+
     def __init__(self, misc_settings):
         """
         Creates an instance.
@@ -126,6 +129,8 @@ class EnvRandomizePlugin(AbstractRunDriverPlugin):
     """
     Adds random environment variables.
     """
+
+    use_with_autotune = False
 
     def setup_block_run(self, block: RunProgramBlock, runs: int = 1):
         env = {}
@@ -242,6 +247,7 @@ class StopStartPlugin(AbstractRunDriverPlugin):
     """
 
     needs_root_privileges = True
+    use_with_autotune = False
 
     def __init__(self, misc_settings):
         super().__init__(misc_settings)
@@ -390,6 +396,7 @@ class DisableCPUCaches(AbstractRunDriverPlugin):
     """
 
     needs_root_privileges = True
+    use_with_autotune = False
 
     def setup(self):
         setup.exec("cpu_cache/disable", "insmod disable_cache.ko")

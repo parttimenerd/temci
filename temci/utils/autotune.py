@@ -163,11 +163,11 @@ class SettingCombination:
 
 
 BASIC_SETTINGS = SettingCombination(
-    *(PluginSetting(p) for p in ExecRunDriver.registry)
+    *(PluginSetting(p) for p, v in ExecRunDriver.registry.items() if v.use_with_autotune)
 )
 if not has_root_privileges():
     BASIC_SETTINGS = SettingCombination(
-        *(PluginSetting(p) for p, v in ExecRunDriver.registry.items() if not v.needs_root_privileges)
+        *(PluginSetting(p) for p, v in ExecRunDriver.registry.items() if not v.needs_root_privileges and v.use_with_autotune)
     )
 
 
@@ -270,10 +270,12 @@ class BasicGreedyAlgorithm(Algorithm):
                 if best_subconf:
                     if self.measure(self.runs, conf) < self.measure(self.runs, last + best_subconf):
                         best_subconf = subconf
-            conf = conf + subconf
+                else:
+                    best_subconf = subconf
+            conf = conf + best_subconf
             if self.measure(self.runs, conf) < self.measure(self.runs, last):
-                new += subconf
-                combined.append(last + subconf)
+                new += best_subconf
+                combined.append(last + best_subconf)
         combined.append(new)
         new_max = last
         for c in combined:
