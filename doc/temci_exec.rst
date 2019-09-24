@@ -32,10 +32,21 @@ as ``temci exec``:
 
     Usage: temci short exec [OPTIONS] COMMANDS
 
-    -wd, --without_description COMMAND
-        Benchmark the command and use itself as its description.
-    -d, --with_description DESCRIPTION COMMAND...
-        Benchmark the command and set its description attribute.
+    -wd, --without_description COMMAND:
+          Benchmark the command and use
+          itself as its description. Appends
+          '$ARGUMENT' to the command if the string
+          isn't present. Use the '--argument' option
+          to set the value that this string is
+          replaced with.
+    -d, --with_description DESCRIPTION COMMAND:
+          Benchmark the command
+          and set its description attribute.Appends
+          '$ARGUMENT' to the command if the string
+          isn't present. Use the '--argument' option
+          to set the value that this string is
+          replaced with.
+    
     …
     (options of temci exec)
 

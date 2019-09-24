@@ -143,11 +143,19 @@ misc_commands = {
             "exec": CmdOptionList(CmdOption("with_description",
                                     type_scheme=ListOrTuple(Tuple(Str(), Str()))
                                                 // Description("DESCRIPTION COMMAND: Benchmark the command and set its"
-                                                               " description attribute."),
+                                                               " description attribute."
+                                                               "Appends '$ARGUMENT' "
+                                                               "to the command if the string isn't present. "
+                                                               "Use the '--argument' option to set the value "
+                                                               "that this string is replaced with."),
                                     short="d", completion_hints={"zsh": "_command"}),
                           CmdOption("without_description", short="wd",
                                     type_scheme=ListOrTuple(Str()) // Description("COMMAND: Benchmark the command and use "
-                                                                           "itself as its description."),
+                                                                           "itself as its description. "
+                                                                           "Appends '$ARGUMENT' "
+                                                                           "to the command if the string isn't present. "
+                                                                           "Use the '--argument' option to set the value "
+                                                                           "that this string is replaced with."),
                                     completion_hints={"zsh": "_command"}),
                           run_options["run_driver_specific"]["exec"],
                           run_options["common"]
@@ -260,6 +268,10 @@ def temci__short__exec(commands: list, with_description: list = None, without_de
                 "description": cmd
             }
         })
+    for run in runs:
+        con = run["run_config"]
+        if "$ARGUMENT" not in con["run_cmd"]:
+            con["run_cmd"][0] += " $ARGUMENT"
     Settings()["run/driver"] = "exec"
     benchmark_and_exit(runs)
 

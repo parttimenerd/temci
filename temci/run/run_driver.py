@@ -509,7 +509,9 @@ PRESET_PLUGIN_MODES = {
                                                              "Not all runners support it."),
     "plugin_order": ListOrTuple(Str()) // Default(["drop_fs_caches", "sync", "sleep", "preheat", "flush_cpu_caches"])
                     // Description("Order in which the plugins are used, plugins that do not "
-                                   "appear in this list are used before all others")
+                                   "appear in this list are used before all others"),
+    "argument": Str() // Default("") // Description("Argument passed to all benchmarked commands by replacing "
+                                                    "$ARGUMENT with this value in the command")
 }, unknown_keys=True))
 class ExecRunDriver(AbstractRunDriver):
     """
@@ -655,7 +657,8 @@ class ExecRunDriver(AbstractRunDriver):
                                                            shlex.quote(center)) + post
         else:
             cmd = pre + " " + center + " " + post
-        cmd = cmd.replace("&SUDO&", "$SUDO$") .replace("&&", "&")
+        arg = self.misc_settings["argument"] if "argument" in self.misc_settings else ""
+        cmd = cmd.replace("&SUDO&", "$SUDO$").replace("&&", "&").replace("$ARGUMENT", arg)
         cwd = block["cwds"][rand_index]
         executed_cmd = block["cmd_prefix"] + [cmd]
         if cpuset is not None and has_root_privileges():
