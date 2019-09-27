@@ -24,7 +24,7 @@ in buildPythonApplication rec {
     tablib unicodecsv
     scipy seaborn
     pyyaml
-  ] ++ pkgs.lib.optional pkgs.stdenv.isLinux perf;
+  ] ++ pkgs.lib.optional pkgs.stdenv.isLinux pkgs.linuxPackages.perf;
   postInstall = ''
     $out/bin/temci setup
   '';
