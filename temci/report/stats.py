@@ -1116,13 +1116,13 @@ class SignificanceTooLowWarning(StatWarning):
     @classmethod
     def check_value(cls, value) -> bool:
         r = Settings()["stats/uncertainty_range"]
-        return r[0] <= value <= r[1]
+        return not (r[0] <= value <= r[1])
 
 
 class SignificanceTooLowError(SignificanceTooLowWarning):
     """
     Error message regarding an only insignificant difference regarding a statistical test.
-    The probability of the null hypothesis is lower than the lower end of the configured uncertainty range.
+    The probability of the null hypothesis is larger than the larger end of the configured uncertainty range.
     """
 
     type = StatMessageType.ERROR
@@ -1130,7 +1130,7 @@ class SignificanceTooLowError(SignificanceTooLowWarning):
     @classmethod
     def check_value(cls, value) -> bool:
         r = Settings()["stats/uncertainty_range"]
-        return r[1] < value
+        return not (r[1] < value)
 
 
 class TestedPairProperty(BaseStatObject):
