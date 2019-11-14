@@ -109,3 +109,31 @@ def test_temci_short_shell():
 
 def test_pass_arguments():
     assert run_temci("short exec exit --argument 1", expect_success=False).ret_code == ErrorCode.PROGRAM_ERROR.value
+
+
+def test_included_blocks_single_issue99():
+    r = run_temci("exec --in in.yaml --included_blocks b --runs 0", files={
+        "in.yaml":
+            [
+                {
+                    "attributes": {
+                        "description": "a"
+                    },
+                    "run_config": {
+                        "cmd": "true"
+                    }
+                },
+                {
+                    "attributes": {
+                        "description": "b"
+                    },
+                    "run_config": {
+                        "cmd": "true"
+                    },
+                    "build_config": {
+                        "cmd": "false"
+                    }
+                }
+            ]
+    }, expect_success=False)
+    assert r.ret_code != 0

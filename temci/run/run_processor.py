@@ -51,8 +51,9 @@ class RunProcessor:
         """ Run program blocks for each dictionary in ``runs```"""
         for (id, run) in enumerate(runs):
             self.run_blocks.append(RunProgramBlock.from_dict(id, copy.deepcopy(run)))
+        old_blocks = self.run_blocks
         self.run_blocks = filter_runs(self.run_blocks, Settings()["run/included_blocks"])
-        self.runs = [runs[block.id] for block in self.run_blocks]
+        self.runs = [runs[next(i for i, o in enumerate(old_blocks) if o == b)] for b in self.run_blocks]
         self.append = Settings().default(append, "run/append")  # type: bool
         """ Append to the old benchmarks if there are any in the result file? """
         self.show_report = Settings().default(show_report, "run/show_report")  # type: bool
