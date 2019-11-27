@@ -525,7 +525,7 @@ class HTMLReporter2(AbstractReporter):
                     popover.trigger = "hover click"
                 else:
                     pair = pair[property]
-                    popover.content="""Difference relative to the mean of the left:
+                    popover.content="""Left mean relative to the right mean:
                     \\begin{align}
                         & \\frac{\\overline{\\text{left[%s]}}}{\\overline{\\text{right[%s]}}} \\\\
                         &= \\frac{%5.4f}{%5.4f}

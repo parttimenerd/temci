@@ -191,8 +191,8 @@ class StatError(StatWarning, StatMessage):
 class StdDeviationToHighWarning(StatWarning):
     """ A warning about a too high standard deviation. """
 
-    message = "The standard deviation per mean of {props} is too high it should be <= {b_val}."
-    hint = "With the exec run driver you can probably use the stop_start plugin, preheat and sleep plugins. " \
+    message = "The standard deviation per mean of {props} is too high. It should be <= {b_val}."
+    hint = "With the exec run driver you can probably use a preset. " \
            "Also consider to increase the number of measured runs."
     border_value = 0.01
     value_format = StatMessageValueFormat.PERCENT
