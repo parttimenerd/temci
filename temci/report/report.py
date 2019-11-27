@@ -335,7 +335,7 @@ class HTMLReporter2(AbstractReporter):
         if os.path.exists(self.misc["out"]):
             force = self.misc["force_override"]
             if not force:
-                force = click.prompt("The output folder already exists should its contents be overridden? ", type=bool,
+                force = click.prompt("The output folder already exists. Should its contents be overridden? ", type=bool,
                                      default=False)
             if force:
                 shutil.rmtree(self.misc["out"])
@@ -511,26 +511,26 @@ class HTMLReporter2(AbstractReporter):
                 rel_diff = None
                 if property is None:
                     popover.content = r"""
-                        Geometric mean of the means of the left relative to the means of the right:
-                        \\[\\sqrt[\|properties\|]{
-                        \\prod_{p \in \\text{properties}}
-                        \\frac{\\overline{\\text{left[p]}}}{
-                            \\overline{\\text{right[p]}}}}\]
-                        <p>Using the more widely known would be like
+                        Geometric mean of the first means relative to the second means:
+                        \[\sqrt[\|properties\|]{
+                        \prod_{p \in \text{properties}}
+                        \frac{\overline{\text{first[p]}}}{
+                            \overline{\text{second[p]}}}}\]
+                        <p>Using the more widely known arithmetic mean would be like
                         <a href='http://ece.uprm.edu/~nayda/Courses/Icom6115F06/Papers/paper4.pdf?origin=publication_detail'>
                         lying</a>.</p>
                         <p>The geometric standard deviation is <b>%s</b></p>.
                     """ % self._percent_format.format(pair.first_rel_to_second_std())
-                    rel_diff = fnumber(pair.first_rel_to_second(), rel_deviation=pair.first_rel_to_second_std() - 1)
+                    rel_diff = fnumber(pair.first_rel_to_second(), rel_deviation=pair.first_rel_to_second_std() - 1, is_percent=True)
                     popover.trigger = "hover click"
                 else:
                     pair = pair[property]
-                    popover.content="""Left mean relative to the right mean:
+                    popover.content="""First mean relative to the second mean:
                     \\begin{align}
-                        & \\frac{\\overline{\\text{left[%s]}}}{\\overline{\\text{right[%s]}}} \\\\
+                        & \\frac{\\overline{\\text{first[%s]}}}{\\overline{\\text{second[%s]}}} \\\\
                         &= \\frac{%5.4f}{%5.4f}
                     \\end{align}
-                    <p>The maximum standard deviation of the left and the right relative to the mean of the right is <b>%s</b>.</p>
+                    <p>The maximum standard deviation of both benchmarks relative to the mean of the second one is <b>%s</b>.</p>
                     """ % (property, property, pair.first.mean(), pair.second.mean(),
                            self._percent_format.format(pair.max_std_dev() / pair.second.mean()))
                     rel_diff = FNumber(pair.first_rel_to_second(), rel_deviation=pair.max_std_dev() / pair.second.mean(), is_percent=True)
