@@ -533,7 +533,7 @@ class HTMLReporter2(AbstractReporter):
                     <p>The maximum standard deviation of the left and the right relative to the mean of the right is <b>%s</b>.</p>
                     """ % (property, property, pair.first.mean(), pair.second.mean(),
                            self._percent_format.format(pair.max_std_dev() / pair.second.mean()))
-                    rel_diff = FNumber(pair.first_rel_to_second(), rel_deviation=pair.max_std_dev() / pair.second.mean())
+                    rel_diff = FNumber(pair.first_rel_to_second(), rel_deviation=pair.max_std_dev() / pair.second.mean(), is_percent=True)
                 cell = _Cell(self, content=str(rel_diff), popover=popover, color_class_obj=pair, show_click_on_info=True)
                 cell.modal_id = self._short_summary_modal(pair)
                 table[i, j] = cell
