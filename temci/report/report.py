@@ -411,10 +411,11 @@ class HTMLReporter2(AbstractReporter):
             <h2>Summary</h2>
         """
         inner_html += self._format_errors_and_warnings(self.stats)
-        inner_html += """
-            <h3>Overall summary</h3>
-        """
-        inner_html += self._full_single_property_comp_table().html()
+        if len(self.stats.properties()) > 1:
+            inner_html += """
+                <h3>Overall summary</h3>
+            """
+            inner_html += self._full_single_property_comp_table().html()
         for prop in self.stats.properties():
             inner_html += """
                 <h3>Summary regarding {prop}</h3>
@@ -479,13 +480,13 @@ class HTMLReporter2(AbstractReporter):
         if self.excluded_data_info.excluded_run_datas:
             html += """
                 <div class="alert alert-danger">
-                     Excluded invalid {} (the data consists only of zeros or NaNs).
+                     Excluded invalid {} (the data consists only of zeroes or NaNs).
                 </div>
             """.format(join_strs(map(repr, self.excluded_data_info.excluded_run_datas)))
         for descr in self.excluded_data_info.excluded_properties_per_run_data.keys():
             html += """
                 <div class="alert alert-warning">
-                  Excluded {} from {!r} (the data consists only of zeros or NaNs).
+                  Excluded {} from {!r} (the data consists only of zeroes or NaNs).
                 </div>
             """.format(join_strs(map(repr, self.excluded_data_info.excluded_properties_per_run_data[descr])),
                        descr)
