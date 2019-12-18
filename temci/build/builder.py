@@ -178,4 +178,4 @@ class BuildError(Exception):
         logging.error("Build error for {}".format(self.item.id))
         logging.error("out: {!r}".format(self.error.out))
         logging.error("err: {!r}".format(self.error.err))
-        logging.error("cmd: {!r}", self.item.build_cmd)
+        logging.error("cmd: {!r}".format(self.item.build_cmd))

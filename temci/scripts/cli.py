@@ -17,6 +17,7 @@ import shutil
 
 from temci.utils.typecheck import *
 
+from temci.build.builder import BuildError
 from temci.run.run_processor import RunProcessor
 from temci.build.build_processor import BuildProcessor
 import temci.run.run_driver as run_driver
@@ -197,6 +198,9 @@ def benchmark_and_exit(runs: t.List[dict] = None):
         processor.benchmark()
         if processor.recorded_error():
             sys.exit(ErrorCode.PROGRAM_ERROR.value)
+    except BuildError as err:
+        err.log()
+        sys.exit(ErrorCode.PROGRAM_ERROR.value)
     except KeyboardInterrupt:
         logging.error("KeyboardInterrupt. Cleaned up everything.")
         sys.exit(ErrorCode.TEMCI_ERROR.value)
