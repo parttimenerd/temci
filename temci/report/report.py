@@ -1960,3 +1960,35 @@ class CodespeedReporter(AbstractReporter):
             "min": min(run[prop]),
             "max": max(run[prop]),
         }
+
+
+@register(ReporterRegistry, "codespeed2", Dict({}))
+class Codespeed2Reporter(AbstractReporter):
+    """
+    Reporter that outputs JSON as specified by
+    the `codespeed runner spec <https://git.scc.kit.edu/IPDSnelting/codespeed-runner>`_.
+    """
+
+    def report(self):
+        """
+        Create a report and output it as configured.
+        """
+        import json
+        res = {}
+        for run in self.stats_helper.errorneous_runs:
+            bench_res = {}
+            for prop in run.properties:
+                bench_res[prop] = {
+                    "error": run.recorded_error.message
+                }
+            res[run.description()] = bench_res
+        for run in self.stats_helper.runs:
+            bench_res = {}
+            for prop in run.properties:
+                bench_res[prop] = {
+                    "results": run[prop],
+                    "unit": ("s" if "time" in prop or "clock" in prop else prop),
+                    "resultInterpretation": "LESS_IS_BETTER"
+                }
+            res[run.description()] = bench_res
+        json.dump(res, sys.stdout)
