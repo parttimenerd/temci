@@ -59,6 +59,13 @@ After installing these packages, temci can be installed by calling:
 A package called temci exists on pypi, but temci depends on an unpublished version of the ``click`` library that is only available on
 github. This should change in the near future when the version 8.0 of ``click`` is published.
 
+If there a problems with ``click`` (if you get an exception like ``ImportError: cannot import name 'ParameterSource'``), try installing
+it directly from github:
+
+.. code:: sh
+
+      pip3 install https://github.com/pallets/click/archive/f537a208591088499b388b06b2aca4efd5445119.zip
+
 To install temci from source, run:
 
 .. code:: sh
