@@ -1,4 +1,9 @@
-{ pkgs ? import <nixpkgs> {},
+{ pkgs ? import (fetchTarball {
+    # Commit hash from `git ls-remote https://github.com/NixOS/nixpkgs-channels nixpkgs-unstable`
+    url = https://github.com/nixos/nixpkgs/archive/3b4df94aeb6e215085d08e3d5b0edc1313b9f584.tar.gz;
+    # Hash obtained using `nix-prefetch-url --unpack <url>`
+    sha256 = "1z8fnqxi0zd3wmjnmc4l2s4nq812mx0h4r09zdqi5si2in6rksxs";
+  }) {},
   # ignore untracked files in local checkout
   src ? if builtins.pathExists ./.git then builtins.fetchGit { url = ./.; } else ./. }:
 with pkgs.python3Packages;
@@ -6,6 +11,7 @@ let
   python = import ./requirements.nix { inherit pkgs; };
   pypi = python.packages;
   click_git = click.overrideAttrs (attrs: {
+    postPatch = "";
     src = builtins.fetchGit { url = https://github.com/pallets/click.git; rev = "f537a208591088499b388b06b2aca4efd5445119"; };
   });
 in buildPythonApplication rec {
