@@ -34,5 +34,6 @@ in buildPythonApplication rec {
       --replace /usr/bin/time ${pkgs.time}/bin/time \
       --replace gtime ${pkgs.time}/bin/time
   '';
+  makeWrapperArgs = ["--prefix PATH ':' ${pkgs.git}/bin"];
   preCheck = ''export PATH=$PATH:$out/bin'';
 }
