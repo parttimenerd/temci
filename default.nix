@@ -6,7 +6,7 @@
   }) {},
   # ignore untracked files in local checkout
   src ? if builtins.pathExists ./.git then builtins.fetchGit { url = ./.; } else ./. }:
-with pkgs.python3Packages;
+with pkgs.python37Packages;
 let
   python = import ./requirements.nix { inherit pkgs; };
   pypi = python.packages;
@@ -21,7 +21,7 @@ in buildPythonApplication rec {
   checkInputs = [ pytest pytestrunner ];
   propagatedBuildInputs = [
     click_git
-    pypi.humanfriendly
+    humanfriendly
     fn
     pytimeparse
     pypi.cpuset-py3
@@ -35,7 +35,7 @@ in buildPythonApplication rec {
     $out/bin/temci setup
   '';
   postPatch = ''
-    substituteInPlace temci/run/cpuset.py --replace python3 ${pkgs.python3.withPackages (ps: [ pypi.cpuset-py3 ])}/bin/python3
+    substituteInPlace temci/run/cpuset.py --replace python3 ${pkgs.python37.withPackages (ps: [ pypi.cpuset-py3 ])}/bin/python3
     substituteInPlace temci/run/run_driver.py \
       --replace /usr/bin/time ${pkgs.time}/bin/time \
       --replace gtime ${pkgs.time}/bin/time
