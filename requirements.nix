@@ -2,7 +2,7 @@
 # See more at: https://github.com/garbas/pypi2nix
 #
 # COMMAND:
-#   pypi2nix -V 3 -e 'https://github.com/parttimenerd/cpuset/archive/master.tar.gz#egg=cpuset-py3' -e rainbow-logging-handler==2.2.2 -e humanfriendly==4.18
+#   pypi2nix -V python37 -e 'https://github.com/parttimenerd/cpuset/archive/master.tar.gz#egg=cpuset-py3' -e rainbow-logging-handler==2.2.2
 #
 
 { pkgs ? import <nixpkgs> {},
@@ -18,7 +18,7 @@ let
   import "${toString pkgs.path}/pkgs/top-level/python-packages.nix" {
     inherit pkgs;
     inherit (pkgs) stdenv;
-    python = pkgs.python3;
+    python = pkgs.python37;
   };
 
   commonBuildInputs = [];
@@ -105,22 +105,6 @@ let
         homepage = "https://github.com/parttimenerd/cpuset";
         license = "UNKNOWN";
         description = "Fork of cpuset (https://github.com/lpechacek/cpuset) by Alex Tsariounov that works with python3";
-      };
-    };
-
-    "humanfriendly" = python.mkDerivation {
-      name = "humanfriendly-4.18";
-      src = pkgs.fetchurl {
-        url = "https://files.pythonhosted.org/packages/26/71/e7daf57e819a70228568ff5395fdbc4de81b63067b93167e07825fcf0bcf/humanfriendly-4.18.tar.gz";
-        sha256 = "33ee8ceb63f1db61cce8b5c800c531e1a61023ac5488ccde2ba574a85be00a85";
-};
-      doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs ++ [ ];
-      propagatedBuildInputs = [ ];
-      meta = with pkgs.stdenv.lib; {
-        homepage = "https://humanfriendly.readthedocs.io";
-        license = licenses.mit;
-        description = "Human friendly output for text interfaces using Python";
       };
     };
 
