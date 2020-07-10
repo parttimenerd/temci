@@ -1992,3 +1992,40 @@ class Codespeed2Reporter(AbstractReporter):
                 }
             res[run.description()] = bench_res
         json.dump(res, sys.stdout)
+
+
+@register(ReporterRegistry, "velcom", Dict({}))
+class VelcomReporter(AbstractReporter):
+    """
+    Reporter that outputs JSON as specified by
+    the `velcom runner spec <https://github.com/IPDSnelting/velcom/wiki/Benchmark-Repo-Specification>`_.
+    """
+
+    def report(self):
+        """
+        Create a report and output it as configured.
+        """
+        import json
+        res = {}
+        if len(self.stats_helper.errorneous_runs) > 0 and len(self.stats_helper.runs) == 0:
+            return json.dump({
+                "error": "\n".join("[{}] {}".format(run.description(), run.recorded_error.message)
+                                   for run in self.stats_helper.errorneous_runs)
+            }, sys.stdout)
+        for run in self.stats_helper.errorneous_runs:
+            bench_res = {}
+            for prop in run.properties:
+                bench_res[prop] = {
+                    "error": run.recorded_error.message
+                }
+            res[run.description()] = bench_res
+        for run in self.stats_helper.runs:
+            bench_res = {}
+            for prop in run.properties:
+                bench_res[prop] = {
+                    "values": run[prop],
+                    "unit": ("s" if "time" in prop or "clock" in prop else prop),
+                    "interpretation": "LESS_IS_BETTER"
+                }
+            res[run.description()] = bench_res
+        json.dump(res, sys.stdout)
