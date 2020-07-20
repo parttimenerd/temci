@@ -682,7 +682,10 @@ class ExecRunDriver(AbstractRunDriver):
             # preexec_fn=os.setsid)
             if not redirect_out:
                 proc.wait(timeout=timeout if timeout > -1 else None)
-            out, err = proc.communicate(timeout=timeout if timeout > -1 else None)
+                out = "<not redirected>"
+                err = out
+            else:
+                out, err = proc.communicate(timeout=timeout if timeout > -1 else None)
             t = time.time() - t
             if redirect_out:
                 ExecValidator(block["validator"]).validate(cmd, out, err, proc.poll())
