@@ -470,8 +470,8 @@ class BaseStatObject:
         """
         tex += plot_tex
         tex += """
-    \end{axis}
-\end{tikzpicture}
+    \\end{axis}
+\\end{tikzpicture}
         """
         if standalone:
             tex = """
@@ -1389,8 +1389,8 @@ class SinglesProperty(BaseStatObject):
         ] coordinates {{{outliers}}};
         """.format(median=single.median(), **locals())
         tex += """
-    \end{axis}
-\end{tikzpicture}
+    \\end{axis}
+\\end{tikzpicture}
         """
         if standalone:
             tex = """

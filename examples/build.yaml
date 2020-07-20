@@ -1,6 +1,6 @@
  - attributes:
-     description: 'test'
+     description: 'header'
    run_config:
-      run_cmd: 'sh test'
+      run_cmd: 'sh header'
    build_config:
-      build_cmd: 'echo "sleep 1" > test'
+      build_cmd: 'echo "sleep 1" > header'

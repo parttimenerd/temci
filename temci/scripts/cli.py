@@ -254,20 +254,23 @@ def exec(commands, **kwargs):
                misc_commands["short"]["sub_commands"]["exec"])
 def temci__short__exec(commands: list, with_description: list = None, without_description: list = None, **kwargs):
     runs = []
+    
+    def create_run_config(cmd: str) -> dict:
+        res = {
+                "run_cmd": [cmd]
+            }
+        return res
+    
     if with_description is not None:
         for (descr, cmd) in with_description:
             runs.append({
-                "run_config": {
-                    "run_cmd": [cmd]
-                },
+                "run_config": create_run_config(cmd),
                 "attributes": {
                     "description": descr
                 }
             })
     for cmd in commands + (list(without_description) or []):
-        runs.append({"run_config": {
-                "run_cmd": [cmd]
-            },
+        runs.append({"run_config": create_run_config(cmd),
             "attributes": {
                 "description": cmd
             }

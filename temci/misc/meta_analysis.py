@@ -130,7 +130,7 @@ def plot_chair_in_latex(chair: Chair) -> str:
         legend entries={{$\\sigma$ nicht erwähnt\\\\$\\sigma$ erwähnt\\\\{both_label}}}
         ]
 {coord_tex}
-        \end{{axis}}
+        \\end{{axis}}
     \\end{{tikzpicture}}
 
     {sum_up}

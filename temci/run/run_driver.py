@@ -7,12 +7,10 @@ import re
 import shlex
 import shutil
 import collections
-from threading import Timer
 
 import humanfriendly
 import yaml
 
-from temci.build.builder import Builder
 from temci.build.build_processor import BuildProcessor
 from temci.setup import setup
 from temci.utils.config_utils import ATTRIBUTES_TYPE
@@ -20,7 +18,7 @@ from temci.utils.settings import Settings
 from temci.utils.sudo_utils import get_bench_user, bench_as_different_user, get_env_setting
 from temci.utils.typecheck import NoInfo
 from temci.utils.util import has_root_privileges, join_strs, does_command_succeed, sphinx_doc, on_apple_os, \
-    does_program_exist, document
+    does_program_exist, document, proc_wait_with_rusage
 from temci.utils.vcs import VCSDriver
 from ..utils.typecheck import *
 from ..utils.registry import AbstractRegistry, register
@@ -485,6 +483,80 @@ class ExecValidator:
                                    .format(str(return_code), join_strs(list(map(str, exptected_codes)), "or"), err))
 
 
+def get_av_rusage_properties() -> t.Dict[str, str]:
+    """
+    Returns the available properties for the RusageExecRunner mapped to their descriptions.
+    """
+    return {
+        "utime": "user CPU time used",
+        "stime": "system CPU time used",
+        "maxrss": "maximum resident set size",
+        "ixrss": "integral shared memory size",
+        "idrss": "integral unshared data size",
+        "isrss": "integral unshared stack size",
+        "nswap": "swaps",
+        "minflt": "page reclaims (soft page faults)",
+        "majflt": "page faults (hard page faults)",
+        "inblock": "block input operations",
+        "oublock": "block output operations",
+        "msgsnd": "IPC messages sent",
+        "msgrcv": "IPC messages received",
+        "nsignals": "signals received",
+        "nvcsw": "voluntary context switches",
+        "nivcsw": "involuntary context switches"
+    }
+
+
+class ValidPropertyList(Type):
+    """
+    Checks for the value to be a valid property list that contains only elements from a given list.
+    """
+
+    def __init__(self, av_properties: t.Iterable[str]):
+        """
+        Creates an instance.
+
+        :param av_properties: allowed list elements
+        """
+        super().__init__(completion_hints={
+            "zsh": "({})".format(" ".join(av_properties)),
+            "fish": {
+                "hint": list(av_properties)
+            }
+        })
+        self.av = av_properties  # type: t.Iterable[str]
+        """ Allowed list elements """
+
+    def _instancecheck_impl(self, value, info: Info = NoInfo()):
+        if not isinstance(value, List(Str())):
+            return info.errormsg(self)
+        for elem in value:
+            if elem not in self.av:
+                return info.errormsg(self, "No such property " + repr(elem))
+        return info.wrap(True)
+
+    def __str__(self) -> str:
+        return "ValidPropertyList()"
+
+    def _eq_impl(self, other):
+        return True
+
+
+class ValidRusagePropertyList(ValidPropertyList):
+    """
+    Checks for the value to be a valid rusage runner measurement property list.
+    """
+
+    def __init__(self):
+        super().__init__(get_av_rusage_properties().keys())
+
+    def __str__(self) -> str:
+        return "ValidRusagePropertyList()"
+
+    def _eq_impl(self, other):
+        return True
+
+
 _intel = ",disable_intel_turbo" if does_command_succeed("ls /sys/devices/system/cpu/intel_pstate/no_turbo") else ""
 
 PRESET_PLUGIN_MODES = {
@@ -547,7 +619,9 @@ class ExecRunDriver(AbstractRunDriver):
                                                                      "specifications if > -1"),
         "parse_output": Bool() // Default(False) // Description("Parse the program output as a YAML dictionary of "
                                                                 "that gives for a specific property a measurement. "
-                                                                "Not all runners support it.")
+                                                                "Not all runners support it."),
+        "rusage_properties": ValidRusagePropertyList() // Default([])
+                          // Description("Measured properties for rusage that are stored in the benchmarking result")
     }, unknown_keys=True)
 
     registry = {}
@@ -584,6 +658,9 @@ class ExecRunDriver(AbstractRunDriver):
             block["working_dir"] = self._dirs[block.id]
         if self.misc_settings["runner"] != "":
             block["runner"] = self.misc_settings["runner"]
+        if block["runner"] == "rusage":
+            block["rusage_properties"].extend(block["rusage"]["properties"])
+            block["rusage"]["properties"] = []
         block["parse_output"] |= self.misc_settings["parse_output"]
         super()._setup_block(block)
 
@@ -612,7 +689,7 @@ class ExecRunDriver(AbstractRunDriver):
             return BenchmarkingResultBlock(error=err, recorded_error=RecordedInternalError.for_exception(err))
         return res
 
-    ExecResult = namedtuple("ExecResult", ['time', 'stderr', 'stdout'])
+    ExecResult = namedtuple("ExecResult", ['time', 'stderr', 'stdout', 'rusage'])
     """ A simple named tuple named ExecResult with to properties: time, stderr and stdout """
 
     def _benchmark(self, block: RunProgramBlock, runs: int, cpuset: CPUSet = None,
@@ -630,6 +707,13 @@ class ExecRunDriver(AbstractRunDriver):
                 logging.warn("Runner {} does not support the `parse_output` option")
             res = self.runner.parse_result(exec_res, res, block["parse_output"]
                                            and self.runner.supports_parsing_out)
+            res = self._parse_rusage(exec_res.rusage, res, block["rusage_properties"])
+        return res
+
+    def _parse_rusage(self, rusage: 'resource.rusage_struct', res: BenchmarkingResultBlock, properties: t.List[str]) \
+            -> BenchmarkingResultBlock:
+        res = res or BenchmarkingResultBlock()
+        res.add_run_data({prop:rusage.__getattribute__("ru_" + prop) for prop in properties})
         return res
 
     def _exec_command(self, cmds: list, block: RunProgramBlock,
@@ -680,20 +764,23 @@ class ExecRunDriver(AbstractRunDriver):
                                     cwd=cwd,
                                     env=env, )
             # preexec_fn=os.setsid)
-            if not redirect_out:
-                proc.wait(timeout=timeout if timeout > -1 else None)
-                out = "<not redirected>"
-                err = out
-            else:
-                out, err = proc.communicate(timeout=timeout if timeout > -1 else None)
-            t = time.time() - t
+            rusage = None
+            with proc_wait_with_rusage():
+                if not redirect_out:
+                    proc.wait(timeout=timeout if timeout > -1 else None)
+                    out = "<not redirected>"
+                    err = out
+                else:
+                    out, err = proc.communicate(timeout=timeout if timeout > -1 else None)
+                t = time.time() - t
+                rusage = proc.rusage
             if redirect_out:
                 ExecValidator(block["validator"]).validate(cmd, out, err, proc.poll())
             # if proc.poll() > 0:
             #    msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
             # logging.error(msg)
             #    raise BenchmarkingError(msg)
-            return self.ExecResult(time=t, stderr=str(err), stdout=str(out))
+            return self.ExecResult(time=t, stderr=str(err), stdout=str(out), rusage=rusage)
         except Exception as ex:
             if proc is not None:
                 try:
@@ -1065,80 +1152,6 @@ class PerfStatExecRunner(ExecRunner):
         return res
 
 
-def get_av_rusage_properties() -> t.Dict[str, str]:
-    """
-    Returns the available properties for the RusageExecRunner mapped to their descriptions.
-    """
-    return {
-        "utime": "user CPU time used",
-        "stime": "system CPU time used",
-        "maxrss": "maximum resident set size",
-        "ixrss": "integral shared memory size",
-        "idrss": "integral unshared data size",
-        "isrss": "integral unshared stack size",
-        "nswap": "swaps",
-        "minflt": "page reclaims (soft page faults)",
-        "majflt": "page faults (hard page faults)",
-        "inblock": "block input operations",
-        "oublock": "block output operations",
-        "msgsnd": "IPC messages sent",
-        "msgrcv": "IPC messages received",
-        "nsignals": "signals received",
-        "nvcsw": "voluntary context switches",
-        "nivcsw": "involuntary context switches"
-    }
-
-
-class ValidPropertyList(Type):
-    """
-    Checks for the value to be a valid property list that contains only elements from a given list.
-    """
-
-    def __init__(self, av_properties: t.Iterable[str]):
-        """
-        Creates an instance.
-
-        :param av_properties: allowed list elements
-        """
-        super().__init__(completion_hints={
-            "zsh": "({})".format(" ".join(av_properties)),
-            "fish": {
-                "hint": list(av_properties)
-            }
-        })
-        self.av = av_properties  # type: t.Iterable[str]
-        """ Allowed list elements """
-
-    def _instancecheck_impl(self, value, info: Info = NoInfo()):
-        if not isinstance(value, List(Str())):
-            return info.errormsg(self)
-        for elem in value:
-            if elem not in self.av:
-                return info.errormsg(self, "No such property " + repr(elem))
-        return info.wrap(True)
-
-    def __str__(self) -> str:
-        return "ValidPropertyList()"
-
-    def _eq_impl(self, other):
-        return True
-
-
-class ValidRusagePropertyList(ValidPropertyList):
-    """
-    Checks for the value to be a valid rusage runner measurement property list.
-    """
-
-    def __init__(self):
-        super().__init__(get_av_rusage_properties().keys())
-
-    def __str__(self) -> str:
-        return "ValidRusagePropertyList()"
-
-    def _eq_impl(self, other):
-        return True
-
-
 @ExecRunDriver.register_runner()
 class RusageExecRunner(ExecRunner):
     """
@@ -1158,7 +1171,8 @@ class RusageExecRunner(ExecRunner):
                                     "Please run temci setup.")
 
     def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
-
+        if not self.misc["properties"]:
+            return
         def modify_cmd(cmd):
             return "{} {!r}".format(
                 setup.script_relative("rusage/rusage"),
@@ -1170,17 +1184,23 @@ class RusageExecRunner(ExecRunner):
     def parse_result_impl(self, exec_res: ExecRunDriver.ExecResult,
                      res: BenchmarkingResultBlock = None) -> BenchmarkingResultBlock:
         res = res or BenchmarkingResultBlock()
+        if not self.misc["properties"]:
+            return
         m = {"__ov-time": exec_res.time}
-        for line in reversed(exec_res.stdout.strip().split("\n")):
-            if '#' in line:
-                break
-            if ' ' in line:
-                var, val = line.strip().split(" ")
+        header = open(setup.script_relative("rusage/header.c")).read().split("\"")[1]
+        lines = exec_res.stderr.strip().split("\n")
+        index = 0
+        while lines[index] != header:
+            index += 1
+        while lines[index] != header:
+            if ' ' in lines[index]:
+                var, val = lines[index].strip().split(" ")
                 if var in self.misc["properties"]:
                     try:
                         m[var] = float(val)
                     except:
                         pass
+
         res.add_run_data(m)
         return res
 

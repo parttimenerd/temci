@@ -3,9 +3,9 @@ Utility functions and classes that don't depend on the rest of the temci code ba
 """
 
 import os
+import resource
 import subprocess
 import typing as t
-
 import sys
 import logging
 
@@ -113,6 +113,35 @@ def does_program_exist(program: str) -> bool:
 def on_apple_os() -> bool:
     """ Is the current operating system an apple OS X? """
     return sys.platform == 'darwin'
+
+
+class proc_wait_with_rusage:
+    """
+    Each Popen object gets a field rusage
+    """
+
+    def __enter__(self):
+        self.rusage = None
+        self.old_try_wait = subprocess.Popen._try_wait
+
+        def try_wait(self, wait_flags):
+            """ Copied from subprocess._try_wait"""
+            try:
+                (pid, sts, _u) = os.wait4(self.pid, wait_flags)
+                self.rusage = _u
+                # instead of: (pid, sts) = os.waitpid(self.pid, wait_flags)
+            except ChildProcessError:
+                # This happens if SIGCLD is set to be ignored or waiting
+                # for child processes has otherwise been disabled for our
+                # process.  This child is dead, we can't get the status.
+                pid = self.pid
+                sts = 0
+            return (pid, sts)
+
+        subprocess.Popen._try_wait = try_wait
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        subprocess.Popen._try_wait = self.old_try_wait
 
 
 def join_strs(strs: t.List[str], last_word: str = "and") -> str:

@@ -13,27 +13,29 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include "header.c"
 
 void print_rusage(struct rusage *_ru){
     struct rusage ru = *_ru;
-    printf("#####\n");
+    printf("%s\n", header);
     char *f = "%s %li\n";
-    printf("%s %ld.%06ld\n", "utime", ru.ru_utime.tv_sec, ru.ru_utime.tv_usec); /* user CPU time used */
-    printf("%s %ld.%06ld\n", "stime", ru.ru_stime.tv_sec, ru.ru_stime.tv_usec); /* system CPU time used */
-    printf(f, "maxrss", ru.ru_maxrss);   /* maximum resident set size */
-    printf(f, "ixrss", ru.ru_ixrss);     /* integral shared memory size */
-    printf(f, "idrss", ru.ru_idrss);     /* integral unshared data size */
-    printf(f, "isrss", ru.ru_isrss);     /* integral unshared stack size */
-    printf(f, "nswap", ru.ru_nswap);     /* swaps */
-    printf(f, "minflt", ru.ru_minflt);   /* page reclaims (soft page faults) */
-    printf(f, "majflt", ru.ru_majflt);   /* page faults (hard page faults) */
-    printf(f, "inblock", ru.ru_inblock); /* block input operations */
-    printf(f, "oublock", ru.ru_oublock); /* block output operations */
-    printf(f, "msgsnd", ru.ru_msgsnd);   /* IPC messages sent */
-    printf(f, "msgrcv", ru.ru_msgrcv);   /* IPC messages received */
-    printf(f, "nsignals", ru.ru_nsignals); /* signals received */
-    printf(f, "nvcsw", ru.ru_nvcsw);     /* voluntary context switches */
-    printf(f, "nivcsw", ru.ru_nivcsw);   /* involuntary context switches */
+    fprintf(stderr, "%s %ld.%06ld\n", "utime", ru.ru_utime.tv_sec, ru.ru_utime.tv_usec); /* user CPU time used */
+    fprintf(stderr, "%s %ld.%06ld\n", "stime", ru.ru_stime.tv_sec, ru.ru_stime.tv_usec); /* system CPU time used */
+    fprintf(stderr, f, "maxrss", ru.ru_maxrss);   /* maximum resident set size */
+    fprintf(stderr, f, "ixrss", ru.ru_ixrss);     /* integral shared memory size */
+    fprintf(stderr, f, "idrss", ru.ru_idrss);     /* integral unshared data size */
+    fprintf(stderr, f, "isrss", ru.ru_isrss);     /* integral unshared stack size */
+    fprintf(stderr, f, "nswap", ru.ru_nswap);     /* swaps */
+    fprintf(stderr, f, "minflt", ru.ru_minflt);   /* page reclaims (soft page faults) */
+    fprintf(stderr, f, "majflt", ru.ru_majflt);   /* page faults (hard page faults) */
+    fprintf(stderr, f, "inblock", ru.ru_inblock); /* block input operations */
+    fprintf(stderr, f, "oublock", ru.ru_oublock); /* block output operations */
+    fprintf(stderr, f, "msgsnd", ru.ru_msgsnd);   /* IPC messages sent */
+    fprintf(stderr, f, "msgrcv", ru.ru_msgrcv);   /* IPC messages received */
+    fprintf(stderr, f, "nsignals", ru.ru_nsignals); /* signals received */
+    fprintf(stderr, f, "nvcsw", ru.ru_nvcsw);     /* voluntary context switches */
+    fprintf(stderr, f, "nivcsw", ru.ru_nivcsw);   /* involuntary context switches */
+    fprintf(stderr, "%s\n", header);
 }
 
 void with_exec(int argc, char** argv){
@@ -67,10 +69,10 @@ void with_system(int argc, char** argv){
     int ret = system(argv[1]);
     struct rusage ru;
     getrusage(RUSAGE_CHILDREN, &ru);
-    if (ret != 0){
-        exit(1);
-    }
     print_rusage(&ru);
+    if (ret != 0){
+        exit(ret);
+    }
     exit(0);
 }
 
