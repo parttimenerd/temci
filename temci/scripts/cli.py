@@ -312,6 +312,8 @@ def temci__short__shell(command: str, **kwargs):
 @cmd_option(common_options)
 @cmd_option(report_options)
 def report(*args, **kwargs):
+    if not kwargs["report_file"]:
+        kwargs["report_file"] = Settings()["report"]["in"]
     temci__report(*args, **kwargs)
 
 
