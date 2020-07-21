@@ -1082,9 +1082,7 @@ class PerfStatExecRunner(ExecRunner):
         "properties": List(Str()) // Default(["wall-clock", "cycles", "cpu-clock", "task-clock",
                                                               "instructions", "branch-misses", "cache-references"])
                       // Description("Measured properties. The number of properties that can be measured at once "
-                                     "is limited."),
-        "limit_to_cpuset": Bool() // Default(True)
-                      // Description("Limit measurements to CPU set, if cpusets are enabled")
+                                     "is limited.")
     })
     supports_parsing_out = True
 
@@ -1103,14 +1101,11 @@ class PerfStatExecRunner(ExecRunner):
         do_repeat = self.misc["repeat"] > 1
 
         def modify_cmd(cmd):
-            return "perf stat --sync {cpus} {repeat} {x} -e {props} -- $SUDO$ {cmd}".format(
+            return "perf stat --sync {repeat} {x} -e {props} -- $SUDO$ {cmd}".format(
                 props=",".join(x for x in self.misc["properties"] if x != "wall-clock"),
                 cmd=cmd,
                 repeat="--repeat {}".format(self.misc["repeat"]) if do_repeat else "",
-                x="-x ';'" if "wall-clock" not in self.misc["properties"] else "",
-                cpus="--cpu={}".format(cpuset.get_sub_set(set_id))
-                     if cpuset is not None and has_root_privileges() and self.misc["limit_to_cpuset"]
-                     else ""
+                x="-x ';'" if "wall-clock" not in self.misc["properties"] else ""
             )
 
         block["run_cmds"] = [modify_cmd(cmd) for cmd in block["run_cmds"]]
