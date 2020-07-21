@@ -13,7 +13,7 @@ from temci.utils.mail import send_mail
 from temci.utils.typecheck import *
 from temci.run.run_worker_pool import RunWorkerPool, ParallelRunWorkerPool, AbstractRunWorkerPool
 from temci.run.run_driver import RunProgramBlock, BenchmarkingResultBlock, RunDriverRegistry, ExecRunDriver, \
-    is_perf_available, filter_runs
+    is_perf_available, filter_runs, log_program_error
 import temci.run.run_driver_plugin
 from temci.report.rundata import RunDataStatsHelper, RunData
 from temci.utils.settings import Settings
@@ -275,6 +275,7 @@ class RunProcessor:
                             self.stats_helper.add_data_block(id, result.data)
                         self.stats_helper.add_error(id, result.recorded_error)
                     logging.error("Program block no. {} failed: {}".format(id, result.error))
+                    log_program_error(result.recorded_error)
                     logging.debug("".join(traceback.format_exception(None, result.error, result.error.__traceback__)))
                     self.store_erroneous()
                     if isinstance(result.error, KeyboardInterrupt):

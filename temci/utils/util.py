@@ -1,7 +1,7 @@
 """
 Utility functions and classes that don't depend on the rest of the temci code base.
 """
-
+import functools
 import os
 import resource
 import subprocess
@@ -330,3 +330,9 @@ def parse_timespan(time: str) -> float:
     :return: time span in seconds
     """
     return pytimeparse.parse(time) if time != "-1" else -1
+
+
+@functools.lru_cache()
+def rusage_header() -> str:
+    from ..setup.setup import script_relative
+    return open(script_relative("rusage/header.c")).read().split("\"")[1]

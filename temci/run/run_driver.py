@@ -12,13 +12,13 @@ import humanfriendly
 import yaml
 
 from temci.build.build_processor import BuildProcessor
-from temci.setup import setup
+from ..setup import setup
 from temci.utils.config_utils import ATTRIBUTES_TYPE
 from temci.utils.settings import Settings
 from temci.utils.sudo_utils import get_bench_user, bench_as_different_user, get_env_setting
 from temci.utils.typecheck import NoInfo
 from temci.utils.util import has_root_privileges, join_strs, does_command_succeed, sphinx_doc, on_apple_os, \
-    does_program_exist, document, proc_wait_with_rusage
+    does_program_exist, document, proc_wait_with_rusage, rusage_header
 from temci.utils.vcs import VCSDriver
 from ..utils.typecheck import *
 from ..utils.registry import AbstractRegistry, register
@@ -759,7 +759,7 @@ class ExecRunDriver(AbstractRunDriver):
             t = time.time()
             proc = subprocess.Popen(["/bin/sh", "-c", executed_cmd],
                                     stdout=subprocess.PIPE if redirect_out else None,
-                                    stderr= subprocess.PIPE if redirect_out else None,
+                                    stderr=subprocess.PIPE if redirect_out else None,
                                     universal_newlines=True,
                                     cwd=cwd,
                                     env=env, )
@@ -775,7 +775,7 @@ class ExecRunDriver(AbstractRunDriver):
                 t = time.time() - t
                 rusage = proc.rusage
             if redirect_out:
-                ExecValidator(block["validator"]).validate(cmd, out, err, proc.poll())
+                ExecValidator(block["validator"]).validate(cmd, clean_output(out), clean_output(err), proc.poll())
             # if proc.poll() > 0:
             #    msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
             # logging.error(msg)
@@ -1187,7 +1187,7 @@ class RusageExecRunner(ExecRunner):
         if not self.misc["properties"]:
             return
         m = {"__ov-time": exec_res.time}
-        header = open(setup.script_relative("rusage/header.c")).read().split("\"")[1]
+        header = rusage_header()
         lines = exec_res.stderr.strip().split("\n")
         index = 0
         while lines[index] != header:
@@ -1452,7 +1452,7 @@ class TimeExecRunner(ExecRunner):
         if not does_command_succeed(time_file() + " -v true"):
             raise KeyboardInterrupt("gnu time seems to be not installed and the time runner can therefore not be used")
         fmts = get_av_time_properties_with_format_specifiers()
-        self._time_format_spec = "### " + " ".join(["%" + fmts[prop][1] for prop in self.misc["properties"]])
+        self._time_format_spec = rusage_header() + " " + " ".join(["%" + fmts[prop][1] for prop in self.misc["properties"]])
 
     def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
 
@@ -1466,7 +1466,7 @@ class TimeExecRunner(ExecRunner):
         res = res or BenchmarkingResultBlock()
         m = {"__ov-time": exec_res.time}
         for line in reversed(exec_res.stderr.strip().split("\n")):
-            if line.startswith("### "):
+            if line.startswith(rusage_header()):
                 _, *parts = line.strip().split(" ")
                 if len(parts) == len(self.misc["properties"]):
                     for (i, part) in enumerate(parts):
@@ -1521,6 +1521,25 @@ class BenchmarkingError(RuntimeError):
     """
     Thrown when the benchmarking of a program block fails.
     """
+
+
+def log_program_error(recorded_error: 'RecordedInternalError'):
+    from temci.report.rundata import RecordedProgramError
+    if isinstance(recorded_error, RecordedProgramError):
+        if recorded_error.out:
+            logging.error("output\n\n" + recorded_error.out)
+        if recorded_error.err:
+            logging.error("error\n\n" + recorded_error.err)
+
+
+def header() -> str:
+    """ A header to use for measurement formatting """
+    return rusage_header()
+
+
+def clean_output(output: str) -> str:
+    """ Remove everything after the header """
+    return output.split(header())[0]
 
 
 class BenchmarkingProgramError(BenchmarkingError):
