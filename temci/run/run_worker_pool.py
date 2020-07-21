@@ -201,7 +201,7 @@ class RunWorkerPool(AbstractRunWorkerPool):
         typecheck(runs, NaturalNumber())
         typecheck(id, NaturalNumber())
         block.is_enqueued = True
-        self.result_queue.put((block, self.run_driver.benchmark(block, runs, timeout=self.next_block_timeout()), id))
+        self.result_queue.put((block, self.run_driver.benchmark(block, runs, self.cpuset, timeout=self.next_block_timeout()), id))
         block.is_enqueued = False
 
     def results(self, expected_num: int) -> ResultGenerator:

@@ -105,6 +105,8 @@ class CPUSet:
 
     def get_sub_set(self, set_id: int) -> str:
         """ Gets the name of the benchmarking cpu set with the given id / number (starting at zero). """
+        if self.parallel == 0:
+            return CONTROLLER_SUB_BENCH_SET
         if self.active:
             typecheck(set_id, Int(range=range(0, self.parallel_number)))
         return SUB_BENCH_SET.format(set_id)
