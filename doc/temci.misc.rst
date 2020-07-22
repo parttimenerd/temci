@@ -12,15 +12,6 @@ temci.misc.game module
     :undoc-members:
     :show-inheritance:
 
-temci.misc.meta_analysis module
--------------------------------
-
-.. automodule:: temci.misc.meta_analysis
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
 Module contents
 ---------------
 
