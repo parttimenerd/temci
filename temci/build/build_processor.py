@@ -14,7 +14,7 @@ class BuildProcessor:
     Build programs
     """
 
-    block_scheme = Dict({     # type: Dict
+    block_scheme = Dict({
         "attributes": ATTRIBUTES_TYPE,
         "run_config": Dict(unknown_keys=True) // Description("Run configuration for this program block"),
         "build_config": Dict({
@@ -30,7 +30,7 @@ class BuildProcessor:
             "base_dir": (DirName() | NonExistent()) // Default(".")
                 // Description("Base directory that contains everything to build an run the program")
         }, unknown_keys=True) // Description("Build configuration for this program block")
-    })
+    })   # type: Dict
     """ Type scheme of the program block configurations """
 
     def __init__(self, build_blocks: t.Optional[t.List[t.Dict[str, t.Any]]] = None):

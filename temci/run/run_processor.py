@@ -167,7 +167,7 @@ class RunProcessor:
         if self.no_build:
             return
         to_build = [(i, conf) for i, conf in enumerate(self.runs) if "build_config" in conf]
-        if len(to_build) is 0:
+        if len(to_build) == 0:
             return
         logging.info("Start building {} block(s)".format(len(to_build)))
         for i, block in to_build:

@@ -1503,7 +1503,7 @@ def replace_run_with_build_cmd(config_dict: ConfigDict) -> ConfigDict:
 BENCH_PATH = "/home/parttimenerd/benchmarksgame/bench"
 
 # Inputs based on the ones used in the benchmarksgame
-INPUTS_PER_CATEGORY = { # type: InputsPerCategory
+INPUTS_PER_CATEGORY = {
     "binarytrees": Input.list_from_numbers(12, 16, 20),
     "binarytreesredux": Input.list_from_numbers(12, 16, 20),
     "chameneosredux": Input.list_from_numbers(60000, 600000, 6000000),
@@ -1519,7 +1519,7 @@ INPUTS_PER_CATEGORY = { # type: InputsPerCategory
     "revcomp": prefix_inputs("$INPUT/revcomp-input.txt ", Input.list_from_numbers(250000, 2500000, 25000000)),
     "spectralnorm": Input.list_from_numbers(500, 3000, 5500),
     "threadring": Input.list_from_numbers(500000, 5000000, 50000000)
-}
+}  # type: InputsPerCategory
 
 
 def c_config(inputs_per_category: InputsPerCategory, optimisation: str = "-O2", clang_version = "3.7") -> ConfigDict:

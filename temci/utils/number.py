@@ -103,7 +103,7 @@ class FNumber:
             return str(self.number)
         dev = self.deviation
         parentheses = self.parentheses
-        if dev is None or dev is 0:
+        if dev is None or dev == 0:
             dev = 0
             parentheses = False
         num = self.number
@@ -294,7 +294,7 @@ def _format_number(number: Number, deviation: float,
     if last_sig >= 0: # decimal part is insignificant
         if not omit_insignificant_decimal_places or force_min_decimal_places:
             dec_part = "{{:.{}f}}".format(decimal_places).format(number - math.floor(number))[2:]
-            if max_decimal_places is not 0:
+            if max_decimal_places != 0:
                 num += "."
                 if parentheses:
                     num += "(" + dec_part + ")"
@@ -304,7 +304,7 @@ def _format_number(number: Number, deviation: float,
         dec_digits = min_decimal_places
         dec_part = "{{:.{}f}}".format(decimal_places)
         dec_part = dec_part.format(number - math.floor(number))[2:]
-        if max_decimal_places is not 0:
+        if max_decimal_places != 0:
             num += "."
             if parentheses and len(dec_part[abs(last_sig):]) > 0:
                 num += dec_part[0:abs(last_sig)] + "(" + dec_part[abs(last_sig):] + ")"

@@ -80,7 +80,7 @@ def test_errorneous_run():
     d = run_temci("short exec 'exit 1'", expect_success=False).yaml_contents["run_output.yaml"][0]
     assert "error" in d
     e = d["error"]
-    assert e["return_code"] is 1
+    assert e["return_code"] == 1
 
 
 def test_check_tag_attribute():

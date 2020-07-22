@@ -91,7 +91,7 @@ class Info:
         :param value_name: name of the value that is type checked
         :param value: value that is type checked
         """
-        self.value_name = value_name  # type: str
+        self.value_name = value_name  # type: t.Optional[str]
         """ Name of the value that is typechecked """
         self._app_str = _app_str or ""  # type: str
         if value_name is None:
@@ -1269,12 +1269,12 @@ class Int(Type):
         self.description = description  # type: str
         """ Description of the constraints """
         if range is not None and len(range) <= 20:
-            self.completion_hints = {  # type: t.Dict[str, t.Any]
+            self.completion_hints = {
                 "zsh": "({})".format(" ".join(str(x) for x in range)),
                 "fish": {
                     "hint": list(self.range)
                 }
-            }
+            }  # type: t.Dict[str, t.Any]
             """ Completion hints for supported shells for this type instance """
 
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
@@ -1406,12 +1406,12 @@ class FileName(Str):
         super().__init__()
         self.constraint = constraint  # type: t.Optional[t.Callable[[t.Any], bool]]
         """ Function that returns True if the user defined constraint is satisfied """
-        self.completion_hints = {   # type: t.Dict[str, t.Any]
+        self.completion_hints = {
             "zsh": "_files",
             "fish": {
                 "files": True
             }
-        }
+        }   # type: t.Dict[str, t.Any]
         """ Completion hints for supported shells for this type instance """
         self.allow_std = allow_std  # type: bool
         """ Allow '-' as standard out or in """
@@ -1462,12 +1462,12 @@ class ValidYamlFileName(Str):
         :param allow_non_existent: allow files that don't exist
         """
         super().__init__()
-        self.completion_hints = {  # type: t.Dict[str, t.Any]
+        self.completion_hints = {
             "zsh": "_files",
             "fish": {
                 "files": True
             }
-        }
+        }  # type: t.Dict[str, t.Any]
         """ Completion hints for supported shells for this type instance """
         self.allow_non_existent = allow_non_existent  # type: bool
         """ Allow files that don't exist """
@@ -1509,12 +1509,12 @@ class DirName(Str):
         super().__init__()
         self.constraint = constraint  # type: t.Optional[t.Callable[[t.Any], bool]]
         """ Function that returns True if the user defined constraint is satisfied """
-        self.completion_hints = {  # type: t.Dict[str, t.Any]
+        self.completion_hints = {
             "zsh": "_directories",
             "fish": {
                 "files": True
             }
-        }
+        }  # type: t.Dict[str, t.Any]
         """ Completion hints for supported shells for this type instance """
 
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
@@ -1554,12 +1554,12 @@ class BoolOrNone(Type, click.ParamType):
 
     def __init__(self):
         super().__init__()
-        self.completion_hints = {  # type: t.Dict[str, t.Any]
+        self.completion_hints = {
             "zsh": "(true, false, none)",
             "fish": {
                 "hint": ["true", "false", "none"]
             }
-        }
+        }  # type: t.Dict[str, t.Any]
         """ Completion hints for supported shells for this type instance """
         self.default = None  # type: None
         """ The default value of this instance """
@@ -1602,12 +1602,12 @@ class Bool(Type, click.ParamType):
 
     def __init__(self):
         super().__init__()
-        self.completion_hints = {  # type: t.Dict[str, t.Any]
+        self.completion_hints = {
             "zsh": "(true, false)",
             "fish": {
                 "hint": ["true", "false"]
             }
-        }
+        }  # type: t.Dict[str, t.Any]
         """ Completion hints for supported shells for this type instance """
 
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:

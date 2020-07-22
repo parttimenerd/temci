@@ -42,11 +42,11 @@ class VCSDriver:
         :raises: VCSError if the selected driver isn't applicable
         """
         typecheck_locals(mode=ExactEither("file", "git", "auto"), dir=Str(), branch=Optional(Str()))
-        if mode is "file" and FileDriver.is_suited_for_dir(dir):
+        if mode == "file" and FileDriver.is_suited_for_dir(dir):
             return FileDriver(dir, branch)
-        elif mode is "git" and GitDriver.is_suited_for_dir(dir):
+        elif mode == "git" and GitDriver.is_suited_for_dir(dir):
             return GitDriver(dir, branch)
-        elif mode is "auto" and FileDriver.is_suited_for_dir(dir):
+        elif mode == "auto" and FileDriver.is_suited_for_dir(dir):
             avcls = [cls for cls in [GitDriver, FileDriver] if cls.is_suited_for_dir(dir)]
             return avcls[0](dir, branch)
         else:
@@ -400,7 +400,7 @@ class GitDriver(VCSDriver):
 
     def validate_revision(self, id_or_num: t.Union[int, str]) -> bool:
         typecheck_locals(id_or_num=self.id_type)
-        if id_or_num is -1 or id_or_num == "HEAD":
+        if id_or_num == -1 or id_or_num == "HEAD":
             return self.has_uncommitted()
         if isinstance(id_or_num, int) and id_or_num < -1:
             return False

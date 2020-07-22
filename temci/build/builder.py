@@ -42,7 +42,7 @@ class Builder:
         """ Used version control system revision of the program """
         self.number = number  # type: int
         """ Number of times to build this program """
-        self.vcs_driver = VCSDriver.get_suited_vcs(dir=self.build_dir, branch=None if branch is "" else branch)
+        self.vcs_driver = VCSDriver.get_suited_vcs(dir=self.build_dir, branch=None if branch == "" else branch)
         """ Used version control system driver """
         self.id = id
 

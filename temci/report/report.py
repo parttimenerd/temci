@@ -883,10 +883,10 @@ class HTMLReporter2(AbstractReporter):
             (geometric standard deviation is {std})</p>
         """.format(po=_Popover(self, "Explanation", """
                         Geometric mean of the means of the first relative to the means of the second:
-                        \\[\\sqrt[\|properties\|]{
-                        \\prod_{p \in \\text{properties}}
+                        \\[\\sqrt[\\|properties\\|]{
+                        \\prod_{p \\in \\text{properties}}
                         \\frac{\\overline{\\text{first[p]}}}{
-                            \\overline{\\text{second[p]}}}}\]
+                            \\overline{\\text{second[p]}}}}\\]
                         Using the more widely known would be like
                         <a href='http://ece.uprm.edu/~nayda/Courses/Icom6115F06/Papers/paper4.pdf?origin=publication_detail'>
                         lying</a>.
@@ -1827,7 +1827,7 @@ def _parse_csv_reporter_spec_single(spec: str) -> t.Tuple[str, str, t.Set[str]]:
     if parts[1][:-1].split("|")[0] not in valid_csv_reporter_modifiers or \
             len(parts[0]) < 1 or any(x not in FORMAT_OPTIONS for x in opt):
         error()
-    return parts[0], prop, [x for x in opt if x is not " "]
+    return parts[0], prop, [x for x in opt if x != " "]
 
 
 def _is_valid_csv_reporter_spec_list(specs: t.List[str]) -> bool:

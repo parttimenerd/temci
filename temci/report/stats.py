@@ -1156,9 +1156,9 @@ class TestedPairProperty(BaseStatObject):
         """ First of the two compared single property objects """
         self.second = SingleProperty(second, second.rundata, property)
         """ Second of the two compared single property objects """
-        self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),  # type: Tester
+        self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),
                                                             Settings()["stats/tester"],
-                                                            Settings()["stats/uncertainty_range"])
+                                                            Settings()["stats/uncertainty_range"]) # type: Tester
         """ Used statistical tester for the comparisons """
         self.property = property
         """ Regarded specific property """

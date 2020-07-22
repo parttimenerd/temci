@@ -1,18 +1,25 @@
 """
 This modules contains the base run driver, needed helper classes and registries.
 """
-import os
+import collections
 import datetime
+import gc
+import logging
+import os
+import random
 import re
 import shlex
 import shutil
-import collections
+import subprocess
+import time
+import typing as t
+from collections import namedtuple
+from copy import deepcopy
 
 import humanfriendly
 import yaml
 
 from temci.build.build_processor import BuildProcessor
-from ..setup import setup
 from temci.utils.config_utils import ATTRIBUTES_TYPE
 from temci.utils.settings import Settings
 from temci.utils.sudo_utils import get_bench_user, bench_as_different_user, get_env_setting
@@ -20,14 +27,10 @@ from temci.utils.typecheck import NoInfo
 from temci.utils.util import has_root_privileges, join_strs, does_command_succeed, sphinx_doc, on_apple_os, \
     does_program_exist, document, proc_wait_with_rusage, rusage_header
 from temci.utils.vcs import VCSDriver
-from ..utils.typecheck import *
-from ..utils.registry import AbstractRegistry, register
 from .cpuset import CPUSet
-from copy import deepcopy
-import logging, time, random, subprocess
-from collections import namedtuple
-import gc
-import typing as t
+from ..setup import setup
+from ..utils.registry import AbstractRegistry, register
+from ..utils.typecheck import *
 
 Number = t.Union[int, float]
 """ Numeric value """
@@ -85,11 +88,11 @@ def filter_runs(blocks: t.List[t.Union['RunProgramBlock','RunData']], included: 
     def match(block):
         return ["all"] == included or any(p in included or any(re.fullmatch(i, p) for i in included)
                                           for p in parts(block))
-    list = [block for block in blocks if match(block)]
-    for i, x in enumerate(list):
+    l = [block for block in blocks if match(block)]
+    for i, x in enumerate(l):
         if isinstance(x, RunProgramBlock):
             x.id = i
-    return list
+    return l
 
 
 class RunProgramBlock:
@@ -303,8 +306,8 @@ class AbstractRunDriver(AbstractRegistry):
             else:
                 self.used_plugins.append(self.get_for_name(used))
         if miss_root_plugins:
-            logging.warning("The following plugins are disabled because they need root privileges (consider using `--sudo`): " +
-                            join_strs(miss_root_plugins))
+            logging.warning("The following plugins are disabled because they need root privileges "
+                            "(consider using `--sudo`): %s", join_strs(miss_root_plugins))
         self.setup()
 
     def setup(self):
@@ -562,13 +565,13 @@ class ValidRusagePropertyList(ValidPropertyList):
         return True
 
 
-_intel = ",disable_intel_turbo" if does_command_succeed("ls /sys/devices/system/cpu/intel_pstate/no_turbo") else ""
+_INTEL = ",disable_intel_turbo" if does_command_succeed("ls /sys/devices/system/cpu/intel_pstate/no_turbo") else ""
 
 PRESET_PLUGIN_MODES = {
     "none": ("", "enable none by default"),
-    "all": ("cpu_governor,disable_swap,sync,stop_start,other_nice,nice,disable_aslr,disable_ht,cpuset" + _intel,
+    "all": ("cpu_governor,disable_swap,sync,stop_start,other_nice,nice,disable_aslr,disable_ht,cpuset" + _INTEL,
             "enable all, might freeze your system"),
-    "usable": ("cpu_governor,disable_swap,sync,nice,disable_aslr,disable_ht,cpuset" + _intel,
+    "usable": ("cpu_governor,disable_swap,sync,nice,disable_aslr,disable_ht,cpuset" + _INTEL,
                "like 'all' but doesn't affect other processes")
 }
 
@@ -1473,7 +1476,7 @@ class TimeExecRunner(ExecRunner):
                     for (i, part) in enumerate(parts):
                         try:
                             m[self.misc["properties"][i]] = float(part)
-                        except:
+                        except BaseException:
                             pass
         res.add_run_data(m)
         return res
@@ -1493,9 +1496,6 @@ class OutputExecRunner(ExecRunner):
 
     name = "output"
     misc_options = Dict({})
-
-    def __init__(self, block: RunProgramBlock):
-        super().__init__(block)
 
     def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
         pass
@@ -1554,6 +1554,7 @@ class BenchmarkingProgramError(BenchmarkingError):
 
 
 class TimeoutException(BenchmarkingProgramError):
+    """ Thrown whenever a benchmarked program timeouts """
 
     def __init__(self, cmd: str, timeout: float, out: str, err: str, ret_code: int):
         from temci.report.rundata import RecordedProgramError

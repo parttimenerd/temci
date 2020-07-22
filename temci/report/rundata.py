@@ -312,8 +312,8 @@ class RunDataStatsHelper(object):
         :param errorneous_runs: runs that resulted in errors
         :param included_blocks: include query
         """
-        self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),  # type: Tester
-                                                            Settings()["stats/uncertainty_range"])
+        self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),
+                                                            Settings()["stats/uncertainty_range"])  # type: Tester
         """ Used statistical tester """
         typecheck(runs, List(T(RunData)))
         self.runs = filter_runs(runs, included_blocks or Settings()["report/included_blocks"])  # type: t.List[RunData]
@@ -391,7 +391,7 @@ class RunDataStatsHelper(object):
         new_clusters = util.InsertionTimeOrderedDict()
         single = []
         for n, c in clusters.items():
-            if len(c) is 1:
+            if len(c) == 1:
                 single.extend(c)
             else:
                 new_clusters[n] = c

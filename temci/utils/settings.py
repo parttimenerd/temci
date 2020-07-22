@@ -37,7 +37,7 @@ class Settings(metaclass=Singleton):
 
     config_file_name = "temci.yaml"  # type: str
     """ Default name of the configuration files """
-    type_scheme = Dict({  # type: Dict
+    type_scheme = Dict({
         "settings": Str() // Description("Additional settings file")
                         // Default(config_file_name if os.path.exists(config_file_name) else "")
                         // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
@@ -160,7 +160,7 @@ class Settings(metaclass=Singleton):
                               "generated files"),
         "sudo": Bool() // Default(False) // Description("Acquire sudo privileges and run benchmark programs with "
                                                         "non-sudo user. Only supported on the command line.")
-    }, unknown_keys=True)
+    }, unknown_keys=True)  # type: Dict
     """ Type scheme of the settings """
 
     def __init__(self):
@@ -341,7 +341,7 @@ class Settings(metaclass=Singleton):
         tmp_pref[path[-1]] = value
         if path[-1] not in tmp_type.data:
             tmp_type[path[-1]] = Any() // Default(value)
-        if (path == ["config"] or path == ["settings"]) and value is not "":
+        if (path == ["config"] or path == ["settings"]) and value != "":
             self.load_file(value)
         self._update_doc()
 
