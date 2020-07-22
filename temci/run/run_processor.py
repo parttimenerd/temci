@@ -314,6 +314,8 @@ class RunProcessor:
         if configured to do so.
         """
         self.teardown()
+        if not self.pool.run_driver.store_files:
+            return
         self.store()
         if len(self.stats_helper.valid_runs()) > 0 \
                 and all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs()):

@@ -107,6 +107,10 @@ def test_temci_short_shell():
     assert "42" in run_temci_proc("short shell echo 42").out
 
 
+def test_temci_short_shell_file_creation():
+    assert "run_output.yaml" not in run_temci_proc("short shell echo 42").file_contents
+
+
 def test_pass_arguments():
     assert run_temci("short exec exit --argument 1", expect_success=False).ret_code == ErrorCode.PROGRAM_ERROR.value
 

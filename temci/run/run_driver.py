@@ -277,6 +277,8 @@ class AbstractRunDriver(AbstractRegistry):
     """ Type scheme for the program block configuration """
     runs_benchmarks = True
 
+    store_files = True
+
     def __init__(self, misc_settings: dict = None):
         """
         Creates an instance.
@@ -892,6 +894,7 @@ class ShellRunDriver(ExecRunDriver):
         "cwd": (List(Str()) | Str()) // Default(".") // Description("Execution directory"),
     }, unknown_keys=True)
     runs_benchmarks = False
+    store_files = False
 
     def __init__(self, misc_settings: dict = None):
         super().__init__(misc_settings)
