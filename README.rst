@@ -115,6 +115,8 @@ Using pip requiring at least Python 3.6:
 .. code:: sh
 
         pip3 install git+https://github.com/parttimenerd/temci.git
+        # or
+        pip3 install temci
 
 For more information see the Installation_ page.
 

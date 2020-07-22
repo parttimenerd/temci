@@ -21,7 +21,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'click @ https://github.com/pallets/click/archive/f537a208591088499b388b06b2aca4efd5445119.zip',
+        'click>=7.1.2',
         'humanfriendly', 'pytimeparse',
         'fn',
         'cpuset-py3',
