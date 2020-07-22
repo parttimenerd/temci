@@ -141,3 +141,13 @@ def test_included_blocks_single_issue99():
             ]
     }, expect_success=False)
     assert r.ret_code != 0
+
+
+def test_per_block_runs_issue_113():
+    assert len(run_temci("exec bla.yaml", files={
+        "bla.yaml": [
+            {
+                "run_config": {"cmd": "echo nooo", "runs": 1}
+            }
+        ]
+    }).yaml_contents["run_output.yaml"][0]["data"]["stime"]) == 1

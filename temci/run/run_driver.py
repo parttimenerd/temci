@@ -128,8 +128,11 @@ class RunProgramBlock:
         if "min_runs" in self.data and self.data["min_runs"] > -1:
             self.min_runs = max(self.min_runs, self.data["min_runs"])
         self.runs = get_for_tags("run/runs_per_tag", "run/runs", self.tags, max)
-        if "runs" in self.data and self.data["min_runs"] > -1:
-            self.runs = max(self.runs, self.data["runs"])
+        if "runs" in self.data:
+            self.runs = self.data["runs"]
+        if self.runs != -1:
+            self.min_runs = max(self.min_runs, self.runs)
+            self.max_runs = min(self.max_runs, self.runs)
 
     def __getitem__(self, key: str) -> t.Any:
         """
