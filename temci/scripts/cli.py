@@ -215,7 +215,7 @@ def create_run_driver_function(driver: str, options: CmdOptionList):
 
     def _func2(run_file, **kwargs):
         Settings()["run/driver"] = driver
-        if run_file is not "":
+        if run_file != "":
             Settings()["run/in"] = run_file
         benchmark_and_exit()
     _func2.__name__ = "temci__" + driver

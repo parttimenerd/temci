@@ -864,7 +864,7 @@ class ExecRunDriver(AbstractRunDriver):
         """
         used = super().get_used()
         for plugin in PRESET_PLUGIN_MODES[self.misc_settings["preset"]][0].split(","):
-            if plugin not in used and plugin is not "":
+            if plugin not in used and plugin != "":
                 used.append(plugin)
         order = self.misc_settings["plugin_order"]
         used = sorted(used, key=lambda plugin: order.index(plugin) if plugin in order else -1)
@@ -1088,13 +1088,13 @@ class PerfStatExecRunner(ExecRunner):
 
     def __init__(self, block: RunProgramBlock):
         super().__init__(block)
-        typecheck(self.misc["properties"], ValidPerfStatPropertyList(), "Properties setting of perf stat runner")
         if not is_perf_available():
             raise KeyboardInterrupt("The perf tool needed for the perf stat runner isn't installed. You can install it "
                                     "via the linux-tools (or so) package of your distribution. If it's installed, "
                                     "you might by only allowed to use it with super user rights. Test a simple command "
                                     "like `perf stat /bin/echo` to see what you have to do if you want to use with "
                                     "your current rights.")
+        typecheck(self.misc["properties"], ValidPerfStatPropertyList(), "Properties setting of perf stat runner")
 
     def setup_block(self, block: RunProgramBlock, cpuset: CPUSet = None, set_id: int = 0):
 
