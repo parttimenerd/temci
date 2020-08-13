@@ -512,11 +512,11 @@ class HTMLReporter2(AbstractReporter):
                 rel_diff = None
                 if property is None:
                     popover.content = r"""
-                        Geometric mean of the first means relative to the second means:
+                        Geometric mean of the left means relative to the right means:
                         \[\sqrt[\|properties\|]{
                         \prod_{p \in \text{properties}}
-                        \frac{\overline{\text{first[p]}}}{
-                            \overline{\text{second[p]}}}}\]
+                        \frac{\overline{\text{left[p]}}}{
+                            \overline{\text{right[p]}}}}\]
                         <p>Using the more widely known arithmetic mean would be like
                         <a href='http://ece.uprm.edu/~nayda/Courses/Icom6115F06/Papers/paper4.pdf?origin=publication_detail'>
                         lying</a>.</p>
@@ -526,12 +526,12 @@ class HTMLReporter2(AbstractReporter):
                     popover.trigger = "hover click"
                 else:
                     pair = pair[property]
-                    popover.content="""First mean relative to the second mean:
+                    popover.content="""Left mean relative to the right mean:
                     \\begin{align}
-                        & \\frac{\\overline{\\text{first[%s]}}}{\\overline{\\text{second[%s]}}} \\\\
+                        & \\frac{\\overline{\\text{left[%s]}}}{\\overline{\\text{right[%s]}}} \\\\
                         &= \\frac{%5.4f}{%5.4f}
                     \\end{align}
-                    <p>The maximum standard deviation of both benchmarks relative to the mean of the second one is <b>%s</b>.</p>
+                    <p>The maximum standard deviation of both benchmarks relative to the mean of the right one is <b>%s</b>.</p>
                     """ % (property, property, pair.first.mean(), pair.second.mean(),
                            self._percent_format.format(pair.max_std_dev() / pair.second.mean()))
                     rel_diff = FNumber(pair.first_rel_to_second(), rel_deviation=pair.max_std_dev() / pair.second.mean(), is_percent=True)
@@ -649,17 +649,17 @@ class HTMLReporter2(AbstractReporter):
             {
                 "title": "Difference of means",
                 "popover": _Popover(self, "Explanation", """
-                    Difference between the mean of the first and the mean of the second.
+                    Difference between the mean of the left and the mean of the right.
                     It's the absolute difference and is often less important that the relative differences.
                 """),
                 "func": lambda x: fnumber(x.mean_diff(), abs_deviation=x.max_std_dev()),
                 "format": self._float_format
             }, {
-                "title": "... per first mean",
+                "title": "... per left mean",
                 "func": lambda x: fnumber(x.mean_diff_per_mean(), #rel_deviation=x.max_rel_std_dev(),
                                           is_percent=True),
                 "format": self._percent_format,
-                "popover": _Popover(self, "Explanation", """The mean difference relative to the first mean
+                "popover": _Popover(self, "Explanation", """The mean difference relative to the left mean
                 \\begin{align}
                     & \\frac{ \\overline{\\text{%s}} - \\overline{\\text{%s}}}{ \\overline{\\text{%s}} } \\\\
                     &= \\frac{ %f }{ %f}
@@ -756,17 +756,17 @@ class HTMLReporter2(AbstractReporter):
             {
                 "title": "Difference of means",
                 "popover": _Popover(self, "Explanation", """
-                    Difference between the mean of the first and the mean of the second.
+                    Difference between the mean of the left and the mean of the right.
                     It's the absolute difference and is often less important that the relative differences.
                 """),
                 "func": lambda x: fnumber(x.mean_diff(), abs_deviation=x.max_std_dev()),
                 "format": self._float_format
             }, {
-                "title": "... per first mean",
+                "title": "... per left mean",
                 "func": lambda x: fnumber(x.mean_diff_per_mean(), abs_deviation=x.max_std_dev() / x.first.mean(),
                                           is_percent=True),
                 "format": self._percent_format,
-                "popover": _Popover(self, "Explanation", """The mean difference relative to the first mean
+                "popover": _Popover(self, "Explanation", """The mean difference relative to the left mean
                 gives a number that helps to talk about the practical significance of the mean difference.
                 A tiny difference might be cool, but irrelevant (as caching effects are probably higher, use the
                 \\verb|temci build| if you are curious about this).
@@ -794,7 +794,7 @@ class HTMLReporter2(AbstractReporter):
                 "func": lambda x: fnumber(x.first.min() - x.second.min()),
                 "format": self._float_format
             }, {
-                "title": "... per first min",
+                "title": "... per left min",
                 "func": lambda x: fnumber((x.first.min() - x.second.min()) / x.first.min(), is_percent=True),
                 "format": self._percent_format,
                 "popover": None,#Popover(self, "Explanation", """            """)
@@ -882,11 +882,11 @@ class HTMLReporter2(AbstractReporter):
             <p {po}>The {first} relative to the {second} is <b>{rel_diff}</b>
             (geometric standard deviation is {std})</p>
         """.format(po=_Popover(self, "Explanation", """
-                        Geometric mean of the means of the first relative to the means of the second:
+                        Geometric mean of the means of the left relative to the means of the right:
                         \\[\\sqrt[\\|properties\\|]{
                         \\prod_{p \\in \\text{properties}}
-                        \\frac{\\overline{\\text{first[p]}}}{
-                            \\overline{\\text{second[p]}}}}\\]
+                        \\frac{\\overline{\\text{left[p]}}}{
+                            \\overline{\\text{right[p]}}}}\\]
                         Using the more widely known would be like
                         <a href='http://ece.uprm.edu/~nayda/Courses/Icom6115F06/Papers/paper4.pdf?origin=publication_detail'>
                         lying</a>.
