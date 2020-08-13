@@ -1395,7 +1395,7 @@ class HTMLReporter2(AbstractReporter):
             """.format(**locals())
         html = ""
         if obj.has_errors():
-            html += collapsible('Errors <span class="badge">{}</span>'.format(len(obj.errors())), obj.errors())
+            html += collapsible('Severe warnings <span class="badge">{}</span>'.format(len(obj.errors())), obj.errors())
         if obj.has_warnings():
             html += collapsible('Warnings <span class="badge">{}</span>'.format(len(obj.warnings())), obj.warnings())
         return html
@@ -1447,12 +1447,12 @@ class _Popover:
 
 def _color_class(obj: BaseStatObject) -> str:
     if obj.has_errors():
-        return "danger"
+        return "error"
     if obj.has_warnings():
         return "warning"
     if isinstance(obj, TestedPairProperty):
         if obj.is_equal() is not None:
-            return "sucess" if obj.is_equal() == False and obj.mean_diff_per_mean() < 1 else "active"
+            return "success" if obj.is_equal() is False and obj.mean_diff_per_mean() < 1 else "active"
     return ""
 
 
@@ -1461,7 +1461,7 @@ def _color_explanation(obj: BaseStatObject) -> str:
     msg = ""
     if obj.has_errors():
         msg = "This color means that the corresponding data set is erroneous " \
-              "(with {} errors and {} warnings).".format(len(obj.errors()), len(obj.warnings()))
+              "({} severe warnings and {} warnings).".format(len(obj.errors()), len(obj.warnings()))
     elif obj.has_warnings():
         msg = "This color means that the corresponding data set could be erroneous " \
               "(with {} warnings).".format(len(obj.warnings()))

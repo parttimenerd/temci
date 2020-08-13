@@ -26,7 +26,7 @@
 }
 
 .div_danger {
-    background-color: #F2DEDE;
+    background-color: #f2dede;
 }
 
 .anchor_cell {
@@ -117,4 +117,8 @@
     color: #FFF;
     text-shadow: 0px -1px 0px rgba(0, 0, 0, 0.2);
     background-color: red;
+}
+
+.error {
+    background-color: #ffd1b0;
 }

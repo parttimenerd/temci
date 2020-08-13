@@ -36,9 +36,9 @@ class StatMessageType(Enum):
     Types of StatMessages.
     """
     ERROR = 10
-    """ Error type that signals a possible error or mistake """
+    """ Error type that signals a possible error or mistake, but is called 'severe warning' """
     WARNING = 5
-    """ Warning type that signals a possible but not servere mistake """
+    """ Warning type that signals a possible but not severe mistake """
 
 
 class StatMessageValueFormat:
@@ -501,7 +501,7 @@ class BaseStatObject:
         try:
             plt.savefig(filename)
         except FileNotFoundError:
-            print("hi")
+            raise
         self.reset_plt()
         return os.path.realpath(filename)
 
