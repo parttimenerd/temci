@@ -1465,11 +1465,11 @@ def _color_explanation(obj: BaseStatObject) -> str:
     color_class = "div_" + _color_class(obj)
     msg = ""
     if obj.has_errors():
-        msg = "This color means that the corresponding data set is erroneous " \
-              "({} severe warnings and {} warnings).".format(len(obj.errors()), len(obj.warnings()))
+        msg = "This color means that there are severe warnings related to the corresponding data set " \
+              "({} severe warning(s) and {} warning(s)).".format(len(obj.errors()), len(obj.warnings()))
     elif obj.has_warnings():
-        msg = "This color means that the corresponding data set could be erroneous " \
-              "(with {} warnings).".format(len(obj.warnings()))
+        msg = "This color means that there are warnings related to the corresponding data set " \
+              "(with {} warning(s)).".format(len(obj.warnings()))
     elif isinstance(obj, TestedPairProperty) and obj.is_equal() is not None:
         msg = "This color means that everything is probably okay with the corresponding data" \
               " and that the tester could make a decision."

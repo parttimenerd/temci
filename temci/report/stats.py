@@ -1093,7 +1093,7 @@ class EffectToSmallWarning(StatWarning):
 
     message = "The mean difference per standard deviation of {props} is less than {b_val}."
     hint = "Try to reduce the standard deviation if you think that the measured difference is significant: " \
-           "If you use the exec run driver, consider using the stop_start plugin, preheat and sleep plugins. " \
+           "If you use the exec run driver, consider using a preset. " \
            "Also consider increasing the number of measured runs."
     border_value = 1
     value_format = StatMessageValueFormat.FLOAT
