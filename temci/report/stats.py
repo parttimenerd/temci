@@ -140,6 +140,10 @@ class StatMessage:
         raise NotImplementedError()
 
     @classmethod
+    def overridden(cls, value: t.Union[int, float]) -> bool:
+        return False
+
+    @classmethod
     def create_if_valid(cls, parent: 'BaseStatObject', property: str, value: Number, **kwargs) \
             -> t.Optional['StatMessage']:
         """
@@ -152,7 +156,7 @@ class StatMessage:
         :param kwargs: additional arguments for the constructor of this message type class
         """
         assert isinstance(value, Int()|Float())
-        if cls.check_value(value):
+        if cls.check_value(value) or cls.overridden(value):
             return None
         ret = None
         if property is not None:
@@ -181,6 +185,9 @@ class StatWarning(StatMessage):
 
     type = StatMessageType.WARNING
 
+    @classmethod
+    def overridden(cls, value: t.Union[int, float]) -> bool:
+        return any(k.check_value(value) for k in cls.__subclasses__())
 
 class StatError(StatWarning, StatMessage):
     """ A message that signals a possible warning that is probably severe """
@@ -1088,7 +1095,7 @@ class EffectToSmallWarning(StatWarning):
     hint = "Try to reduce the standard deviation if you think that the measured difference is significant: " \
            "If you use the exec run driver, consider using the stop_start plugin, preheat and sleep plugins. " \
            "Also consider increasing the number of measured runs."
-    border_value = 2
+    border_value = 1
     value_format = StatMessageValueFormat.FLOAT
 
     @classmethod
@@ -1100,7 +1107,7 @@ class EffectToSmallError(EffectToSmallWarning):
     """ Error message regarding an only insignificant mean difference regarding the standard deviation. """
 
     type = StatMessageType.ERROR
-    border_value = 1
+    border_value = 2
 
 
 class SignificanceTooLowWarning(StatWarning):
