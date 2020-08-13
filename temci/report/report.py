@@ -1363,6 +1363,7 @@ class HTMLReporter2(AbstractReporter):
         def format_msg(msg: StatMessage):
             message = msg.generate_msg_text(show_parent)
             msg_class = "div_danger" if msg.type == StatMessageType.ERROR else "div_warning"
+
             html = """
                 <div class="panel-body {msg_class}">
                     {message}
