@@ -317,7 +317,9 @@ class HTMLReporter(AbstractReporter):
     "mean_in_comparison_tables": Bool() // Default(True)
                                 // Description("Show the mean related values in the big comparison table"),
     "force_override": Bool() // Default(False)
-                                // Description("Override the contents of the output directory if it already exists?")
+                                // Description("Override the contents of the output directory if it already exists?"),
+    "hide_stat_warnings": Bool() // Default(False)
+                                // Description("Hide warnings and errors related to statistical properties")
 }))
 class HTMLReporter2(AbstractReporter):
     """
@@ -348,6 +350,7 @@ class HTMLReporter2(AbstractReporter):
         runs = self.stats_helper.valid_runs()
         self._percent_format = self.misc["percent_format"]
         self._float_format = self.misc["float_format"]
+        self._hide_stat_warnings = self.misc["hide_stat_warnings"]
         self._app_html = ""
         html = """<html lang="en">
     <head>
@@ -668,8 +671,6 @@ class HTMLReporter2(AbstractReporter):
                     &= \\frac{ %f }{ %f}
                 \\end{align}
                 gives a number that helps to talk about the practical significance of the mean difference.
-                A tiny difference might be cool, but irrelevant (as caching effects are probably higher, use the
-                <pre>temci build</pre> if your curious about this).
                 """ % (obj.first.parent.description(), obj.second.parent.description(), str(obj.first.parent),
                        float(obj.mean_diff()), float(obj.first.mean())))
             }, {
@@ -687,15 +688,15 @@ class HTMLReporter2(AbstractReporter):
                              - \\overline{{\\text{{{second}}}}}}}{{
                      \\text{{max}}(\\sigma_\\text{{{first}}}, \\sigma_\\text{{{second}}}) }} \\\\
                         = &  \\frac{{{md}}}{{{std}}}  \\end{{align}}
-
-                    It's important because, as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
+                    {context}
+                """.format(first=obj.first.parent.description(), second=obj.second.parent.description(),
+                           md=obj.mean_diff(), std=obj.max_std_dev(),
+                           context=""  if self._hide_stat_warnings else """It's important because, as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
                     Gernot Heiser</a> points out:
                     <ul>
                         <li>Don't believe any effect that is less than a standard deviation</li>
                         <li>Be highly suspicious if it is less than two standard deviations</li>
-                    </ul>
-                """.format(first=obj.first.parent.description(), second=obj.second.parent.description(),
-                           md=obj.mean_diff(), std=obj.max_std_dev()), trigger="hover click")
+                    </ul>"""), trigger="hover click",)
             }, {
                 "title": "... ci (lower bound)",
                 "func": lambda x: fnumber(x.mean_diff_ci(self.misc["alpha"])[0]),
@@ -781,13 +782,13 @@ class HTMLReporter2(AbstractReporter):
                 "format": self._percent_format,
                 "popover": _Popover(self, "Explanation", """
                 The mean difference relative to the maximum standard deviation is important,
-                because as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
+                because it puts the value info context{context}
+                """.format(context="." if self._hide_stat_warnings else """, or as <a href='http://www.cse.unsw.edu.au/~cs9242/15/lectures/05-perfx4.pdf'>
                     Gernot Heiser</a> points out:
                     <ul>
                         <li>Don't believe any effect that is less than a standard deviation</li>
                         <li>Be highly suspicious if it is less than two standard deviations</li>
-                    </ul>
-                """, trigger="hover click")
+                    </ul>"""), trigger="hover click")
             }])
 
         if self.misc["min_in_comparison_tables"]:
@@ -1318,7 +1319,7 @@ class HTMLReporter2(AbstractReporter):
                   <div class="modal-footer">
                     <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
                     <button type="button" class="btn btn-primary" data-dismiss="modal"
-                        onclick="window.location='#{html_id}'">More informations</button>
+                        onclick="window.location='#{html_id}'">More information</button>
                   </div>
                 </div>
               </div>
@@ -1399,10 +1400,11 @@ class HTMLReporter2(AbstractReporter):
                 </div>
             """.format(**locals())
         html = ""
-        if obj.has_errors():
-            html += collapsible('Severe warnings <span class="badge">{}</span>'.format(len(obj.errors())), obj.errors())
-        if obj.has_warnings():
-            html += collapsible('Warnings <span class="badge">{}</span>'.format(len(obj.warnings())), obj.warnings())
+        if not self._hide_stat_warnings:
+            if obj.has_errors():
+                html += collapsible('Severe warnings <span class="badge">{}</span>'.format(len(obj.errors())), obj.errors())
+            if obj.has_warnings():
+                html += collapsible('Warnings <span class="badge">{}</span>'.format(len(obj.warnings())), obj.warnings())
         return html
 
     _time = time.time()
@@ -1507,11 +1509,14 @@ class _Cell:
         self.parent = parent
         assert link is None or modal_id is None
         if color_class_obj is not None:
+            warnings_text = "" if self.parent._hide_stat_warnings \
+                            else _color_explanation(color_class_obj)
             if self.popover is None:
-                self.popover = _Popover(parent, "Explanation", _color_explanation(color_class_obj))
+                self.popover = _Popover(parent, "Explanation", warnings_text)
             else:
-                self.popover.content += _color_explanation(color_class_obj)
-            self.cell_class += " " + _color_class(color_class_obj)
+                self.popover.content += warnings_text
+            if not self.parent._hide_stat_warnings:
+                self.cell_class += " " + _color_class(color_class_obj)
         if (modal_id is not None and show_click_on_info != False) or (show_click_on_info is True and not link):
             msg = "<p>Click on the cell to get more information.</p>"
             if self.popover is None:
