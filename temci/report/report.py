@@ -443,6 +443,9 @@ class HTMLReporter2(AbstractReporter):
             strs = (["tex"] if self.misc["gen_tex"] else []) + (["pdf"] if self.misc["gen_pdf"] else [])
             self._process_hist_cache(self._hist_async_misc_cache.values(), "Generate {}".format(join_strs(strs)))
 
+    def _format_float(self, val: float) -> str:
+        return self._float_format.format(val)
+
     def _process_hist_cache(self, cache: t.Iterable[dict], title: str):
         pool = multiprocessing.Pool(4)
         pool_res = [pool.apply_async(self._process_hist_cache_entry, args=(entry,)) for entry in cache]
@@ -879,7 +882,8 @@ class HTMLReporter2(AbstractReporter):
                                          header_popover_func=header_popover_func)
         html = str(table)
         html += """
-            <p {po}>The {first} relative to the {second} is <b>{rel_diff}</b>
+            <p {po}>The geometric mean of the values of the properties of {first} relative to the values of 
+            {second} is <b>{rel_diff}</b>
             (geometric standard deviation is {std})</p>
         """.format(po=_Popover(self, "Explanation", """
                         Geometric mean of the means of the left relative to the means of the right:
@@ -891,7 +895,7 @@ class HTMLReporter2(AbstractReporter):
                         <a href='http://ece.uprm.edu/~nayda/Courses/Icom6115F06/Papers/paper4.pdf?origin=publication_detail'>
                         lying</a>.
                  """, trigger="hover click"), first=obj.first, second=obj.second, rel_diff=obj.first_rel_to_second(),
-                   std=obj.first_rel_to_second_std())
+                   std=self._format_float(obj.first_rel_to_second_std()))
         return html
 
     def _short_summary_table_for_single_property(self, objs: t.List[SingleProperty], use_modal: bool,
