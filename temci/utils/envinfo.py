@@ -53,7 +53,7 @@ class CpuInfo(t.NamedTuple):
         if util.on_apple_os():
 
             def sysctl(key: str) -> str:
-                return subprocess.check_output("sysctl -n {}".format(key)).strip()
+                return subprocess.check_output("/usr/sbin/sysctl -n {}".format(key), shell=True).strip()
 
             return CpuInfo(sysctl("machdep.cpu.brand_string"), int(sysctl("hw.physicalcpu")),
                            multiprocessing.cpu_count())
