@@ -29,7 +29,8 @@ setup(
         'rainbow_logging_handler',
         'tablib',
         'pyyaml',
-        'seaborn', 'matplotlib'
+        'seaborn', 'matplotlib',
+        'psutil'
     ],
     tests_require=['pytest'],
     license='GPLv3',

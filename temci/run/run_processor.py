@@ -345,6 +345,7 @@ class RunProcessor:
         if (len(self.stats_helper.valid_runs()) > 0 and all(x.benchmarks() > 0 for x in self.stats_helper.valid_runs())) \
             or Settings()["run/record_errors_in_file"]:
             with open(Settings()["run/out"], "w") as f:
+                self.stats_helper.update_env_info(),
                 f.write(yaml.dump(self.stats_helper.serialize()))
                 chown(f)
 

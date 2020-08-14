@@ -428,6 +428,7 @@ class HTMLReporter2(AbstractReporter):
                 <p/>
             """
             inner_html += self._comparison_for_prop(prop)
+
         for single in self.stats.singles:
             inner_html += """<div class="block">"""
             inner_html += self._extended_summary(single, with_title=True, title_level=2,
@@ -436,6 +437,7 @@ class HTMLReporter2(AbstractReporter):
             inner_html += """<div class="block">"""
             inner_html += self._extended_summary(pair, with_title=True, title_level=2,
                                                  title_class="page-header") + """</div>"""
+        inner_html += self._format_hw_info()
         self._write(html.format(timespan=hf.format_timespan(time.time() - start_time), **locals()))
         logging.info("Finished generating html")
         logging.info("Generate images...")
@@ -497,6 +499,17 @@ class HTMLReporter2(AbstractReporter):
             """.format(join_strs(map(repr, self.excluded_data_info.excluded_properties_per_run_data[descr])),
                        descr)
         return html
+
+    def _format_hw_info(self) -> str:
+        def format_hw_info_section(name: str, content: t.List[t.Tuple[str, str]]) -> str:
+            return """<h3>{}</h3>
+            <table class="table">{}</table>"""\
+                .format(name, "\n".join("<tr><th>{}</th><td>{}</td></tr>".format(n.upper(), v) for n, v in content))
+        if self.stats_helper.env_info:
+            return """<h2 id="hw_info" class="page-header">Hardware info</h2>
+            {}
+            """.format("\n".join(format_hw_info_section(name, content) for name, content in self.stats_helper.env_info))
+        return ""
 
     def _full_single_property_comp_table(self, property: str = None) -> '_Table':
         header_cells = []

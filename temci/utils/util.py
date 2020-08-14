@@ -1,6 +1,7 @@
 """
 Utility functions and classes that don't depend on the rest of the temci code base.
 """
+import enum
 import functools
 import os
 import resource

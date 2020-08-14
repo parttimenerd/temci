@@ -10,6 +10,7 @@ from functools import reduce
 from temci.report.testers import Tester, TesterRegistry
 from temci.run.run_driver import filter_runs
 from temci.utils.config_utils import ATTRIBUTES_TYPE
+from temci.utils.envinfo import FORMATTED_ENV_INFO, format_env_info
 from temci.utils.typecheck import *
 from temci.utils.settings import Settings
 import temci.utils.util as util
@@ -96,6 +97,9 @@ class RunData(object):
     property_descriptions_scheme = Dict({
             "property_descriptions": NonExistent() |
                                      Dict(key_type=Str(), value_type=Str(), unknown_keys=True)})
+
+    env_info_scheme = Dict({
+            "env_info": NonExistent() | List(Tuple(Str(), List(Tuple(Str(), Str()))))})
 
     def __init__(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,
                  recorded_error: RecordedError = None,
@@ -300,7 +304,7 @@ class RunDataStatsHelper(object):
     def __init__(self, runs: t.List[RunData], tester: Tester = None, external_count: int = 0,
                  property_descriptions: t.Dict[str, str] = None,
                  errorneous_runs: t.List[RunData] = None,
-                 included_blocks: str = None):
+                 included_blocks: str = None, env_info: FORMATTED_ENV_INFO = None):
         """
         Don't use the constructor use init_from_dicts if possible.
 
@@ -311,6 +315,7 @@ class RunDataStatsHelper(object):
         :param property_descriptions: mapping of some properties to their descriptions or longer versions
         :param errorneous_runs: runs that resulted in errors
         :param included_blocks: include query
+        :param env_info: formatted environment info
         """
         self.tester = tester or TesterRegistry.get_for_name(TesterRegistry.get_used(),
                                                             Settings()["stats/uncertainty_range"])  # type: Tester
@@ -325,6 +330,7 @@ class RunDataStatsHelper(object):
         Number of external program blocks (blocks for which the data was obtained in a different benchmarking session)
         """
         self.property_descriptions = property_descriptions or {}  # type: t.Dict[str, str]
+        self.env_info = env_info or []
 
     def clone(self, runs: t.List[RunData] = None, tester: Tester = None, external_count: int = None,
               property_descriptions: t.Dict[str, str] = None) -> 'RunDataStatsHelper':
@@ -343,7 +349,7 @@ class RunDataStatsHelper(object):
         return RunDataStatsHelper(runs=alt(runs, self.runs), tester=alt(tester, self.tester),
                                   external_count=alt(external_count, self.external_count),
                                   property_descriptions=alt(property_descriptions, self.property_descriptions),
-                                  errorneous_runs=self.errorneous_runs)
+                                  errorneous_runs=self.errorneous_runs, env_info=self.env_info)
 
     def make_descriptions_distinct(self):
         """
@@ -442,7 +448,9 @@ class RunDataStatsHelper(object):
                  "data": {"__ov-time": [...], ...},
                  "error": {"return_code": …, "output": "…", "error_output": "…"},
                  "internal_error": {"message": "…"} (either "error" or "internal_error" might be present)
-                 ["property_descriptions": {"__ov-time": "Overall time"}]},
+                 ["property_descriptions": {"__ov-time": "Overall time", …}]
+                 ["env_info": … ]
+                 },
                  ...
             ]
 
@@ -459,15 +467,19 @@ class RunDataStatsHelper(object):
                 "run_config": Dict(unknown_keys=True)
             }, unknown_keys=True) |
                     RunData.block_type_scheme |
-                    RunData.property_descriptions_scheme),
+                    RunData.property_descriptions_scheme |
+                    RunData.env_info_scheme),
                 value_name="runs parameter")
         run_datas = []
         runs = runs or [] # type: t.List[dict]
         prop_descrs = {}  # type: t.Dict[str, str]
+        env_info = []
         for run in runs:
             props = {}
             if "property_descriptions" in run:
                 prop_descrs.update(run["property_descriptions"])
+            elif "env_info" in run:
+                env_info = run["env_info"]
             else:
                 if "data" not in run:
                     run["data"] = {}
@@ -480,7 +492,8 @@ class RunDataStatsHelper(object):
                 run_datas.append(RunData(run["data"], run["attributes"] if "attributes" in run else {}, recorded_error=error,
                                          external=external))
         return RunDataStatsHelper(run_datas, external_count=len(run_datas) if external else 0,
-                                  property_descriptions=prop_descrs, included_blocks=included_blocks)
+                                  property_descriptions=prop_descrs, included_blocks=included_blocks,
+                                  env_info=env_info)
 
     def _is_uncertain(self, property: str, data1: RunData, data2: RunData) -> bool:
         return self.tester.is_uncertain(data1[property], data2[property])
@@ -681,7 +694,7 @@ class RunDataStatsHelper(object):
                     })
         return arr
 
-    def serialize(self) -> t.List[t.Union[t.Dict[str, str], t.Dict[str, t.List[Number]]]]:
+    def serialize(self) -> t.List[t.Union[t.Dict[str, str], t.Dict[str, t.List[Number]], FORMATTED_ENV_INFO]]:
         """
         Serialize this instance into a data structure that is accepted by the ``init_from_dicts`` method.
         """
@@ -693,6 +706,7 @@ class RunDataStatsHelper(object):
                 if prop in self.property_descriptions:
                     ps[prop] = self.property_descriptions[prop]
             ret.append({"property_descriptions": ps})
+            ret.append({"env_info": self.env_info})
         return ret
 
     def valid_runs(self) -> t.List[RunData]:
@@ -773,6 +787,10 @@ class RunDataStatsHelper(object):
                 runs.append(run.long_properties(formatted_properties))
 
         return self.clone(runs=runs), formatted_properties
+
+    def update_env_info(self):
+        """ Obtain the environment information for the current system and store it """
+        self.env_info = format_env_info()
 
 
 class ExcludedInvalidData:

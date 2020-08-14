@@ -151,3 +151,7 @@ def test_per_block_runs_issue_113():
             }
         ]
     }).yaml_contents["run_output.yaml"][0]["data"]["stime"]) == 1
+
+
+def test_envinfo_in_result():
+    assert any("env_info" in v for v in run_temci("short exec ls").yaml_contents["run_output.yaml"])
