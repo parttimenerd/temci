@@ -187,7 +187,8 @@ class StatWarning(StatMessage):
 
     @classmethod
     def overridden(cls, value: t.Union[int, float]) -> bool:
-        return any(k.check_value(value) for k in cls.__subclasses__())
+        return any(not k.check_value(value) for k in cls.__subclasses__())
+
 
 class StatError(StatWarning, StatMessage):
     """ A message that signals a possible warning that is probably severe """
@@ -198,7 +199,7 @@ class StatError(StatWarning, StatMessage):
 class StdDeviationToHighWarning(StatWarning):
     """ A warning about a too high standard deviation. """
 
-    message = "The standard deviation per mean of {props} is too high. It should be <= {b_val}."
+    message = "The standard deviation per mean of {props} is too high. It should be ≤ {b_val}."
     hint = "With the exec run driver you can probably use a preset. " \
            "Also consider to increase the number of measured runs."
     border_value = 0.01
@@ -755,7 +756,7 @@ class SingleProperty(BaseStatObject):
             NotEnoughObservationsWarning.create_if_valid(self, self.property, self.observations()),
             NotEnoughObservationsError.create_if_valid(self, self.property, self.observations())
         ]
-        return msgs
+        return [msg for msg in msgs if msg is not None]
 
     def mean(self) -> float:
         """ Mean value of the measurements """
@@ -971,17 +972,20 @@ class TestedPair(BaseStatObject):
 
     def first_rel_to_second(self) -> float:
         """
-        Calculates the geometric mean of the first means relative to the second means.
+        Calculates the geometric mean of the first means relative to the second means. Ignores NaNs in calculating
+        the geometric mean.
 
         See http://www.cse.unsw.edu.au/~cs9242/15/papers/Fleming_Wallace_86.pdf
         """
-        return st.gmean([x.first_rel_to_second() for x in self.properties.values()])
+        return st.gmean([v for v in (x.first_rel_to_second() for x in self.properties.values()) if not math.isnan(v)])
 
     def first_rel_to_second_std(self) -> float:
         """
         Calculates the geometric standard deviation for the first_rel_to_second method.
+
+        Ignores NaNs in calculating the geometric std.
         """
-        return util.geom_std([x.first_rel_to_second() for x in self.properties.values()])
+        return util.geom_std([v for v in [x.first_rel_to_second() for x in self.properties.values()] if not math.isnan(v)])
 
     def swap(self) -> 'TestedPair':
         """
@@ -1220,7 +1224,11 @@ class TestedPairProperty(BaseStatObject):
     def first_rel_to_second(self) -> float:
         """
         Calculates the mean of the first relative to the mean of the second (mean(first) / mean(second)).
+
+        Returns 1 if both means are equal, regardless of their values.
         """
+        if self.first.mean() == self.second.mean():
+            return 1
         return self.first.mean() / self.second.mean()
     
     def mean_diff_per_dev(self) -> float:

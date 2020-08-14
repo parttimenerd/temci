@@ -526,19 +526,19 @@ class HTMLReporter2(AbstractReporter):
                         <p>Using the more widely known arithmetic mean would be like
                         <a href='http://ece.uprm.edu/~nayda/Courses/Icom6115F06/Papers/paper4.pdf?origin=publication_detail'>
                         lying</a>.</p>
-                        <p>The geometric standard deviation is <b>%s</b></p>.
+                        <p>The geometric standard deviation is <b>%s</b></p>
                     """ % self._percent_format.format(pair.first_rel_to_second_std())
                     rel_diff = fnumber(pair.first_rel_to_second(), rel_deviation=pair.first_rel_to_second_std() - 1, is_percent=True)
                     popover.trigger = "hover click"
                 else:
                     pair = pair[property]
-                    popover.content="""Left mean relative to the right mean:
-                    \\begin{align}
-                        & \\frac{\\overline{\\text{left[%s]}}}{\\overline{\\text{right[%s]}}} \\\\
-                        &= \\frac{%5.4f}{%5.4f}
-                    \\end{align}
-                    <p>The maximum standard deviation of both benchmarks relative to the mean of the right one is <b>%s</b>.</p>
-                    """ % (property, property, pair.first.mean(), pair.second.mean(),
+                    popover.content = """Left mean relative to the right mean:
+                    \\begin{{align}}
+                        & \\frac{{\\overline{{\\text{{left[{}]}}}}}}{{\\overline{{\\text{{right[{}]}}}}}} \\\\
+                        &= \\frac{{{:5.4f}}}{{{:5.4f}}}
+                    \\end{{align}}
+                    <p>The maximum standard deviation of both benchmarks relative to the mean of the right one is <b>{}</b>.</p>
+                    """.format(property, property, pair.first.mean(), pair.second.mean(),
                            self._percent_format.format(pair.max_std_dev() / pair.second.mean()))
                     rel_diff = FNumber(pair.first_rel_to_second(), rel_deviation=pair.max_std_dev() / pair.second.mean(), is_percent=True)
                 cell = _Cell(self, content=str(rel_diff), popover=popover, color_class_obj=pair, show_click_on_info=True)
@@ -895,7 +895,7 @@ class HTMLReporter2(AbstractReporter):
                         Using the more widely known would be like
                         <a href='http://ece.uprm.edu/~nayda/Courses/Icom6115F06/Papers/paper4.pdf?origin=publication_detail'>
                         lying</a>.
-                 """, trigger="hover click"), first=obj.first, second=obj.second, rel_diff=obj.first_rel_to_second(),
+                 """, trigger="hover click"), first=obj.first, second=obj.second, rel_diff=self._format_float(obj.first_rel_to_second()),
                    std=self._format_float(obj.first_rel_to_second_std()))
         return html
 
