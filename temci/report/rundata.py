@@ -15,8 +15,8 @@ from temci.utils.typecheck import *
 from temci.utils.settings import Settings
 import temci.utils.util as util
 from collections import defaultdict
-if util.can_import("scipy"):
-    import scipy
+if util.can_import("numpy"):
+    import numpy as np
 import typing as t
 import yaml
 
@@ -524,8 +524,8 @@ class RunDataStatsHelper(object):
         Calculates the speed up from the second to the first
         (e.g. the first is RESULT * 100 % faster than the second).
         """
-        return (scipy.mean(data1[property]) - scipy.mean(data2[property])) \
-               / scipy.mean(data1[property])
+        return (np.mean(data1[property]) - np.mean(data2[property])) \
+               / np.mean(data1[property])
 
     def _estimate_time_for_run_datas(self, run_bin_size: int, data1: RunData, data2: RunData,
                                      min_runs: int, max_runs: int) -> float:
@@ -538,7 +538,7 @@ class RunDataStatsHelper(object):
             estimate = self.tester.estimate_needed_runs(data1[prop], data2[prop],
                                                                 run_bin_size, min_runs, max_runs)
             needed_runs.append(estimate)
-        avg_time = max(scipy.mean(data1["__ov-time"]), scipy.mean(data2["__ov-time"]))
+        avg_time = max(np.mean(data1["__ov-time"]), np.mean(data2["__ov-time"]))
         return max(needed_runs) * avg_time
 
     def get_program_ids_to_bench(self) -> t.List[int]:
@@ -599,7 +599,7 @@ class RunDataStatsHelper(object):
         summed = 0
         to_bench = range(0, len(self.runs)) if all else self.get_program_ids_to_bench()
         for i in to_bench:
-            summed += scipy.mean(self.runs[i]["__ov-time"] if "__ov-time" in self.runs[i].data else 0) * run_bin_size
+            summed += np.mean(self.runs[i]["__ov-time"] if "__ov-time" in self.runs[i].data else 0) * run_bin_size
         return summed
 
     #ef add_run_data(self, data: t.Dict[str, t.List[Number]] = None, attributes: t.Dict[str, str] = None,

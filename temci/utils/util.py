@@ -1,10 +1,9 @@
 """
 Utility functions and classes that don't depend on the rest of the temci code base.
 """
-import enum
+
 import functools
 import os
-import resource
 import subprocess
 import typing as t
 import sys
@@ -316,9 +315,9 @@ def geom_std(values: t.List[float]) -> float:
     Source: https://en.wikipedia.org/wiki/Geometric_standard_deviation
     """
     import scipy.stats as stats
-    import scipy as sp
+    import numpy as np
     gmean = stats.gmean(values)
-    return sp.exp(sp.sqrt(sp.sum([sp.log(x / gmean) ** 2 for x in values]) / len(values)))
+    return np.exp(np.sqrt(np.sum([np.log(x / gmean) ** 2 for x in values]) / len(values)))
 
 
 def parse_timespan(time: str) -> float:
