@@ -228,7 +228,7 @@ class CmdOption:
             self.completion_hints = self.type_scheme.completion_hints
         self.is_flag = is_flag is True or (is_flag is None and type(self.type_scheme) in [Bool, BoolOrNone])  # type: bool
         """ Is this option flag like? """
-        if self.is_flag:
+        if self.is_flag and settings_key is not None:
             self.completion_hints = None
             self.short = None
 

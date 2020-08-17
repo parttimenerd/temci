@@ -48,15 +48,19 @@ def exec(dir: str, cmd: str):
         raise ExecError(cmd, str(out), str(err))
 
 
-def make_scripts():
+def make_scripts(build_kernel_modules: bool = False):
     """
     Builds the C and C++ code inside the scripts directory.
+
+    :param build_kernel_modules: build the kernel modules for disabling the CPU caches too
     """
     try:
         exec("rusage", "make")
     except ExecError as err:
         logging.error(err)
         exit(1)
+    if not build_kernel_modules:
+        return
     try:
         exec("cpu_cache/disable", "make")
         exec("cpu_cache/flush", "make")

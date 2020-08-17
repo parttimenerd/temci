@@ -165,7 +165,11 @@ misc_commands = {
                           run_options["common"])
         }
     },
-    "clean": CmdOptionList()
+    "clean": CmdOptionList(),
+    "setup": CmdOptionList(CmdOption("build_kernel_modules", type_scheme=Bool() // Default(False)
+                                     // Description("Build the rusage helper program and the "
+                                                    "kernel modules used for disabling "
+                                                    "the CPU caches (with the --build_kernel_modules option)")))
 }
 misc_commands_description = {
     "completion": {
@@ -961,14 +965,15 @@ def cli_with_error_catching():
 
 
 @cli.command(short_help=command_docs["setup"])
-def setup():
-    temci__setup()
+@cmd_option(misc_commands["setup"])
+def setup(**kwargs):
+    temci__setup(**kwargs)
 
 
-@document_func(command_docs["setup"])
-def temci__setup():
+@document_func(command_docs["setup"], misc_commands["setup"])
+def temci__setup(build_kernel_modules: bool):
     from temci.setup.setup import make_scripts
-    make_scripts()
+    make_scripts(build_kernel_modules)
 
 
 if sphinx_doc():

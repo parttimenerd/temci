@@ -378,7 +378,7 @@ class DisableSwap(AbstractRunDriverPlugin):
 class DisableCPUCaches(AbstractRunDriverPlugin):
     """
     Disable the L1 and L2 caches on x86 and x86-64 architectures.
-    Uses a small custom kernel module (be sure to compile it via 'temci setup').
+    Uses a small custom kernel module (be sure to compile it via 'temci setup --build_kernel_modules').
 
     :warning: slows program down significantly and has probably other weird consequences
     :warning: this is untested

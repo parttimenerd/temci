@@ -782,7 +782,7 @@ Requires root privileges.
 disable_cpu_caches
 ~~~~~~~~~~~~~~~~~~
 Disables the L1 and L2 caches on x86 and x86-64 architectures.
-It uses a small custom kernel module (be sure to compile it via ``temci setup`` after install the appropriate
+It uses a small custom kernel module (be sure to compile it via ``temci setup --build_kernel_modules`` after install the appropriate
 ``kernel-devel`` package, see `Installation <installation.html>`_).
 
 *Attention*: It will slow down your system by orders of magnitude, giving you essentially a Pentium I like processor.
@@ -863,7 +863,7 @@ flush_cpu_caches
 Write back and flush Internal caches; initiate writing-back and flushing of external caches
 (see `WBINVD <https://www.felixcloutier.com/x86/wbinvd>`_).
 
-It uses a small custom kernel module (be sure to compile it via ``temci setup`` after install the appropriate
+It uses a small custom kernel module (be sure to compile it via ``temci setup --build_kernel_modules`` after install the appropriate
 ``kernel-devel`` package, see `Installation <installation.html>`_).
 
 nice
