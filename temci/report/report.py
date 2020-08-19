@@ -343,10 +343,12 @@ class HTMLReporter2(AbstractReporter):
                 shutil.rmtree(self.misc["out"])
             else:
                 return
-        resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
-        shutil.copytree(resources_path, self.misc["out"])
-        os.chmod(self.misc["out"], 0o755)
-        chown(self.misc["out"])
+        os.makedirs(self.misc["out"])
+        for folder in ["js", "css"]:
+            resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources/" + folder))
+            shutil.copytree(resources_path, self.misc["out"] + "/" + folder)
+            os.chmod(self.misc["out"] + "/" + folder, 0o755)
+            chown(self.misc["out"] + "/" + folder)
         runs = self.stats_helper.valid_runs()
         self._percent_format = self.misc["percent_format"]
         self._float_format = self.misc["float_format"]
@@ -357,15 +359,14 @@ class HTMLReporter2(AbstractReporter):
     <head>
         <title>Benchmarking report</title>
         <meta charset="UTF-8"/>
-        <link rel="stylesheet" src="jquery.ui.all.css">
-        <link rel="stylesheet" src="jquery.tocify.css">
-        <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="style.css">
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
-        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
-        <script src="jquery-ui-1.9.1.custom.min.js"></script>
-        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_SVG"></script>
-        <script src="script.js"></script>
+        <link rel="stylesheet" src="css/jquery.ui.all.css">
+        <link rel="stylesheet" src="css/jquery.tocify.css">
+        <link rel="stylesheet" href="css/bootstrap.min.css">
+        <link rel="stylesheet" href="css/style.css">
+        <script src="js/jquery.min.js"></script>
+        <script src="js/bootstrap.min.js"></script>
+        <script src="js/jquery-ui-1.9.1.custom.min.js"></script>
+        <script src="js/script.js"></script>
     </head>
     <body style="font-family: sans-serif;">
         <a href="" id="hidden_link" style="display: none;"></a>
@@ -388,6 +389,7 @@ class HTMLReporter2(AbstractReporter):
           </div>
         </div>
         {self._app_html}
+        <script src="js/custom-mathjax.min.js"></script>
         <script>
             $(function () {{
                 $('[data-toggle="popover"]').popover({{"content": function(){{
