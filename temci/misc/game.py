@@ -226,7 +226,7 @@ class BaseObject:
     def from_config_dict(cls, *args) -> 'BaseObject':
         pass
 
-    def boxplot_html(self, base_file_name: str, singles: t.List[SingleProperty]) -> str:
+    def boxplot_html(self, base_file_name: str, singles: t.List[SingleProperty], zoom_in: bool = False) -> str:
         sp = SinglesProperty(singles, self.name)
         sp.boxplot(FIG_WIDTH, max(len(singles) * FIG_HEIGHT_PER_ELEMENT, 6))
         d = sp.store_figure(base_file_name, fig_width=FIG_WIDTH, fig_height=max(len(singles) * FIG_HEIGHT_PER_ELEMENT, 4),
@@ -243,12 +243,13 @@ class BaseObject:
             """.format("" if USABLE_WITH_SERVER else "file:", d[format].split("/")[-1], format)
         return html + "</p>"
 
-    def boxplot_html_for_data(self, name: str, base_file_name: str, data: t.Dict[str, t.List[float]]):
+    def boxplot_html_for_data(self, name: str, base_file_name: str, data: t.Dict[str, t.List[float]],
+                              zoom_in: bool = False):
         singles = []
         for var in data:
             run_data = RunData({name: data[var]}, {"description": str(var)})
             singles.append(SingleProperty(Single(run_data), run_data, name))
-        return self.boxplot_html(base_file_name, singles)
+        return self.boxplot_html(base_file_name, singles, zoom_in)
 
     def get_x_per_impl(self, property: StatProperty) -> t.Dict[str, t.List[float]]:
         """

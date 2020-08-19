@@ -308,7 +308,7 @@ class HTMLReporter(AbstractReporter):
     "gen_tex": Bool() // Default(True) // Description("Generate simple latex versions of the plotted figures?"),
     "gen_pdf": Bool() // Default(False) // Description("Generate pdf versions of the plotted figures?"),
     "gen_xls": Bool() // Default(False) // Description("Generate excel files for all tables"),
-    "show_zoomed_out": Bool() // Default(False)
+    "show_zoomed_out": Bool() // Default(True)
                        // Description("Show zoomed out (x min = 0) figures in the extended summaries?"),
     "percent_format": Str() // Default("{:5.2%}") // Description("Format string used to format floats as percentages"),
     "float_format": Str() // Default("{:5.2e}") // Description("Format string used to format floats"),
@@ -351,6 +351,7 @@ class HTMLReporter2(AbstractReporter):
         self._percent_format = self.misc["percent_format"]
         self._float_format = self.misc["float_format"]
         self._hide_stat_warnings = self.misc["hide_stat_warnings"]
+        self.zoom_in = not self.misc["show_zoomed_out"]
         self._app_html = ""
         html = """<html lang="en">
     <head>
@@ -504,9 +505,9 @@ class HTMLReporter2(AbstractReporter):
         def format_hw_info_section(name: str, content: t.List[t.Tuple[str, str]]) -> str:
             return """<h3>{}</h3>
             <table class="table">{}</table>"""\
-                .format(name, "\n".join("<tr><th>{}</th><td>{}</td></tr>".format(n.upper(), v) for n, v in content))
+                .format(name, "\n".join("<tr><th>{}</th><td>{}</td></tr>".format(n[0].upper() + n[1:], v) for n, v in content))
         if self.stats_helper.env_info:
-            return """<h2 id="hw_info" class="page-header">Hardware info</h2>
+            return """<h2 id="env_info" class="page-header">Environment info</h2>
             {}
             """.format("\n".join(format_hw_info_section(name, content) for name, content in self.stats_helper.env_info))
         return ""
@@ -641,21 +642,21 @@ class HTMLReporter2(AbstractReporter):
                                                              extended=extended)
 
     def _short_summary_of_single_property(self, obj: SingleProperty, use_modals: bool = False, extended: bool = False):
-        filenames = self._histogram(obj, big=extended, zoom_in=True)
+        filenames = self._histogram(obj, big=extended, zoom_in=self.zoom_in)
         html = self._filenames_to_img_html(filenames)
-        if extended and self.misc["show_zoomed_out"]:
-            html += self._filenames_to_img_html(self._histogram(obj, big=extended, zoom_in=False))
+        #if extended and not self.zoom_in:
+        #    html += self._filenames_to_img_html(self._histogram(obj, big=extended, zoom_in=False))
         html += self._short_summary_table_for_single_property([obj], objs_in_cols=True, use_modal=use_modals,
                                                               extended=extended)
         return html
 
     def _short_summary_of_tested_pair_property(self, obj: TestedPairProperty, extended: bool = False,
                                                use_modals: bool = False):
-        filenames = self._histogram(obj, big=extended, zoom_in=True)
+        filenames = self._histogram(obj, big=extended, zoom_in=self.zoom_in)
         html = self._filenames_to_img_html(filenames)
-        if extended and self.misc["show_zoomed_out"]:
-            filenames = self._histogram(obj, big=extended, zoom_in=False)
-            html += self._filenames_to_img_html(filenames)
+        # if extended and self.misc["show_zoomed_out"]:
+        #     filenames = self._histogram(obj, big=extended, zoom_in=self.zoom_in)
+        #     html += self._filenames_to_img_html(filenames)
         ci_popover = _Popover(self, "Confidence interval", """
                         The chance is \\[ 1 - \\alpha = {p} \\] that the mean difference
                         \\begin{{align}} &\\text{{{first}}} - \\text{{{second}}} \\\\ =& {diff} \\end{{align}}
@@ -1228,16 +1229,17 @@ class HTMLReporter2(AbstractReporter):
                 "img": True,
                 "tex": self.misc["gen_tex"],
                 "pdf": self.misc["gen_pdf"],
-                "tex_sa": self.misc["gen_tex"]
+                "tex_sa": self.misc["gen_tex"],
+                "zoom_in": self.zoom_in
             }
         return self._boxplot_cache[filename]
 
     def _process_boxplot_cache_entry(self, entry: t.Dict[str, str]):
         height = self.misc["boxplot_height"] * len(entry["obj"].singles) + 2
         entry["obj"].boxplot(fig_width=entry["fig_width"],
-                             fig_height=height)
+                             fig_height=height, zoom_in=entry["zoom_in"])
         entry["obj"].store_figure(entry["filename"], fig_width=entry["fig_width"], img=entry["img"], tex=entry["tex"],
-                              pdf=entry["pdf"], tex_standalone=entry["tex_sa"], fig_height=height)
+                              pdf=entry["pdf"], tex_standalone=entry["tex_sa"], fig_height=height, zoom_in=entry["zoom_in"])
         logging.debug("Plotted {}, fig_width={}cm, img={}, tex={}, pdf={}"
                      .format(entry["obj"], entry["fig_width"],
                      entry["img"], entry["tex"], entry["pdf"]))
@@ -1247,7 +1249,7 @@ class HTMLReporter2(AbstractReporter):
     _hist_async_img_cache = {}
     _hist_async_misc_cache = {}
 
-    def _histogram(self, obj: BaseStatObject, fig_width: int = None, zoom_in: bool = True,
+    def _histogram(self, obj: BaseStatObject, fig_width: int = None, zoom_in: bool = False,
                    big: bool = False) -> t.Dict[str, str]:
         if fig_width is None:
             fig_width = self.misc["fig_width_big"] if big else self.misc["fig_width_small"]

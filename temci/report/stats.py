@@ -372,7 +372,7 @@ class BaseStatObject:
 
     def store_figure(self, filename: str, fig_width: float, fig_height: float = None,
                      pdf: bool = True, tex: bool = True, tex_standalone: bool = True,
-                     img: bool = True) -> t.Dict[str, str]:
+                     img: bool = True, zoom_in: bool = False) -> t.Dict[str, str]:
         import matplotlib.pyplot as plt
         """
         Stores the current figure in different formats and returns a dict, that maps
@@ -393,7 +393,8 @@ class BaseStatObject:
         if img:
             ret_dict["img"] = self._store_as_image(filename + self.img_filename_ending, fig_width, fig_height)
         if tex:
-            ret_dict["tex"] = self._store_as_tex(filename + ".tex", fig_width, fig_height, standalone=False)
+            ret_dict["tex"] = self._store_as_tex(filename + ".tex", fig_width, fig_height, standalone=False,
+                                                 zoom_in=zoom_in)
         if pdf:
             if util.has_pdflatex():
                 ret_dict["pdf"] = self._store_as_pdf(filename + ".pdf", fig_width, fig_height)
@@ -401,7 +402,7 @@ class BaseStatObject:
                 util.warn_for_pdflatex_non_existence_once()
         if tex_standalone:
             ret_dict["tex_standalone"] = self._store_as_tex(filename + "____standalone.tex", fig_width,
-                                                            fig_height, standalone=True)
+                                                            fig_height, standalone=True, zoom_in=zoom_in)
         if self._fig is not None:
             plt.close('all')
         return ret_dict
@@ -429,7 +430,8 @@ class BaseStatObject:
         self.reset_plt()
         return os.path.realpath(filename)
 
-    def _store_as_tex(self, filename: str, fig_width: float, fig_height: float, standalone: bool) -> str:
+    def _store_as_tex(self, filename: str, fig_width: float, fig_height: float, standalone: bool,
+                      zoom_in: bool = False) -> str:
         """
         Stores the current figure as a latex histrogram plot in a tex file. Needs pgfplots in latex.
         Works independently of matplotlib.
@@ -438,6 +440,7 @@ class BaseStatObject:
         :param fig_width: width of the figure in cm
         :param fig_height: height of the figure in cm
         :param standalone: surround the tex code with an standalone document environment
+        :param zoom_in: zoom in to the values
         """
         if not filename.endswith(".tex"):
             filename += ".tex"
@@ -590,10 +593,10 @@ class BaseStatObject:
             df = pd.DataFrame(series_dict, columns=sorted(list(series_dict.keys())))
         df_t = df.T
         show_legend = show_legend or (show_legend is None and len(df_t) > 1)
-        min_xval = min(map(min, df_t.values)) if zoom_in else 0
+        min_xval = min(map(min, df_t.values))
         max_xval = max(map(max, df_t.values))
         if type is None:
-            type = 'bar' if len(df_t) == 1 else 'stepfilled'
+            type = 'stepfilled' # 'bar' if len(df_t) == 1 else 'stepfilled'
         bin_count = self._freedman_diaconis_bins(*df_t.values)
         bins = np.linspace(min_xval, max_xval, bin_count)
         self.reset_plt()
@@ -603,7 +606,7 @@ class BaseStatObject:
             ymax = max(ymax, max(hist))
 
         self._fig = plt.figure(figsize=self._fig_size_cm_to_inch(fig_width, fig_height))
-        plt.xlim(min_xval, max_xval)
+        plt.xlim(min_xval if zoom_in else 0, max_xval * 1.05)
         plt.ylim(0, ymax * (1.2 if show_legend else 1.05))
         plt.hist(df.values, bins=bin_count,
                  range=(min_xval, max_xval), histtype=type, align=align,
@@ -1317,10 +1320,10 @@ class SinglesProperty(BaseStatObject):
         :param property: regarded measured property
         """
         super().__init__()
-        self.singles = singles # type: t.List[SingleProperty]
+        self.singles = singles  # type: t.List[SingleProperty]
         """ Compared single property objects """
         if isinstance(singles, List(T(Single))):
-            self.singles = [single.properties[property] for single in singles]
+            self.singles = [single.properties[property] for single in singles]  # type: t.List[SingleProperty]
         self.property = property
         """ Regarded measured property """
 
@@ -1337,7 +1340,7 @@ class SinglesProperty(BaseStatObject):
             data[name] = single.data[0:min_len]
         return pd.DataFrame(data, columns=columns)
 
-    def boxplot(self, fig_width: Number, fig_height: Number = None):
+    def boxplot(self, fig_width: Number, fig_height: Number = None, zoom_in: bool = False):
         """
         Creates a (horizontal) box plot comparing all single object for a given property.
 
@@ -1353,8 +1356,11 @@ class SinglesProperty(BaseStatObject):
         self._fig = plt.figure(figsize=self._fig_size_cm_to_inch(fig_width, fig_height))
         df = self.get_data_frame()
         sns.boxplot(data=df, orient="h")
+        if not zoom_in:
+            plt.xlim(0, max(s.max() * 1.05 for s in self.singles))
 
-    def _store_as_tex(self, filename: str, fig_width: Number, fig_height: Number, standalone: bool):
+    def _store_as_tex(self, filename: str, fig_width: Number, fig_height: Number, standalone: bool,
+                      zoom_in: bool = False):
         """
         Stores the current figure as latex in a tex file.
         Works independently of matplotlib.
@@ -1380,13 +1386,14 @@ class SinglesProperty(BaseStatObject):
     \\begin{{axis}}[
     cycle list name=auto,
     xlabel={xlabel},
-    ytick={{{yticks}}},
+    ytick={{{yticks}}},{xmin}
     yticklabels={{{yticklabels}}},
     max space between ticks=50pt
     ]""".format(
             width=fig_width, height=fig_height, xlabel=self.property,
             yticklabels="\\\\".join(reversed(descrs)) + "\\\\",
-            yticks=",".join(map(str, range(1, len(descrs) + 1)))
+            yticks=",".join(map(str, range(1, len(descrs) + 1))),
+            xmin="\n    xmin=0," if not zoom_in else ""
         )
         for single in reversed(self.singles):
             q1, q2, q3 = single.quartiles()
