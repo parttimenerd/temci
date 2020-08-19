@@ -356,6 +356,7 @@ class HTMLReporter2(AbstractReporter):
         html = """<html lang="en">
     <head>
         <title>Benchmarking report</title>
+        <meta charset="UTF-8"/>
         <link rel="stylesheet" src="jquery.ui.all.css">
         <link rel="stylesheet" src="jquery.tocify.css">
         <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
