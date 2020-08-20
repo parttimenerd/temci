@@ -1,5 +1,6 @@
 import locale
 from enum import Enum
+import datetime
 
 from temci.utils.number import FNumber
 from temci.utils.plugin import load_plugins
@@ -47,7 +48,7 @@ load_plugins()
 
 
 @click.group(epilog="""
-temci (version {})  Copyright (C) 2019 Johannes Bechberger
+temci (version {})  Copyright (C) {} Johannes Bechberger
 
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
@@ -59,7 +60,7 @@ your system needs to be rebooted to be usable again.
 
 Plugins are loaded from `~/.temci` and from the environment
 variable `TEMCI_PLUGIN_PATH` (colon separated paths).
-""".format(temci.scripts.version.version))
+""".format(temci.scripts.version.version, datetime.datetime.now().year))
 def cli():
     if "TEMCI_ENV" in os.environ:
         Settings()["env"] = json.loads(os.getenv("TEMCI_ENV"))
