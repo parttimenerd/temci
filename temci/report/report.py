@@ -319,7 +319,8 @@ class HTMLReporter(AbstractReporter):
     "force_override": Bool() // Default(False)
                                 // Description("Override the contents of the output directory if it already exists?"),
     "hide_stat_warnings": Bool() // Default(False)
-                                // Description("Hide warnings and errors related to statistical properties")
+                                // Description("Hide warnings and errors related to statistical properties"),
+    "local": Bool() // Default(False) // Description("Use local versions of all third party resources")
 }))
 class HTMLReporter2(AbstractReporter):
     """
@@ -344,16 +345,40 @@ class HTMLReporter2(AbstractReporter):
             else:
                 return
         os.makedirs(self.misc["out"])
+        if self.misc["local"]:
+            for folder in ["js", "css"]:
+                resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources/" + folder))
+                shutil.copytree(resources_path, self.misc["out"] + "/" + folder)
+        else:
+            resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources"))
+            os.makedirs(self.misc["out"] + "/js")
+            os.makedirs(self.misc["out"] + "/css")
+            shutil.copy(resources_path + "/js/script.js", self.misc["out"] + "/js")
+            shutil.copy(resources_path + "/css/style.css", self.misc["out"] + "/css")
         for folder in ["js", "css"]:
-            resources_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "report_resources/" + folder))
-            shutil.copytree(resources_path, self.misc["out"] + "/" + folder)
             os.chmod(self.misc["out"] + "/" + folder, 0o755)
             chown(self.misc["out"] + "/" + folder)
+
         runs = self.stats_helper.valid_runs()
         self._percent_format = self.misc["percent_format"]
         self._float_format = self.misc["float_format"]
         self._hide_stat_warnings = self.misc["hide_stat_warnings"]
         self.zoom_in = not self.misc["show_zoomed_out"]
+
+        deps = {
+            "css/jquery.ui.all.css":
+             "https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.9.1/themes/base/jquery.ui.all.min.css",
+            "js/jquery.tocify.js":
+             "https://cdnjs.cloudflare.com/ajax/libs/jquery.tocify/1.9.0/javascripts/jquery.tocify.min.js",
+            "css/jquery.tocify.css":
+             "https://cdnjs.cloudflare.com/ajax/libs/jquery.tocify/1.9.0/stylesheets/jquery.tocify.min.css",
+            "js/bootstrap.min.js": "https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/js/bootstrap.min.js",
+            "css/bootstrap.min.css": "https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/css/bootstrap.min.css",
+            "js/jquery.min.js": "https://cdnjs.cloudflare.com/ajax/libs/jquery/1.12.4/jquery.min.js",
+            "js/custom-mathjax.min.js": "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_SVG",
+            "js/jquery-ui-1.9.1.custom.min.js": "https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.9.1/jquery.ui.widget.min.js"
+        }
+
         self._app_html = ""
         html = """<html lang="en">
     <head>
@@ -409,6 +434,9 @@ class HTMLReporter2(AbstractReporter):
     </body>
 </html>
         """
+        if not self.misc["local"]:
+            for dep, repl in deps.items():
+                html = html.replace(dep, repl)
         if self.misc["gen_pdf"] and not util.has_pdflatex():
             util.warn_for_pdflatex_non_existence_once()
             self.misc["gen_pdf"] = False
