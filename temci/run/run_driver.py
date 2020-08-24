@@ -774,6 +774,7 @@ class ExecRunDriver(AbstractRunDriver):
 
             try:
                 t = time.time()
+                logging.debug("Running {} in directory {}".format(repr(executed_cmd), cwd))
                 proc = subprocess.Popen(["/bin/sh", "-c", executed_cmd],
                                         stdout=subprocess.PIPE if redirect_out else None,
                                         stderr=subprocess.PIPE if redirect_out else None,
@@ -791,6 +792,13 @@ class ExecRunDriver(AbstractRunDriver):
                         out, err = proc.communicate(timeout=timeout if timeout > -1 else None)
                     t = time.time() - t
                     rusage = proc.rusage
+                    logging.debug("""
+===STDOUT===
+{}
+===END STDOUT===
+===STDERR===
+{}
+===END STDERR===""".format(str(out), str(err)))
                 if redirect_out:
                     ExecValidator(block["validator"]).validate(cmd, clean_output(out), clean_output(err), proc.poll())
                 # if proc.poll() > 0:
