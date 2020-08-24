@@ -168,3 +168,8 @@ if is_perf_available():
                 }
             ]
         }).yaml_contents["run_output.yaml"][0]["data"]
+
+
+def test_runs_option_broken():
+    assert len(run_temci("short exec 'exit 0' --min_runs 2 --max_runs 2 --runs 3")
+               .yaml_contents["run_output.yaml"][0]["data"]["stime"]) == 3

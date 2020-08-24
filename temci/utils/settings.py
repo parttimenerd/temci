@@ -202,6 +202,7 @@ class Settings(metaclass=Singleton):
         }
         logger.setLevel(mapping[log_level])
         self._update_doc()
+        self.apply_override_actions()
 
     def _update_doc(self):
         """
@@ -353,13 +354,14 @@ class Settings(metaclass=Singleton):
         """
         self._validate_settings_dict(self.prefs)
 
-    def set(self, key: str, value, validate: bool = True):
+    def set(self, key: str, value, validate: bool = True, setup: bool = True):
         """
         Sets the setting key to the passed new value
 
         :param key: settings key
         :param value: new value
         :param validate: validate after the setting operation
+        :param setup: call the setup function
         :raises: SettingsError if the setting isn't valid
         """
         tmp = copy.deepcopy(self.prefs)
@@ -370,7 +372,8 @@ class Settings(metaclass=Singleton):
             if not res:
                 self.prefs = tmp
                 raise SettingsError(str(res))
-        self._setup()
+        if setup:
+            self._setup()
 
     def __setitem__(self, key: str, value):
         """
@@ -531,3 +534,9 @@ class Settings(metaclass=Singleton):
         if path[-1] in tmp_type and isinstance(tmp_type[path[-1]], Obsolete):
             return tmp_type[subkey]
         return None
+
+    def apply_override_actions(self):
+        """ Applies actions like overriding max_runs with runs """
+        if self["run/runs"] > -1:
+            self.set("run/max_runs", self["run/runs"], setup=False)
+            self.set("run/min_runs", self["run/runs"], setup=False)
