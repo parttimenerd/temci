@@ -144,7 +144,8 @@ class Settings(metaclass=Singleton):
                                         "of the blocks does not change"),
             "only_build": Bool() // Default(False) // Description("Only build"),
             "abort_after_build_error": Bool() // Default(True)
-                                    // Description("Abort after the first failing build")
+                                    // Description("Abort after the first failing build"),
+            "watch": Bool() // Default(False) // Description("Show the report continously")
         }),
         "build": Dict({
             "in": Str() // Default("build.yaml") // Description("Input file with the program blocks to build")

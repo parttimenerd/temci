@@ -1,11 +1,11 @@
 import copy
 import random
 import traceback
-
-import click
+from pprint import pprint
 
 from temci.build.build_processor import BuildProcessor
 from temci.build.builder import Builder, BuildError
+from temci.utils.curses import Screen
 from temci.utils.sudo_utils import chown
 from temci.utils.util import join_strs, in_standalone_mode, parse_timespan
 
@@ -18,7 +18,7 @@ import temci.run.run_driver_plugin
 from temci.report.rundata import RunDataStatsHelper, RunData
 from temci.utils.settings import Settings
 from temci.report.report_processor import ReporterRegistry
-import time, logging, humanfriendly, sys, math, os
+import time, logging, humanfriendly, sys, math, os, click
 import typing as t
 import yaml
 
@@ -209,21 +209,43 @@ class RunProcessor:
             start_label = discard_label if self.discarded_runs > 0 else label
             label_format = "{:32s}"
             if show_progress:
+                run_count = [0]
+
+                def bench(run: int) -> bool:
+                    if run < self.discarded_runs:
+                        runs.label = label_format.format(discard_label)
+                        self._benchmarking_block_run(block_size=1, discard=True)
+                    else:
+                        if self._finished() or all(b.max_runs < run_count[0] for b in self.run_blocks):
+                            return False
+                        self._benchmarking_block_run(run=run_count[0])
+                        run_count[0] += 1
+                    if run == self.discarded_runs - 1:
+                        runs.label = label_format.format(label)
+                    return True
+                import click
                 with click.progressbar(range(0, self.max_runs + self.discarded_runs),
                                        label=label_format.format(start_label),
                                        file=None if self.pool.run_driver.runs_benchmarks else "-") as runs:
-                    run_count = 0
-                    for run in runs:
-                        if run < self.discarded_runs:
-                            runs.label = label_format.format(discard_label)
-                            self._benchmarking_block_run(block_size=1, discard=True)
-                        else:
-                            if self._finished() or all(b.max_runs < run_count for b in self.run_blocks):
+                    runs.short_limit = 0
+                    if Settings()["run/watch"]:
+                        with Screen(scroll=True, keep_first_lines=1) as f:
+                            runs.file = f if self.pool.run_driver.runs_benchmarks else "-"
+                            import click._termui_impl
+                            click._termui_impl.BEFORE_BAR = "\r"
+                            click._termui_impl.AFTER_BAR = "\n"
+                            for run in runs:
+                                f.advance_line()
+                                print(ReporterRegistry.get_for_name("console", self.stats_helper).report(
+                                    with_tester_results=False, to_string=True), file=f)
+                                f.flush2()
+                                f.reset()
+                                if not bench(run):
+                                    break
+                    else:
+                        for run in runs:
+                            if not bench(run):
                                 break
-                            self._benchmarking_block_run(run=run_count)
-                            run_count += 1
-                        if run == self.discarded_runs - 1:
-                            runs.label = label_format.format(label)
             else:
                 time_per_run = self._make_discarded_runs()
                 last_round_time = time.time()
