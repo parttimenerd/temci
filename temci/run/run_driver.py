@@ -10,7 +10,9 @@ import random
 import re
 import shlex
 import shutil
+import stat
 import subprocess
+import tempfile
 import time
 import typing as t
 from collections import namedtuple
@@ -743,62 +745,71 @@ class ExecRunDriver(AbstractRunDriver):
         if cmd.count("$SUDO$") == 1:
             cmd += " $SUDO$"
         pre, center, post = cmd.split("$SUDO$")
-        if bench_as_different_user():
-            cmd = pre + " sudo -u {} -E  PATH={} sh -c {}".format(get_bench_user(),
-                                                           shlex.quote(Settings()["env"]["PATH"]),
-                                                           shlex.quote(center)) + post
-        else:
-            cmd = pre + " " + center + " " + post
-        arg = self.misc_settings["argument"] if "argument" in self.misc_settings else ""
-        cmd = cmd.replace("&SUDO&", "$SUDO$").replace("&&", "&").replace("$ARGUMENT", arg)
-        cwd = block["cwds"][rand_index]
-        executed_cmd = block["cmd_prefix"] + [cmd]
-        if cpuset is not None and has_root_privileges():
-            executed_cmd.insert(0, "cset proc --move --force --pid $$ {} > /dev/null" \
-                                .format(cpuset.get_sub_set(set_id)))
-        env = get_env_setting() if bench_as_different_user() else os.environ.copy()
-        env.update(block["env"])
-        env.update({'LC_NUMERIC': 'en_US.UTF-8'})
-        # print(env["PATH"])
-        executed_cmd = "; ".join(executed_cmd)
-        proc = None
-
+        cmd_tmp_file = tempfile.NamedTemporaryFile(delete=False)
         try:
-            t = time.time()
-            proc = subprocess.Popen(["/bin/sh", "-c", executed_cmd],
-                                    stdout=subprocess.PIPE if redirect_out else None,
-                                    stderr=subprocess.PIPE if redirect_out else None,
-                                    universal_newlines=True,
-                                    cwd=cwd,
-                                    env=env, )
-            # preexec_fn=os.setsid)
-            rusage = None
-            with proc_wait_with_rusage():
-                if not redirect_out:
-                    proc.wait(timeout=timeout if timeout > -1 else None)
-                    out = "<not redirected>"
-                    err = out
-                else:
-                    out, err = proc.communicate(timeout=timeout if timeout > -1 else None)
-                t = time.time() - t
-                rusage = proc.rusage
-            if redirect_out:
-                ExecValidator(block["validator"]).validate(cmd, clean_output(out), clean_output(err), proc.poll())
-            # if proc.poll() > 0:
-            #    msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
-            # logging.error(msg)
-            #    raise BenchmarkingError(msg)
-            return self.ExecResult(time=t, stderr=str(err), stdout=str(out), rusage=rusage)
-        except Exception as ex:
-            if proc is not None:
-                try:
-                    proc.terminate()
-                    # os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-                except BaseException as err:
-                    pass
-            if isinstance(ex, subprocess.TimeoutExpired):
-                raise TimeoutException(executed_cmd, timeout, str(out), str(err), proc.returncode)
-            raise
+            arg = self.misc_settings["argument"] if "argument" in self.misc_settings else ""
+            center = center.replace("&SUDO&", "$SUDO$").replace("&&", "&").replace("$ARGUMENT", arg)
+            cmd_tmp_file.write(center.encode())
+            os.chmod(cmd_tmp_file.name, os.stat(cmd_tmp_file.name).st_mode | stat.S_IEXEC)
+            cmd_tmp_file.flush()
+            cmd_tmp_file.close()
+            if bench_as_different_user():
+                cmd = pre + " sudo -u {} -E  PATH={} sh {}".format(get_bench_user(),
+                                                               shlex.quote(Settings()["env"]["PATH"]),
+                                                               cmd_tmp_file.name) + post
+            else:
+                cmd = pre + " " + cmd_tmp_file.name + " " + post
+
+            cwd = block["cwds"][rand_index]
+            executed_cmd = block["cmd_prefix"] + [cmd]
+            if cpuset is not None and has_root_privileges():
+                executed_cmd.insert(0, "cset proc --move --force --pid $$ {} > /dev/null" \
+                                    .format(cpuset.get_sub_set(set_id)))
+            env = get_env_setting() if bench_as_different_user() else os.environ.copy()
+            env.update(block["env"])
+            env.update({'LC_NUMERIC': 'en_US.UTF-8'})
+            # print(env["PATH"])
+            executed_cmd = "; ".join(executed_cmd)
+            proc = None
+
+            try:
+                t = time.time()
+                proc = subprocess.Popen(["/bin/sh", "-c", executed_cmd],
+                                        stdout=subprocess.PIPE if redirect_out else None,
+                                        stderr=subprocess.PIPE if redirect_out else None,
+                                        universal_newlines=True,
+                                        cwd=cwd,
+                                        env=env, )
+                # preexec_fn=os.setsid)
+                rusage = None
+                with proc_wait_with_rusage():
+                    if not redirect_out:
+                        proc.wait(timeout=timeout if timeout > -1 else None)
+                        out = "<not redirected>"
+                        err = out
+                    else:
+                        out, err = proc.communicate(timeout=timeout if timeout > -1 else None)
+                    t = time.time() - t
+                    rusage = proc.rusage
+                if redirect_out:
+                    ExecValidator(block["validator"]).validate(cmd, clean_output(out), clean_output(err), proc.poll())
+                # if proc.poll() > 0:
+                #    msg = "Error executing " + cmd + ": "+ str(err) + " " + str(out)
+                # logging.error(msg)
+                #    raise BenchmarkingError(msg)
+                return self.ExecResult(time=t, stderr=str(err), stdout=str(out), rusage=rusage)
+            except Exception as ex:
+                if proc is not None:
+                    try:
+                        proc.terminate()
+                        # os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                    except BaseException as err:
+                        pass
+                if isinstance(ex, subprocess.TimeoutExpired):
+                    raise TimeoutException(executed_cmd, timeout, str(out), str(err), proc.returncode)
+                raise
+        finally:
+            os.remove(cmd_tmp_file.name)
 
     def teardown(self):
         super().teardown()
