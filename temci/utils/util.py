@@ -329,7 +329,10 @@ def parse_timespan(time: str) -> float:
     :param time: time span expression, mixture of different time units is possible
     :return: time span in seconds
     """
-    return pytimeparse.parse(time) if time != "-1" else -1
+    try:
+        return float(time)
+    except ValueError:
+        return pytimeparse.parse(time) if time != "-1" else -1
 
 
 @functools.lru_cache()

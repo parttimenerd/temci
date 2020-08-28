@@ -25,6 +25,7 @@ class Screen:
         self.scr.keypad(True)
         self.current_line = 0
         self.buffer = [""]  # type: List[str]
+        self._shown_buffer = [""]  # type: List[str]
         self.keep_first_lines = keep_first_lines
         self.x = 0
         self.y = self.keep_first_lines
@@ -39,6 +40,7 @@ class Screen:
             while True:
                 c = self.scr.getch()
                 curses.flushinp()
+                updated = True
                 if c == curses.KEY_LEFT:
                     self.move_cursor(x_offset=-1)
                 elif c == curses.KEY_RIGHT:
@@ -47,12 +49,18 @@ class Screen:
                     self.move_cursor(y_offset=-1)
                 elif c == curses.KEY_DOWN or c == curses.KEY_SF:
                     self.move_cursor(y_offset=1)
+                else:
+                    updated = False
                 time.sleep(0.05)
-                self.flush()
+                if updated:
+                    self.flush2()
         return func
 
     def __enter__(self):
         return self
+
+    def copy_over(self):
+        self._shown_buffer = self.buffer
 
     def reset(self):
         self.current_line = 0
@@ -90,17 +98,18 @@ class Screen:
         """ Refreshes the screen """
         self.scr.refresh()
         max_y, max_x = self.scr.getmaxyx()
-        for y in range(0, min(max_y, self.keep_first_lines, self.current_line)):
-            self.scr.addstr(0, y, self.buffer[y][0:max_x].replace("\\[", ""))
-        end = max(0, min(self.current_line + 1, max_y - self.keep_first_lines + self.y))
+        for y in range(0, min(max_y, self.keep_first_lines, len(self._shown_buffer))):
+            self.scr.addstr(0, y, self._shown_buffer[y][0:max_x].replace("\\[", ""))
+        end = max(0, min(len(self._shown_buffer) - 1, max_y - self.keep_first_lines + self.y))
         for y in range(self.y, end):
             self.scr.addstr(y + self.keep_first_lines - self.y, 0, " " * max_x)
-            self.scr.addstr(y + self.keep_first_lines - self.y, 0, self.buffer[y][self.x:min(len(self.buffer[y]) - self.x, max_x) + self.x])
+            self.scr.addstr(y + self.keep_first_lines - self.y, 0, self._shown_buffer[y][self.x:min(len(self._shown_buffer[y]) - self.x, max_x) + self.x])
         for y in range(end + self.keep_first_lines - self.y, max_y):
             try:
                 self.scr.addstr(y, 0, " " * max_x)
             except:
                 pass
+
     def move_cursor(self, x_offset: int = 0, y_offset: int = 0):
         self.x = max(0, self.x + x_offset)
         self.y = max(self.keep_first_lines, self.y + y_offset)

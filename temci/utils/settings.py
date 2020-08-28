@@ -145,7 +145,9 @@ class Settings(metaclass=Singleton):
             "only_build": Bool() // Default(False) // Description("Only build"),
             "abort_after_build_error": Bool() // Default(True)
                                     // Description("Abort after the first failing build"),
-            "watch": Bool() // Default(False) // Description("Show the report continously")
+            "watch": Bool() // Default(False) // Description("Show the report continuously"),
+            "watch_every": PositiveInt() // Default(1)
+                            // Description("Update the screen nth run (less updates are better for benchmarks)")
         }),
         "build": Dict({
             "in": Str() // Default("build.yaml") // Description("Input file with the program blocks to build")
