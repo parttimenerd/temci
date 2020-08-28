@@ -30,6 +30,7 @@ class Screen:
         self.x = 0
         self.y = self.keep_first_lines
         self.print_buffer_on_exit = print_buffer_on_exit
+        self.enabled = True
         if scroll:
             t = threading.Thread(target=self._create_scroll_thread())
             t.setDaemon(True)
@@ -42,34 +43,40 @@ class Screen:
                 curses.flushinp()
                 updated = True
                 if c == curses.KEY_LEFT:
-                    self.move_cursor(x_offset=-1)
+                    self._move_cursor(x_offset=-1)
                 elif c == curses.KEY_RIGHT:
-                    self.move_cursor(x_offset=1)
+                    self._move_cursor(x_offset=1)
                 elif c == curses.KEY_UP or c == curses.KEY_SR:
-                    self.move_cursor(y_offset=-1)
+                    self._move_cursor(y_offset=-1)
                 elif c == curses.KEY_DOWN or c == curses.KEY_SF:
-                    self.move_cursor(y_offset=1)
+                    self._move_cursor(y_offset=1)
                 else:
                     updated = False
-                time.sleep(0.05)
                 if updated:
-                    self.flush2()
+                    self._flush2()
+                time.sleep(0.05)
         return func
 
     def __enter__(self):
         return self
 
-    def copy_over(self):
+    def _copy_over(self):
         self._shown_buffer = self.buffer
 
     def reset(self):
+        """
+        Clear the current screen recording (does not change the displayed screen)
+        """
         self.current_line = 0
         self.buffer = [""]
 
     def isatty(self):
+        """ Only required for click """
         return True
 
     def write(self, text: str):
+       if not self.enabled:
+           pass
        text = text.replace("\n", "\r\n")
        for line in text.splitlines(keepends=True):
            first = True
@@ -95,29 +102,38 @@ class Screen:
     def flush(self):
         pass
 
-    def flush2(self):
+    def display(self):
+        """
+        Replace the current screen with the recorded. Call reset() if you don't want to add to this screen.
+        """
+        self._copy_over()
+        self._flush2()
+
+
+    def _flush2(self):
         """ Refreshes the screen """
-        self.scr.refresh()
         max_y, max_x = self.scr.getmaxyx()
         for y in range(0, min(max_y, self.keep_first_lines, len(self._shown_buffer))):
             self.scr.addstr(0, y, self._shown_buffer[y][0:max_x].replace("\\[", ""))
         end = max(0, min(len(self._shown_buffer) - 1, max_y - self.keep_first_lines + self.y))
         for y in range(self.y, end):
             self.scr.addstr(y + self.keep_first_lines - self.y, 0, " " * max_x)
-            self.scr.addstr(y + self.keep_first_lines - self.y, 0, self._shown_buffer[y][self.x:min(len(self._shown_buffer[y]) - self.x, max_x) + self.x])
+            self.scr.addstr(y + self.keep_first_lines - self.y, 0,
+                            self._shown_buffer[y][self.x:min(len(self._shown_buffer[y]) - self.x, max_x) + self.x])
         for y in range(end + self.keep_first_lines - self.y, max_y):
             try:
                 self.scr.addstr(y, 0, " " * max_x)
             except:
                 pass
+        self.scr.refresh()
 
-    def move_cursor(self, x_offset: int = 0, y_offset: int = 0):
+    def _move_cursor(self, x_offset: int = 0, y_offset: int = 0):
         self.x = max(0, self.x + x_offset)
         self.y = max(self.keep_first_lines, self.y + y_offset)
 
     def writelines(self, lines: List[str]):
         for line in lines:
-            self.write(line.replace("\n", "\r\n"))
+            self.write(line)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
@@ -130,3 +146,9 @@ class Screen:
             pass
         if self.print_buffer_on_exit:
             sys.stdout.writelines([s + "\n" for s in self._shown_buffer])
+
+    def enable(self):
+        self.enabled = True
+
+    def disable(self):
+        self.enabled = False

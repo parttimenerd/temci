@@ -1,7 +1,6 @@
 import copy
 import random
 import traceback
-from pprint import pprint
 
 from temci.build.build_processor import BuildProcessor
 from temci.build.builder import Builder, BuildError
@@ -155,7 +154,6 @@ class RunProcessor:
                                         to_bench_count))
                 return False
         if self.block_run_count >= self.maximum_of_max_runs() and self.block_run_count >= self.maximum_of_min_runs():
-            #print("benchmarked too often, block run count ", self.block_run_count, self.block_run_count + self.run_block_size > self.min_runs)
             logging.warning("Benchmarked program blocks too often and aborted therefore now.")
             return False
         return True
@@ -209,48 +207,75 @@ class RunProcessor:
             start_label = discard_label if self.discarded_runs > 0 else label
             label_format = "{:32s}"
             if show_progress:
-                run_count = [0]
 
                 def bench(run: int) -> bool:
                     if run < self.discarded_runs:
-                        runs.label = label_format.format(discard_label)
                         self._benchmarking_block_run(block_size=1, discard=True)
                     else:
-                        if self._finished() or all(b.max_runs < run_count[0] for b in self.run_blocks):
+                        recorded_run = run - self.discarded_runs
+                        if self._finished() or all(b.max_runs < recorded_run for b in self.run_blocks):
                             return False
-                        self._benchmarking_block_run(run=run_count[0])
-                        run_count[0] += 1
-                    if run == self.discarded_runs - 1:
-                        runs.label = label_format.format(label)
+                        self._benchmarking_block_run(run=recorded_run)
                     return True
+
                 import click
                 with click.progressbar(range(0, self.max_runs + self.discarded_runs),
                                        label=label_format.format(start_label),
                                        file=None if self.pool.run_driver.runs_benchmarks else "-") as runs:
+                    discard_label = "Discarded benchmark {{}} out of {}".format(self.discarded_runs)
+                    if self.fixed_runs:
+                        label = "Benchmark {{}} out of {}".format(self.max_runs)
+                    else:
+                        label = "Benchmark {{}} out of {} to {}".format(self.min_runs, self.max_runs)
+
+                    def alter_label(run: int):
+                        if run < self.discarded_runs:
+                            runs.label = label_format.format(discard_label.format(run + 1))
+                        else:
+                            runs.label = label_format.format(label.format(run - self.discarded_runs + 1))
+
                     runs.short_limit = 0
                     every = Settings()["run/watch_every"]
                     if Settings()["run/watch"]:
                         with Screen(scroll=True, keep_first_lines=1) as f:
-                            sys.stdout = f
-                            sys.stderr = f
-                            runs.file = f if self.pool.run_driver.runs_benchmarks else "-"
                             import click._termui_impl
                             click._termui_impl.BEFORE_BAR = "\r"
                             click._termui_impl.AFTER_BAR = "\n"
-                            for run in runs:
+                            runs.file = f if self.pool.run_driver.runs_benchmarks else "-"
+                            runs._last_line = ""
+
+                            def render():
+                                f.reset()
+                                runs._last_line = ""
+                                runs.render_progress()
                                 f.advance_line()
                                 print(ReporterRegistry.get_for_name("console", self.stats_helper).report(
                                     with_tester_results=False, to_string=True), file=f)
-                                if run % every == 0:
-                                    f.copy_over()
-                                    f.flush2()
+
+                            for run in runs:
+                                alter_label(run)
+                                f.enable()
+                                render()
+                                if run % every == 0 or True:
+                                    f.display()
                                 f.reset()
                                 if not bench(run):
                                     break
+                                f.disable()
+                            runs.finish()
+                            render()
+                            f.display()
+
                     else:
+                        alter_label(0)
                         for run in runs:
+                            alter_label(run)
+                            runs._last_line = ""
+                            runs.render_progress()
                             if not bench(run):
                                 break
+                        runs.finish()
+                        runs.render_progress()
             else:
                 time_per_run = self._make_discarded_runs()
                 last_round_time = time.time()
@@ -267,7 +292,7 @@ class RunProcessor:
                     and self.show_report:
                 self.print_report()
             raise
-        if self.show_report:
+        if self.show_report and not Settings()["run/watch"]:
             self.print_report()
         self.store_and_teardown()
 
