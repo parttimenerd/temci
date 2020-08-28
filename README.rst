@@ -47,9 +47,13 @@ After this, we can benchmark both commands with temci:
     # benchmark both commands 20 times
     temci short exec "grep '[ab]*' -R ." "grep 'a*' -R ." --runs 10
 
+    # append --watch to get report (in which you can move with the arrow keys and scroll)
+    # after every benchmark completed (use --watch_every to decrease interval)
+    temci short exec "grep '[ab]*' -R ." "grep 'a*' -R ." --runs 10 --watch
+
     # if you want to improve the stability your benchmarks, run them with root privileges
     # the benchmarked programs are run with your current privileges
-    temci short exec "grep '[ab]*' -R ." "grep 'a*' -R ." --runs 10 --sudo
+    temci short exec "grep '[ab]*' -R ." "grep 'a*' -R ." --runs 10 --sudo --preset usable
 
 This results in a ``run_output.yaml`` file that should look like:
 
