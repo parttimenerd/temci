@@ -3,7 +3,7 @@ import os
 import sys
 import threading
 import time
-from typing import Callable
+from typing import Callable, List
 
 
 class Screen:
@@ -70,6 +70,7 @@ class Screen:
         return True
 
     def write(self, text: str):
+       text = text.replace("\n", "\r\n")
        for line in text.splitlines(keepends=True):
            first = True
            for part in line[0:len(line) - (1 if line.endswith("\n") else 0)].split("\r"):
@@ -114,14 +115,18 @@ class Screen:
         self.x = max(0, self.x + x_offset)
         self.y = max(self.keep_first_lines, self.y + y_offset)
 
+    def writelines(self, lines: List[str]):
+        for line in lines:
+            self.write(line.replace("\n", "\r\n"))
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
             curses.nocbreak()
-            self.scr.keypad(0)
+            self.scr.keypad(False)
             curses.echo()
             curses.endwin()
             os.system('stty sane')
         except BaseException as ex:
             pass
         if self.print_buffer_on_exit:
-            sys.stdout.writelines([s + "\n" for s in self.buffer])
+            sys.stdout.writelines([s + "\n" for s in self._shown_buffer])

@@ -228,9 +228,11 @@ class RunProcessor:
                                        label=label_format.format(start_label),
                                        file=None if self.pool.run_driver.runs_benchmarks else "-") as runs:
                     runs.short_limit = 0
-                    every = Settings()["run/watch_every"] + 5
+                    every = Settings()["run/watch_every"]
                     if Settings()["run/watch"]:
                         with Screen(scroll=True, keep_first_lines=1) as f:
+                            sys.stdout = f
+                            sys.stderr = f
                             runs.file = f if self.pool.run_driver.runs_benchmarks else "-"
                             import click._termui_impl
                             click._termui_impl.BEFORE_BAR = "\r"
