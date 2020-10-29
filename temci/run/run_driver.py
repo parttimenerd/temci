@@ -1081,7 +1081,7 @@ class ValidPerfStatPropertyList(Type):
         if "wall-clock" in value:
             value = value.copy()
             value.remove("wall-clock")
-        cmd = "perf stat -x ';' -e {props} -- /bin/echo".format(props=",".join(value))
+        cmd = "perf stat -x ';' -e {props} -- true".format(props=",".join(value))
         proc = subprocess.Popen(["/bin/sh", "-c", cmd], stdout=subprocess.DEVNULL,
                                 stderr=subprocess.PIPE, universal_newlines=True)
         out, err = proc.communicate()
