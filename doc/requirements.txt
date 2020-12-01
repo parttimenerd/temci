@@ -1,5 +1,5 @@
 sphinx-autodoc-typehints
-cpuset-py3
+cpuset-py3==1.0.2
 rainbow_logging_handler
 pytimeparse
 humanfriendly
