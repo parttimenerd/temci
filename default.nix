@@ -1,8 +1,8 @@
 { pkgs ? import (fetchTarball {
     # Commit hash from `git ls-remote https://github.com/NixOS/nixpkgs-channels nixpkgs-unstable`
-    url = https://github.com/nixos/nixpkgs/archive/3b4df94aeb6e215085d08e3d5b0edc1313b9f584.tar.gz;
+    url = https://github.com/nixos/nixpkgs/archive/502845c3e31ef3de0e424f3fcb09217df2ce6df6.tar.gz;
     # Hash obtained using `nix-prefetch-url --unpack <url>`
-    sha256 = "1z8fnqxi0zd3wmjnmc4l2s4nq812mx0h4r09zdqi5si2in6rksxs";
+    sha256 = "0fcqpsy6y7dgn0y0wgpa56gsg0b0p8avlpjrd79fp4mp9bl18nda";
   }) {},
   # ignore untracked files in local checkout
   src ? if builtins.pathExists ./.git then builtins.fetchGit { url = ./.; } else ./. }:
