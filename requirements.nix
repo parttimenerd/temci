@@ -14,12 +14,7 @@ let
   inherit (pkgs) makeWrapper;
   inherit (pkgs.lib) fix' extends inNixShell;
 
-  pythonPackages =
-  import "${toString pkgs.path}/pkgs/top-level/python-packages.nix" {
-    inherit pkgs;
-    inherit (pkgs) stdenv;
-    python = pkgs.python37;
-  };
+  pythonPackages = pkgs.python37Packages;
 
   commonBuildInputs = [];
   commonDoCheck = false;
