@@ -10,6 +10,10 @@ with pkgs.python37Packages;
 let
   python = import ./requirements.nix { inherit pkgs; };
   pypi = python.packages;
+  click_git = click.overrideAttrs (attrs: {
+    postPatch = "";
+    src = builtins.fetchGit { url = https://github.com/pallets/click.git; rev = "baea6233ea2f5b6c40f40edde6e297e25e3d2b94"; };
+  });
 in buildPythonApplication rec {
   name = "temci-${version}";
   version = "local";

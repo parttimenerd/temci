@@ -3,8 +3,8 @@
 temci
 =====
 
-.. image:: https://travis-ci.org/parttimenerd/temci.svg?branch=master
-    :target: https://travis-ci.org/parttimenerd/temci
+.. image:: https://github.com/parttimenerd/temci/actions/workflows/test/badge.svg
+    :target: https://github.com/parttimenerd/temci/actions/workflows/test.yml
 
 .. image:: https://readthedocs.org/projects/temci/badge/?version=latest&style=plain
     :target: https://temci.readthedocs.org

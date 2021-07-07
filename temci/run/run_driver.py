@@ -1034,7 +1034,9 @@ def is_perf_available() -> bool:
     Is the ``perf`` tool available?
     """
     try:
-        subprocess.check_call(["perf", "help"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.check_call("perf stat -x';' -e cycles,cpu-clock,task-clock,instructions,branch-misses,"
+                              "cache-references -- echo 1", shell=True,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except BaseException:
         return False
     return True
@@ -1074,7 +1076,7 @@ class ValidPerfStatPropertyList(Type):
 
     def _instancecheck_impl(self, value, info: Info = NoInfo()):
         if not isinstance(value, List(Str())):
-            return info.errormsg(self)
+            return info.errormsg(self, value)
         if not is_perf_available():
             return info.wrap(True)
         assert isinstance(value, list)
