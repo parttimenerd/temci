@@ -12,7 +12,7 @@
 let
 
   inherit (pkgs) makeWrapper;
-  inherit (pkgs.stdenv.lib) fix' extends inNixShell;
+  inherit (pkgs.lib) fix' extends inNixShell;
 
   pythonPackages =
   import "${toString pkgs.path}/pkgs/top-level/python-packages.nix" {
@@ -85,7 +85,7 @@ let
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
-      meta = with pkgs.stdenv.lib; {
+      meta = with pkgs.lib; {
         homepage = "https://github.com/tartley/colorama";
         license = licenses.bsdOriginal;
         description = "Cross-platform colored terminal text.";
@@ -101,7 +101,7 @@ let
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
-      meta = with pkgs.stdenv.lib; {
+      meta = with pkgs.lib; {
         homepage = "https://github.com/parttimenerd/cpuset";
         license = "UNKNOWN";
         description = "Fork of cpuset (https://github.com/lpechacek/cpuset) by Alex Tsariounov that works with python3";
@@ -117,7 +117,7 @@ let
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
-      meta = with pkgs.stdenv.lib; {
+      meta = with pkgs.lib; {
         homepage = "http://code.google.com/p/logutils/";
         license = "Copyright (C) 2010-2017 by Vinay Sajip. All Rights Reserved. See LICENSE.txt for license.";
         description = "Logging utilities";
@@ -136,7 +136,7 @@ let
         self."colorama"
         self."logutils"
       ];
-      meta = with pkgs.stdenv.lib; {
+      meta = with pkgs.lib; {
         homepage = "https://github.com/laysakura/rainbow_logging_handler";
         license = "LICENSE.txt";
         description = "Ultimate Python colorized logger with user-custom color";
