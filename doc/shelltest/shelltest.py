@@ -4,7 +4,7 @@ import sys
 import tempfile
 
 from docutils.parsers.rst import directives
-from sphinx.directives import CodeBlock
+from sphinx.directives.code import CodeBlock
 
 
 import unittest
