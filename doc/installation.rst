@@ -53,11 +53,13 @@ The Linux packages can be installed by calling the ``install_packages.sh`` scrip
 After installing these packages, temci can be installed by calling:
 
 .. code:: sh
-
+        # From GitHub
         pip3 install git+https://github.com/parttimenerd/temci.git
 
-A package called temci exists on pypi, but temci depends on an unpublished version of the ``click`` library that is only available on
-github. This should change in the near future when the version 8.0 of ``click`` is published.
+        # From PyPi
+        pip3 install temci
+
+To use temci plugins that need super user privileges, e.g. cpu sets, install temci globally.
 
 If there a problems with ``click`` (if you get an exception like ``ImportError: cannot import name 'ParameterSource'``), try installing
 it directly from github:

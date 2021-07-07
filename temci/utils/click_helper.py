@@ -7,7 +7,8 @@ import traceback
 import warnings
 
 import click
-from click import Context, ParameterSource
+from click import Context
+from click.core import ParameterSource
 
 from temci.utils.typecheck import *
 from temci.utils.settings import Settings, SettingsError

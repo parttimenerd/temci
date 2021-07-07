@@ -10,17 +10,13 @@ with pkgs.python37Packages;
 let
   python = import ./requirements.nix { inherit pkgs; };
   pypi = python.packages;
-  click_git = click.overrideAttrs (attrs: {
-    postPatch = "";
-    src = builtins.fetchGit { url = https://github.com/pallets/click.git; rev = "f537a208591088499b388b06b2aca4efd5445119"; };
-  });
 in buildPythonApplication rec {
   name = "temci-${version}";
   version = "local";
   inherit src;
   checkInputs = [ pytest pytestrunner ];
   propagatedBuildInputs = [
-    click_git
+    click
     humanfriendly
     fn
     pytimeparse

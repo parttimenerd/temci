@@ -1,6 +1,13 @@
 Changelog
 =========
 
+0.8.3
+-----
+- add `--watch`: prints console report continuously
+- improve progressbar
+- `perf` runner works on NixOS
+- use new click version (temci is installable via pip click again)
+
 0.8.2
 -----
 - improve HTML2 reporter

@@ -221,7 +221,7 @@ class RunProcessor:
                 import click
                 with click.progressbar(range(0, self.max_runs + self.discarded_runs),
                                        label=label_format.format(start_label),
-                                       file=None if self.pool.run_driver.runs_benchmarks else "-") as runs:
+                                       file=None if self.pool.run_driver.runs_benchmarks else open(os.devnull, 'w')) as runs:
                     discard_label = "Discarded benchmark {{}} out of {}".format(self.discarded_runs)
                     if self.fixed_runs:
                         label = "Benchmark {{}} out of {}".format(self.max_runs)
