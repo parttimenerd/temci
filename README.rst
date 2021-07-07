@@ -3,7 +3,7 @@
 temci
 =====
 
-.. image:: https://github.com/parttimenerd/temci/actions/workflows/test/badge.svg
+.. image:: https://github.com/parttimenerd/temci/actions/workflows/test.yml/badge.svg
     :target: https://github.com/parttimenerd/temci/actions/workflows/test.yml
 
 .. image:: https://readthedocs.org/projects/temci/badge/?version=latest&style=plain
