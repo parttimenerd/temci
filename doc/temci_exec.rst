@@ -77,6 +77,8 @@ Basic benchmarking of two programs using the :ref:`time<time runner>`:
          stime         mean =           0.000, deviation =   0.0
          utime         mean =           0.000, deviation =   0.0
 
+*Use --watch to display the report continuously, every --watch_every (default is 1) seconds.*
+
 The produced ``run_output.yaml`` file is:
 
 .. code:: yaml
@@ -374,6 +376,12 @@ flags are of the schema ``--SETTING/--no-SETTING``):
 
     # Store the result file after each set of blocks is benchmarked
     store_often:         Bool()
+
+    # Show the report continuously
+    watch: false
+
+    # Update the screen nth run (less updates are better for benchmarks)
+    watch_every: 1
 
     cpuset:
         # Use cpuset functionality?

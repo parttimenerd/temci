@@ -30,7 +30,7 @@ _IMAGE = """
 _IFRAME = """
 .. raw:: html
 
-    <iframe src="https://uqudy.serpens.uberspace.de/files/report_readme/report.html" style="width: 133.3333%;
+    <iframe src="https://mostlynerdless.de/files/report_readme/report.html" style="width: 133.3333%;
     height: 500px;
     -ms-zoom: 0.75;
     -moz-transform: scale(0.75);
