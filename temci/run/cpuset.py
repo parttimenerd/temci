@@ -316,7 +316,7 @@ class CPUSet:
         :raises EnvironmentError: if something goes wrong
         """
         # cmd = ["/bin/sh", "-c", "sudo cset {}".format(argument)]
-        cmd = ["/bin/sh", "-c", "python3 -ct 'import cpuset.main; print(cpuset.main.main())' " + argument]
+        cmd = ["/bin/sh", "-c", "python3 -c 'import cpuset.main; print(cpuset.main.main())' " + argument]
         proc = subprocess.Popen(cmd,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
