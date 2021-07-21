@@ -1,6 +1,10 @@
 Changelog
 =========
 
+0.8.4
+-----
+- Fix cpu set bug
+
 0.8.3
 -----
 - add `--watch`: prints console report continuously
