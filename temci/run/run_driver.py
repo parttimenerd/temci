@@ -754,6 +754,7 @@ class ExecRunDriver(AbstractRunDriver):
             cmd_tmp_file.flush()
             cmd_tmp_file.close()
             if bench_as_different_user():
+                shutil.chown(cmd_tmp_file.name, get_bench_user())
                 cmd = pre + " sudo -u {} -E  PATH={} sh {}".format(get_bench_user(),
                                                                shlex.quote(Settings()["env"]["PATH"]),
                                                                cmd_tmp_file.name) + post
