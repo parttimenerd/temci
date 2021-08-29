@@ -500,6 +500,21 @@ class DisableIntelTurbo(AbstractRunDriverPlugin):
         self._exec_command("echo 0 > /sys/devices/system/cpu/intel_pstate/no_turbo")
 
 
+@register(ExecRunDriver, "disable_amd_boost", Dict({}))
+class DisableIntelTurbo(AbstractRunDriverPlugin):
+    """
+    Disable amd turbo boost
+    """
+
+    needs_root_privileges = True
+
+    def setup(self):
+        self._exec_command("echo 0 > /sys/devices/system/cpu/cpufreq/boost")
+
+    def teardown(self):
+        self._exec_command("echo 1 > /sys/devices/system/cpu/cpufreq/boost")
+
+
 @register(ExecRunDriver, "cpuset", Dict({}))
 class CPUSet(AbstractRunDriverPlugin):
     """
