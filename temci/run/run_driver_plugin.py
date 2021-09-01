@@ -478,11 +478,15 @@ class DisableHyperThreading(AbstractRunDriverPlugin):
 
     needs_root_privileges = True
 
+    def __init__(self, misc_settings):
+        super().__init__(misc_settings)
+        self.disabled_cores = []  # type: t.List[int]
+
     def setup(self):
-        AbstractRunWorkerPool.disable_hyper_threading()
+        self.disabled_cores = AbstractRunWorkerPool.disable_hyper_threading()
 
     def teardown(self):
-        AbstractRunWorkerPool.enable_hyper_threading()
+        AbstractRunWorkerPool.enable_hyper_threading(self.disabled_cores)
 
 
 @register(ExecRunDriver, "disable_turbo_boost", Dict({}))

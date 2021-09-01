@@ -47,8 +47,9 @@ class AbstractRunWorkerPool:
         self.run_driver = RunDriverRegistry().get_for_name(run_driver_name)  # type: AbstractRunDriver
         """ Used run driver instance """
         self.cpuset = None  # type: CPUSet
-        self.end_time = end_time
         """ Used cpu set instance """
+        self.end_time = end_time
+        self._disabled_ht_cores = []  # type: t.List[int]
         if Settings()["run/disable_hyper_threading"]:
             if not has_root_privileges():
                 logging.warning("Can't disable hyper threading as root privileges are missing")
@@ -56,7 +57,7 @@ class AbstractRunWorkerPool:
             #if Settings()["run/cpuset/active"]:
             #    logging.warning("Currently disabling hyper threading doesn't work well in combination with cpusets")
             #    return
-            self.disable_hyper_threading()
+            self._disabled_ht_cores = self.disable_hyper_threading()
 
     def submit(self, block: RunProgramBlock, id: int, runs: int):
         """
@@ -87,7 +88,7 @@ class AbstractRunWorkerPool:
         This should be called if all benchmarking with this pool is finished.
         """
         if Settings()["run/disable_hyper_threading"]:
-            self.enable_hyper_threading()
+            self.enable_hyper_threading(self._disabled_ht_cores)
 
     def time_left(self) -> float:
         """
@@ -160,14 +161,17 @@ class AbstractRunWorkerPool:
         return -1 if self.end_time == -1 else max(self.time_left(), 0)
 
     @classmethod
-    def disable_hyper_threading(cls):
+    def disable_hyper_threading(cls) -> t.List[int]:
         if has_root_privileges():
-            cls._set_status_of_ht_cores(cls.get_hyper_threading_cores(), 0)
+            cores = cls.get_hyper_threading_cores()
+            cls._set_status_of_ht_cores(cores, 0)
+            return cores
+        return []
 
     @classmethod
-    def enable_hyper_threading(cls):
+    def enable_hyper_threading(cls, disabled_cores: t.List[int]):
         if has_root_privileges():
-            cls._set_status_of_ht_cores(cls.get_hyper_threading_cores(), 1)
+            cls._set_status_of_ht_cores(disabled_cores, 1)
 
     @classmethod
     def _set_status_of_ht_cores(cls, ht_cores: t.List[int], online_status: int):
