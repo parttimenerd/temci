@@ -485,8 +485,39 @@ class DisableHyperThreading(AbstractRunDriverPlugin):
         AbstractRunWorkerPool.enable_hyper_threading()
 
 
+@register(ExecRunDriver, "disable_turbo_boost", Dict({}))
+class DisableTurboBoost(AbstractRunDriverPlugin):
+    """
+    Disable amd and intel turbo boost
+    """
+
+    needs_root_privileges = True
+
+    CPU_PATHS = {"intel":
+                     ("/sys/devices/system/cpu/intel_pstate/no_turbo", lambda enable: int(not enable)),
+                 "amd":
+                     ("/sys/devices/system/cpu/cpufreq/boost", int),
+                 }  # type: t.Dict[str,t.Tuple[str, t.Callable[[bool], Any]]]
+
+    def setup(self):
+        self._store(False)
+
+    def teardown(self):
+        self._store(True)
+
+    def _cpu_vendor(self) -> t.Optional[str]:
+        return ([vendor for vendor, (path, _) in self.CPU_PATHS.items() if os.path.exists(path)] + [None])[0]
+
+    def _store(self, enable: bool):
+        vendor = self._cpu_vendor()
+        if vendor is None:
+            raise EnvironmentError("CPU not supported for disabling turbo boost")
+        path, mod = self.CPU_PATHS[vendor]
+        self._exec_command(f"echo {mod(enable)} > {path}")
+
+
 @register(ExecRunDriver, "disable_intel_turbo", Dict({}))
-class DisableIntelTurbo(AbstractRunDriverPlugin):
+class DisableIntelTurbo(DisableTurboBoost):
     """
     Disable intel turbo mode
     """
@@ -494,14 +525,14 @@ class DisableIntelTurbo(AbstractRunDriverPlugin):
     needs_root_privileges = True
 
     def setup(self):
-        self._exec_command("echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo")
-
-    def teardown(self):
-        self._exec_command("echo 0 > /sys/devices/system/cpu/intel_pstate/no_turbo")
+        if self._cpu_vendor() != "intel":
+            logging.info("The disable_intel_turbo plugin is deprecated for non intel cpus, "
+                         "falls back on disable_turbo_boost")
+        super().setup()
 
 
 @register(ExecRunDriver, "disable_amd_boost", Dict({}))
-class DisableIntelTurbo(AbstractRunDriverPlugin):
+class DisableAmdTurbo(DisableTurboBoost):
     """
     Disable amd turbo boost
     """
@@ -509,10 +540,10 @@ class DisableIntelTurbo(AbstractRunDriverPlugin):
     needs_root_privileges = True
 
     def setup(self):
-        self._exec_command("echo 0 > /sys/devices/system/cpu/cpufreq/boost")
-
-    def teardown(self):
-        self._exec_command("echo 1 > /sys/devices/system/cpu/cpufreq/boost")
+        if self._cpu_vendor() != "amd":
+            logging.info("The disable_amd_boost plugin is deprecated for non amd cpus, "
+                         "falls back on disable_turbo_boost")
+        super().setup()
 
 
 @register(ExecRunDriver, "cpuset", Dict({}))

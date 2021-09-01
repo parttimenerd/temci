@@ -567,14 +567,12 @@ class ValidRusagePropertyList(ValidPropertyList):
         return True
 
 
-_INTEL = ",disable_intel_turbo" if does_command_succeed("ls /sys/devices/system/cpu/intel_pstate/no_turbo") else ""
-_AMD = ",disable_amd_boost" if does_command_succeed("ls /sys/devices/system/cpu/cpufreq/boost") else ""
-
 PRESET_PLUGIN_MODES = {
     "none": ("", "enable none by default"),
-    "all": ("cpu_governor,disable_swap,sync,stop_start,other_nice,nice,disable_aslr,disable_ht,cpuset" + _INTEL + _AMD,
+    "all": ("cpu_governor,disable_swap,sync,stop_start,other_nice,nice,disable_aslr,disable_ht,cpuset,"
+            "disable_turbo_boost",
             "enable all, might freeze your system"),
-    "usable": ("cpu_governor,disable_swap,sync,nice,disable_aslr,disable_ht,cpuset" + _INTEL + _AMD,
+    "usable": ("cpu_governor,disable_swap,sync,nice,disable_aslr,disable_ht,cpuset,disable_turbo_boost",
                "like 'all' but doesn't affect other processes")
 }
 
