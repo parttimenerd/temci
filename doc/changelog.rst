@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.8.5
+-----
+- add `disable_turbo_boost` plugin, supporting amd and intel cpus
+- fix #133 (not re-enabling hyper threading properly)
+
 0.8.4
 -----
 - Fix cpu set bug
