@@ -57,7 +57,7 @@ class FNumber:
         "parentheses_mode": ExactEither("d", "o") // Description("Mode for showing the parentheses: either "
                                                                  "d (Digits are considered significant if they "
                                                                  "don't change if the number itself changes += "
-                                                                 "$sigmas * std dev) or o (digits are considered"
+                                                                 "$sigmas * std dev) or o (digits are considered "
                                                                  "significant if they are bigger than $sigmas * std "
                                                                  "dev)")
                     // Default("o")

@@ -381,10 +381,11 @@ class AbstractRunDriver(AbstractRegistry):
                         // Description("Optional build config to integrate the build step into the run step")})
 
     @classmethod
-    def store_example_config(cls, file: str):
+    def store_example_config(cls, file: str, comment_out_defaults: bool = False):
         import click
         with click.open_file(file, "w") as f:
-            print(List(cls.get_full_block_typescheme()).get_default_yaml(), file=f)
+            print(List(cls.get_full_block_typescheme()).get_default_yaml(comment_out_defaults=comment_out_defaults),
+                  file=f)
 
 
 class _Err:

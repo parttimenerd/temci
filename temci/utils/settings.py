@@ -249,8 +249,9 @@ class Settings(metaclass=Singleton):
                 map = yaml.safe_load(stream.read().replace("!!python/tuple", ""))
 
                 def func(key, path, value):
-                    self._set_default(path, value)
-                    self._set(path, value)
+                    if value is not None or self.get_type_scheme(path).check(value):
+                        self._set_default(path, value)
+                        self._set(path, value)
 
                 recursive_exec_for_leafs(map, func)
         except (yaml.YAMLError, IOError) as err:
@@ -304,7 +305,7 @@ class Settings(metaclass=Singleton):
         if os.path.exists(self.config_file_name) and os.path.isfile(self.config_file_name):
             self.load_file(self.config_file_name)
 
-    def get(self, key: str) -> t.Any:
+    def get(self, key: t.Union[str, t.List[str]]) -> t.Any:
         """
         Get the setting with the given key.
 
@@ -314,7 +315,7 @@ class Settings(metaclass=Singleton):
         """
         if self.is_obsolete(key):
             raise SettingsError("Using obsolete setting {!r}: {}".format(key, self.obsoleteness_reason(key)))
-        path = key.split("/")
+        path = key.split("/") if isinstance(key, str) else key
         if not self.validate_key_path(path):
             raise SettingsError("No such setting {}".format(key))
         data = self.prefs
@@ -447,7 +448,7 @@ class Settings(metaclass=Singleton):
         else:
             tmp_prefs[path[-1]] = type_scheme.get_default()
 
-    def get_type_scheme(self, key: str) -> Type:
+    def get_type_scheme(self, key: t.Union[str, t.List[str]]) -> Type:
         """
         Returns the type scheme of the given key.
 
@@ -455,10 +456,11 @@ class Settings(metaclass=Singleton):
         :return: type scheme
         :raises: SettingsError if the setting with the given key doesn't exist
         """
-        if not self.validate_key_path(key.split("/")):
-            raise SettingsError("Setting {} doesn't exist".format(key))
+        key = key.split("/") if isinstance(key, str) else key
+        if not self.validate_key_path(key):
+            raise SettingsError("Setting {} doesn't exist".format("/".join(key)))
         tmp_typ = self.type_scheme
-        for subkey in key.split("/"):
+        for subkey in key:
             tmp_typ = tmp_typ[subkey]
         return tmp_typ
 
@@ -493,14 +495,16 @@ class Settings(metaclass=Singleton):
         typecheck(value, self.get_type_scheme(key))
         return value
 
-    def store_into_file(self, file_name: str):
+    def store_into_file(self, file_name: str, comment_out_defaults: bool = False):
         """
         Stores the current settings into a yaml file with comments.
 
         :param file_name: name of the resulting file
+        :param comment_out_defaults: comment out the default values
         """
         with open(file_name, "w") as f:
-            print(self.type_scheme.get_default_yaml(defaults=self.prefs), file=f)
+            print(self.type_scheme.get_default_yaml(defaults=self.prefs,
+                                                    comment_out_defaults=comment_out_defaults), file=f)
 
     def has_log_level(self, level: str) -> bool:
         """

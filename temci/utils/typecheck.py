@@ -331,6 +331,15 @@ class Type(object):
             info.set_value(value)
         return self._instancecheck_impl(value, info)
 
+    def check(self, value) -> bool:
+        """
+        Checks whether or not the passed value has the type specified by this instance.
+
+        :param value: passed value
+        :param info: info object for creating error messages
+        """
+        return self.__instancecheck__(value).success
+
     def _instancecheck_impl(self, value, info: Info) -> InfoMsg:
         """
         This method should be implemented by all sub classes.
@@ -422,7 +431,8 @@ class Type(object):
         """
         return self.default is not None
 
-    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) \
+    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults=None,
+                         comment_out_defaults: bool = False) \
             -> t.Union[str, t.List[str]]:
         """
         Produce a YAML like string that contains the default value and the description of this type and its possible sub types.
@@ -431,6 +441,7 @@ class Type(object):
         :param indentation: indentation width in number of white spaces
         :param str_list: return a list of lines instead of a combined string?
         :param defaults: default value that should be used instead of the default value of this instance
+        :param comment_out_defaults: comment out default values
         """
         if defaults is None:
             defaults = self.get_default()
@@ -862,7 +873,8 @@ class List(Type):
     def get_default(self) -> t.Any:
         return self.default.default if super().has_default() else [self.elem_type.get_default()]
 
-    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> t.Union[str, t.List[str]]:
+    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults=None,
+                         comment_out_defaults: bool = False) -> t.Union[str, t.List[str]]:
         if defaults is None:
             defaults = self.get_default()
         else:
@@ -870,8 +882,9 @@ class List(Type):
         ind = " " * indents * indentation
         ret_strs = [" " * indents * indentation + "[]"]
         if len(defaults) > 0:
-            l = self.elem_type.get_default_yaml(str_list=True, indentation=indentation, defaults=defaults[0])
-            ret_strs = [ind + " " * (indentation - 3) + " - " + l[0]] + [ind + (" " * indentation) + s for s in l]
+            l = self.elem_type.get_default_yaml(str_list=True, indentation=indentation, defaults=defaults[0],
+                                                comment_out_defaults=comment_out_defaults)
+            ret_strs = [ind + " " * (indentation - 3) + " - " + l[0]] + [ind + (" " * indentation) + s for s in l[1:]]
         return ret_strs if str_list else "\n".join(ret_strs)
 
 
@@ -1102,7 +1115,9 @@ class Dict(Type):
             default_dict = self.default.default
         return all(self[key].has_default() for key in self.data if key not in default_dict and not self.is_obsolete(key))
 
-    def get_default_yaml(self, indent: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> str:
+    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False,
+                         defaults=None, comment_out_defaults: bool = False) \
+            -> t.Union[str, t.List[str]]:
         if len(self.data.keys()) == 0:
             ret = "{}"
             return [ret] if str_list else ret
@@ -1129,19 +1144,27 @@ class Dict(Type):
                 continue
             strs.append("")
             if self.data[key].description is not None:
-                strs.extend(self._format_comment(self.data[key].description, width=100 - indent * indentation))
+                strs.extend(self._format_comment(self.data[key].description, width=100 - indents * indentation))
             key_yaml = yaml.dump(key, default_flow_style=None).split("\n")[0]
-            if len(self.data[key].get_default_yaml(str_list=True, defaults=defaults[key])) == 1 and \
+            if len(self.data[key].get_default_yaml(str_list=True, defaults=defaults[key],
+                                                   comment_out_defaults=comment_out_defaults)) == 1 and \
                     (not isinstance(self.data[key], Dict) or len(self.data[key].data.keys()) == 0):
-                value_yaml = self.data[key].get_default_yaml(defaults=defaults[key])
-                strs.append("{}: {}".format(key_yaml, value_yaml.strip()))
+                value_yaml = self.data[key].get_default_yaml(defaults=defaults[key],
+                                                             comment_out_defaults=comment_out_defaults)
+                strs.append("{}{}: {}".format("#" if comment_out_defaults else "",
+                                              key_yaml, value_yaml.strip()))
             else:
-                value_yaml = self.data[key].get_default_yaml(1, indentation, str_list=True, defaults=defaults[key])
+                value_yaml = self.data[key].get_default_yaml(1, indentation, str_list=True, defaults=defaults[key],
+                                                             comment_out_defaults=comment_out_defaults)
                 strs.append("{}:".format(key_yaml))
                 strs.extend(value_yaml)
-        i_str = " " * indent * indentation
-        ret_strs = list(map(lambda x: i_str + x, strs))
+        i_str = " " * indents * indentation
+        ret_strs = [self._indent_line(i_str, x) for x in strs]
         return ret_strs if str_list else "\n".join(ret_strs)
+
+    @staticmethod
+    def _indent_line(indent: str, line: str) -> str:
+        return indent + line
 
     @staticmethod
     def _format_comment(comment: str, width: int = 80) -> t.Iterable[str]:
@@ -1343,7 +1366,8 @@ class StrList(Type, click.ParamType):
         else:
             return "StrList(allowed={})".format(repr(self.allowed_values))
 
-    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults = None) -> str:
+    def get_default_yaml(self, indents: int = 0, indentation: int = 4, str_list: bool = False, defaults=None,
+                         comment_out_defaults: bool = False) -> str:
         if defaults is None:
             defaults = self.get_default()
         else:
