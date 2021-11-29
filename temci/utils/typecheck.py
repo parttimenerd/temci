@@ -884,7 +884,7 @@ class List(Type):
         if len(defaults) > 0:
             l = self.elem_type.get_default_yaml(str_list=True, indentation=indentation, defaults=defaults[0],
                                                 comment_out_defaults=comment_out_defaults)
-            ret_strs = [ind + " " * (indentation - 3) + " - " + l[0]] + [ind + (" " * indentation) + s for s in l[1:]]
+            ret_strs = [ind + " " * (indentation - 3) + " - " + l[0]] + [ind + (" " * indentation) + s for s in l]
         return ret_strs if str_list else "\n".join(ret_strs)
 
 

@@ -382,7 +382,7 @@ def run_config(file, **kwargs):
                misc_commands["init"]["sub_commands"]["run_config"],
                common_options)
 def temci__init__run_config(file, **kwargs):
-    run_driver.ExecRunDriver.store_example_config(file, comment_out_defaults=True)
+    run_driver.ExecRunDriver.store_example_config(file)
 
 
 @cli.command(short_help=command_docs["build"])
