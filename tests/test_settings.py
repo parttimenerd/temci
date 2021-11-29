@@ -9,7 +9,3 @@ def test_config_not_ignored():
     Issue "Config now seems to be ignored completely after type checking #62"
     """
     assert "3 single benchmarks" in run_temci("short exec ls", settings={"run": {"runs": 3}}).out
-
-
-def test_settings_set_config_option_not_to_itself():
-    assert run_temci("init settings").yaml_contents["temci.yaml"]["settings"] != "temci.yaml"
