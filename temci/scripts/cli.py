@@ -67,7 +67,7 @@ def cli():
 
 
 command_docs = {
-    "build": "Build program blocks",
+    "build": "Build programs and output modified run config file",
     "report": "Generate a report from benchmarking result",
     "init": "Helper commands to initialize files (like settings)",
     "completion": "Creates completion files for several shells.",

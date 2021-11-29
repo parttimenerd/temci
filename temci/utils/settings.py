@@ -153,7 +153,10 @@ class Settings(metaclass=Singleton):
             "in": Str() // Default("build.yaml") // Description("Input file with the program blocks to build")
                 // CompletionHint(zsh=YAML_FILE_COMPLETION_HINT),
             "out": Str() // Default("run_config.yaml") // Description("Resulting run config file"),
-            "threads": PositiveInt() // Default(1) // Description("Number of threads that build simultaneously"),
+            "threads": PositiveInt() // Default(1) // Description("Number of simultaneous builds for a specific "
+                                                                  "program block, only makes sense when build_config/number > 1, "
+                                                                  "and if the build commands create a different binary every "
+                                                                  "time they are run"),
             "rand": Obsolete("Removed builder randomization", "0.8") // Description("Obsolete randomization configuration")
         }, unknown_keys=True),
         "package": Obsolete("Removed temci package", "0.8"),
