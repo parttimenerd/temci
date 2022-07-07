@@ -22,7 +22,6 @@ setup(
     install_requires=[
         'click',
         'humanfriendly', 'pytimeparse',
-        'fn',
         'cpuset-py3',
         'wcwidth',
         'rainbow_logging_handler',
