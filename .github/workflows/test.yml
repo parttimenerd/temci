@@ -13,10 +13,10 @@ jobs:
       - run: nix build
   pip:
     runs-on: ubuntu-latest
-    strategy: 
+    strategy:
       fail-fast: false
       matrix:
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: [3.6, 3.7, 3.8, 3.9, 3.10]
     steps:
       - name: install fonts
         run: sudo apt-get install fonts-noto-color-emoji
@@ -32,5 +32,5 @@ jobs:
           pip3 install -e .
       - name: test
         run: ./test.sh
-      - name: test 2  
+      - name: test 2
         run:  TEMCI_TEST_CMD=1 ./test.sh
