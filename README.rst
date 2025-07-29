@@ -1,5 +1,7 @@
 .. title:: temci
 
+*This project has sadly fallen off my radar over the last couple of years. So don't expect much development.*
+
 temci
 =====
 
